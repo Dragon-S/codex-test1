@@ -24,6 +24,8 @@ const state = {
   subtitle: "English",
   audioTrack: "English 5.1",
   queueOpen: true,
+  fullscreen: false,
+  fullscreenQueueOpen: false,
 };
 
 const app = document.querySelector("#app");
@@ -143,6 +145,8 @@ function titlebar(label, trailing = "") {
 }
 
 function variantA() {
+  if (state.fullscreen) return fullscreenVariantA();
+
   return `
     <div class="window variant-a">
       ${titlebar("A Slow Arrival", `
@@ -170,6 +174,56 @@ function variantA() {
             : ""
         }
       </div>
+    </div>
+  `;
+}
+
+function fullscreenVariantA() {
+  return `
+    <div class="fullscreen-player">
+      ${poster("fullscreen-poster")}
+      <header class="fullscreen-topbar">
+        <span><strong>${currentMedia().title}</strong><small>${state.playlist} · 1 / 5</small></span>
+        <span>
+          <button data-action="toggle-fullscreen-queue" aria-label="显示播放列表">☷</button>
+          <button data-action="exit-fullscreen" aria-label="退出全屏">⤢</button>
+        </span>
+      </header>
+      <section class="fullscreen-osc" aria-label="全屏播放控制器">
+        ${scrubber()}
+        <div class="fullscreen-controls">
+          <span class="fullscreen-now">
+            <strong>${currentMedia().title}</strong>
+            <small>${currentMedia().meta}</small>
+          </span>
+          <span class="fullscreen-transport">
+            <button aria-label="上一个">◀◀</button>
+            <button class="primary-play" data-action="toggle-play" aria-label="${state.playing ? "暂停" : "播放"}">
+              ${state.playing ? "Ⅱ" : "▶"}
+            </button>
+            <button aria-label="下一个">▶▶</button>
+          </span>
+          <span class="fullscreen-tools">
+            <label aria-label="音量">◖ <input data-action="volume" type="range" min="0" max="100" value="${state.volume}" /></label>
+            ${trackMenus({ labels: false })}
+            <button data-action="pip" aria-label="画中画">▣</button>
+            <button data-action="exit-fullscreen" aria-label="退出全屏">⤢</button>
+          </span>
+        </div>
+      </section>
+      ${
+        state.fullscreenQueueOpen
+          ? `<aside class="fullscreen-queue">
+              <div class="pane-heading">
+                <span><small>播放列表</small><strong>${state.playlist}</strong></span>
+                <button data-action="toggle-fullscreen-queue" aria-label="关闭播放列表">×</button>
+              </div>
+              <div class="media-list">${mediaRows()}</div>
+              <button class="add-media">＋ 添加本地媒体</button>
+            </aside>`
+          : ""
+      }
+      <div class="fullscreen-hint">移动鼠标显示控制器 · Esc 退出全屏 · P 显示播放列表</div>
     </div>
   `;
 }
@@ -332,7 +386,10 @@ function cycleVariant(direction) {
 function render(modal = "") {
   const variant = getVariant();
   const renderVariant = { A: variantA, B: variantB, C: variantC }[variant];
-  app.innerHTML = `${renderVariant()}${stateInspector()}${switcher(variant)}${modal}`;
+  app.innerHTML =
+    variant === "A" && state.fullscreen
+      ? `${renderVariant()}${modal}`
+      : `${renderVariant()}${stateInspector()}${switcher(variant)}${modal}`;
 }
 
 app.addEventListener("click", (event) => {
@@ -342,6 +399,12 @@ app.addEventListener("click", (event) => {
 
   if (action === "toggle-play") state.playing = !state.playing;
   if (action === "toggle-queue") state.queueOpen = !state.queueOpen;
+  if (action === "fullscreen") state.fullscreen = true;
+  if (action === "exit-fullscreen") {
+    state.fullscreen = false;
+    state.fullscreenQueueOpen = false;
+  }
+  if (action === "toggle-fullscreen-queue") state.fullscreenQueueOpen = !state.fullscreenQueueOpen;
   if (action === "previous-variant") return cycleVariant(-1);
   if (action === "next-variant") return cycleVariant(1);
   if (action === "dismiss-modal") return render();
@@ -371,6 +434,15 @@ window.addEventListener("keydown", (event) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || document.activeElement?.isContentEditable) return;
   if (event.key === "ArrowLeft") cycleVariant(-1);
   if (event.key === "ArrowRight") cycleVariant(1);
+  if (event.key === "Escape" && state.fullscreen) {
+    state.fullscreen = false;
+    state.fullscreenQueueOpen = false;
+    render();
+  }
+  if (event.key.toLowerCase() === "p" && state.fullscreen) {
+    state.fullscreenQueueOpen = !state.fullscreenQueueOpen;
+    render();
+  }
   if (event.code === "Space") {
     event.preventDefault();
     state.playing = !state.playing;

@@ -1,23 +1,30 @@
-# Main playback and playlist prototype
+# 主播放窗口与播放列表原型
 
-> THROWAWAY PROTOTYPE — three variants of the macOS player main window,
-> switchable via `?variant=`, on `/prototypes/main-playback-playlist/`.
+> 一次性原型——在同一路径下通过 `?variant=` 切换三种播放器主窗口方案。
 
-Run from the repository root:
+在仓库根目录运行：
 
 ```sh
-python3 -m http.server 4173
+python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
-Then open:
+然后打开：
 
 <http://localhost:4173/prototypes/main-playback-playlist/?variant=A>
 
-Use the floating switcher or the left/right arrow keys to compare:
+使用底部悬浮切换器或键盘左右方向键比较：
 
-- **A — Cinema + Queue**: playback is dominant; the current Playlist is a drawer.
-- **B — Playlist Workspace**: named Playlists and their contents are always visible.
-- **C — Native Compact**: a compact split inspired by native macOS media utilities.
+- **A — 影院 + 队列**：播放画面优先，当前播放列表作为可收起侧栏。
+- **B — 播放列表工作区**：命名播放列表及其内容始终可见。
+- **C — 原生紧凑型**：上下分区的紧凑 macOS 媒体工具。
 
-This prototype is read-only and keeps state in memory. Buttons only simulate the
-interactions needed to compare hierarchy.
+## A 的全屏原型
+
+在 A 中点击播放控制栏右侧的“全屏”按钮进入全屏原型：
+
+- 视频画面占满窗口，常规标题栏和播放列表不再挤占画面；
+- 鼠标悬停时显示顶部信息和底部悬浮播放控制器；
+- 点击顶部的播放列表按钮，或按 `P`，打开覆盖式播放列表；
+- 按 `Esc` 或点击退出按钮返回普通窗口。
+
+这个原型不会读写持久数据，所有操作都只在内存中模拟。
