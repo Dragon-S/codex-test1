@@ -1,0 +1,20 @@
+# 运行时源码。标签仅帮助阅读，构建以提交 SHA 为准。
+mpv|https://github.com/mpv-player/mpv.git|v0.41.0|41f6a645068483470267271e1d09966ca3b9f413
+ffmpeg|https://github.com/FFmpeg/FFmpeg.git|n8.1.2|38b88335f99e76ed89ff3c93f877fdefce736c13
+libplacebo|https://github.com/haasn/libplacebo.git|v6.338.2|64c1954570f1cd57f8570a57e51fb0249b57bb90
+libass|https://github.com/libass/libass.git|0.17.4|bbb3c7f1570a4a021e52683f3fbdf74fe492ae84
+harfbuzz|https://github.com/harfbuzz/harfbuzz.git|8.5.0|30485ee8c3d43c553afb9d78b9924cb71c8d2f19
+fribidi|https://github.com/fribidi/fribidi.git|v1.0.16|68162babff4f39c4e2dc164a5e825af93bda9983
+freetype|https://github.com/freetype/freetype.git|VER-2-13-3|42608f77f20749dd6ddc9e0536788eaad70ea4b5
+
+# libplacebo 中进入构建过程或生成代码的锁定子模块。
+vulkan-headers|https://github.com/KhronosGroup/Vulkan-Headers.git|-|d732b2de303ce505169011d438178191136bfb00
+fast-float|https://github.com/fastfloat/fast_float.git|-|2b2395f9ac836ffca6404424bcc252bff7aa80e4
+glad|https://github.com/Dav1dde/glad.git|-|d08b1aa01f8fe57498f04d47b5fa8c48725be877
+jinja|https://github.com/pallets/jinja.git|-|b08cd4bc64bb980df86ed2876978ae5735572280
+markupsafe|https://github.com/pallets/markupsafe.git|-|c0254f0cfe51720ecc9e72e8896022af29af5b44
+
+# 仅构建工具，不进入应用运行时闭包。
+pkgconf|https://github.com/pkgconf/pkgconf.git|pkgconf-2.5.1|4fc570f91d9d8d843ab32d2198a5c064538d8ffd
+meson|https://pypi.org/project/meson/|1.10.1|-
+ninja|https://pypi.org/project/ninja/|1.13.0|-
