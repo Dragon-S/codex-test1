@@ -1,0 +1,108 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:3b67d592-ad35-4f4e-8644-1c9eab0c3a3b",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "LGPL App Store Packaging Probe",
+      "version": "1.0"
+    },
+    "properties": [
+      {
+        "name": "build.environment",
+        "value": "macOS 26.5.2; Xcode 26.6 (17F113); macOS SDK 26.5"
+      },
+      {
+        "name": "build.architectures",
+        "value": "arm64,x86_64"
+      },
+      {
+        "name": "build.result",
+        "value": "evidence snapshot; production signing/export not completed"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "mpv",
+      "version": "0.41.0",
+      "bom-ref": "pkg:github/mpv-player/mpv@41f6a645068483470267271e1d09966ca3b9f413",
+      "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
+      "properties": [{"name": "build.option.gpl", "value": "false"}]
+    },
+    {
+      "type": "library",
+      "name": "FFmpeg",
+      "version": "8.1.2",
+      "bom-ref": "pkg:github/FFmpeg/FFmpeg@38b88335f99e76ed89ff3c93f877fdefce736c13",
+      "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
+      "properties": [
+        {"name": "build.option.gpl", "value": "false"},
+        {"name": "build.option.nonfree", "value": "false"},
+        {"name": "build.option.version3", "value": "false"}
+      ]
+    },
+    {
+      "type": "library",
+      "name": "libplacebo",
+      "version": "6.338.2",
+      "bom-ref": "pkg:github/haasn/libplacebo@64c1954570f1cd57f8570a57e51fb0249b57bb90",
+      "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}]
+    },
+    {
+      "type": "library",
+      "name": "libass",
+      "version": "0.17.4",
+      "bom-ref": "pkg:github/libass/libass@bbb3c7f1570a4a021e52683f3fbdf74fe492ae84",
+      "licenses": [{"license": {"id": "ISC"}}]
+    },
+    {
+      "type": "library",
+      "name": "FreeType",
+      "version": "2.13.3",
+      "bom-ref": "pkg:github/freetype/freetype@42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+      "licenses": [{"license": {"name": "FreeType License"}}]
+    },
+    {
+      "type": "library",
+      "name": "FriBidi",
+      "version": "1.0.16",
+      "bom-ref": "pkg:github/fribidi/fribidi@68162babff4f39c4e2dc164a5e825af93bda9983",
+      "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}]
+    },
+    {
+      "type": "library",
+      "name": "HarfBuzz",
+      "version": "8.5.0",
+      "bom-ref": "pkg:github/harfbuzz/harfbuzz@30485ee8c3d43c553afb9d78b9924cb71c8d2f19",
+      "licenses": [{"license": {"id": "MIT"}}]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:github/mpv-player/mpv@41f6a645068483470267271e1d09966ca3b9f413",
+      "dependsOn": [
+        "pkg:github/FFmpeg/FFmpeg@38b88335f99e76ed89ff3c93f877fdefce736c13",
+        "pkg:github/haasn/libplacebo@64c1954570f1cd57f8570a57e51fb0249b57bb90",
+        "pkg:github/libass/libass@bbb3c7f1570a4a021e52683f3fbdf74fe492ae84"
+      ]
+    },
+    {
+      "ref": "pkg:github/libass/libass@bbb3c7f1570a4a021e52683f3fbdf74fe492ae84",
+      "dependsOn": [
+        "pkg:github/freetype/freetype@42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+        "pkg:github/fribidi/fribidi@68162babff4f39c4e2dc164a5e825af93bda9983",
+        "pkg:github/harfbuzz/harfbuzz@30485ee8c3d43c553afb9d78b9924cb71c8d2f19"
+      ]
+    },
+    {
+      "ref": "pkg:github/harfbuzz/harfbuzz@30485ee8c3d43c553afb9d78b9924cb71c8d2f19",
+      "dependsOn": [
+        "pkg:github/freetype/freetype@42608f77f20749dd6ddc9e0536788eaad70ea4b5"
+      ]
+    }
+  ]
+}
