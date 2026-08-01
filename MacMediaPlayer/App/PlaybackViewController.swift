@@ -11,6 +11,7 @@ final class PlaybackViewController: NSViewController {
         coordinator: PlaybackCoordinator,
         openMedia: @escaping () -> Void,
         openExternalSubtitle: @escaping () -> Void,
+        addMediaToPlaylist: @escaping (PlaylistID) -> Void,
         videoView: PlaybackCanvasView
     ) {
         self.videoView = videoView
@@ -22,7 +23,10 @@ final class PlaybackViewController: NSViewController {
             )
         )
         nowPlayingListView = NSHostingView(
-            rootView: NowPlayingListView(coordinator: coordinator)
+            rootView: NowPlayingListView(
+                coordinator: coordinator,
+                addMediaToPlaylist: addMediaToPlaylist
+            )
         )
         super.init(nibName: nil, bundle: nil)
     }

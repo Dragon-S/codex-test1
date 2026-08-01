@@ -8,6 +8,7 @@ public enum PlaylistStoreError: Error, Equatable, Sendable {
 
 public protocol PlaylistStore: Sendable {
     func create(_ playlist: Playlist) async throws
+    func commit(_ library: PlaylistLibrary) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
     func updateExternalSubtitleReferences(
@@ -28,6 +29,10 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func create(_ playlist: Playlist) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func commit(_ library: PlaylistLibrary) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 
@@ -63,6 +68,11 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func create(_ playlist: Playlist) throws {
         library = try library.adding(playlist)
+    }
+
+    public func commit(_ library: PlaylistLibrary) throws {
+        try library.validateUniqueNames()
+        self.library = library
     }
 
     public func loadLibrary() -> PlaylistLibrary {
@@ -125,6 +135,18 @@ public actor SQLitePlaylistStore: PlaylistStore {
             let current = try readLibrary()
             let updated = try current.adding(playlist)
             try writeLibrary(updated)
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func commit(_ library: PlaylistLibrary) throws {
+        try library.validateUniqueNames()
+        try execute("BEGIN IMMEDIATE")
+        do {
+            try writeLibrary(library)
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -271,6 +293,14 @@ private func namesConflict(_ lhs: String, _ rhs: String) -> Bool {
 }
 
 private extension PlaylistLibrary {
+    func validateUniqueNames() throws {
+        for (index, playlist) in playlists.enumerated() {
+            guard !playlists[..<index].contains(where: { namesConflict($0.name, playlist.name) }) else {
+                throw PlaylistStoreError.nameAlreadyExists(playlist.name)
+            }
+        }
+    }
+
     func adding(_ playlist: Playlist) throws -> PlaylistLibrary {
         guard !playlists.contains(where: { namesConflict($0.name, playlist.name) }) else {
             throw PlaylistStoreError.nameAlreadyExists(playlist.name)

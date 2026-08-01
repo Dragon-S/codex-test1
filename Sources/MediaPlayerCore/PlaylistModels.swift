@@ -32,6 +32,14 @@ public struct ExternalSubtitleReferenceID: Hashable, Codable, Sendable {
     }
 }
 
+public struct LocalFileIdentity: Hashable, Codable, Sendable {
+    public let rawValue: Data
+
+    public init(rawValue: Data) {
+        self.rawValue = rawValue
+    }
+}
+
 public struct PersistentExternalSubtitleReference: Equatable, Codable, Sendable {
     public let id: ExternalSubtitleReferenceID
     public let bookmark: Data
@@ -98,11 +106,18 @@ public struct PersistentLocalMediaReference: Equatable, Codable, Sendable {
     public let id: LocalMediaReferenceID
     public let bookmark: Data
     public let lastKnownPath: String
+    public let fileIdentity: LocalFileIdentity?
 
-    public init(id: LocalMediaReferenceID, bookmark: Data, lastKnownPath: String) {
+    public init(
+        id: LocalMediaReferenceID,
+        bookmark: Data,
+        lastKnownPath: String,
+        fileIdentity: LocalFileIdentity? = nil
+    ) {
         self.id = id
         self.bookmark = bookmark
         self.lastKnownPath = lastKnownPath
+        self.fileIdentity = fileIdentity
     }
 }
 
@@ -141,6 +156,27 @@ public struct Playlist: Equatable, Codable, Sendable, Identifiable {
         self.name = name
         self.entries = entries
         self.currentEntryID = currentEntryID
+    }
+
+    func renamed(to name: String) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID
+        )
+    }
+
+    func replacingEntries(
+        _ entries: [PlaylistEntry],
+        currentEntryID: PlaylistEntryID?
+    ) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID
+        )
     }
 }
 
@@ -184,6 +220,10 @@ public enum PlaylistPersistenceError: Error, Equatable, Sendable {
     case emptyName
     case emptyNowPlayingList
     case missingBookmark(String)
+    case playlistNotFound(PlaylistID)
+    case entryNotFound(PlaylistEntryID)
+    case deletionConfirmationRequired(PlaylistID)
+    case invalidDestination(Int)
 }
 
 public protocol PersistentMediaAccess: Sendable {
@@ -203,7 +243,8 @@ public struct LastKnownPathMediaAccess: PersistentMediaAccess {
         LocalMedia(
             url: URL(fileURLWithPath: reference.lastKnownPath),
             referenceID: reference.id,
-            bookmark: reference.bookmark
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity
         )
     }
 }

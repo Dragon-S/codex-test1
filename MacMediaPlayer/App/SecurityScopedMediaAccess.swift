@@ -20,7 +20,12 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, PersistentExternal
 
     func restore(_ reference: PersistentLocalMediaReference) throws -> LocalMedia {
         let restored = try restoreBookmark(reference.bookmark, lastKnownPath: reference.lastKnownPath)
-        return LocalMedia(url: restored.url, referenceID: reference.id, bookmark: restored.bookmark)
+        return LocalMedia(
+            url: restored.url,
+            referenceID: reference.id,
+            bookmark: restored.bookmark,
+            fileIdentity: reference.fileIdentity
+        )
     }
 
     func restore(
