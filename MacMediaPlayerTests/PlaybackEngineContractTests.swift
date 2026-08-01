@@ -66,6 +66,40 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(!recorder.hasFailure(loadID: newLoadID))
     }
 
+    @Test("真实适配器发布领域轨道目录并支持音轨与外部字幕选择")
+    func realAdapterFulfillsTrackSelectionContract() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeSilentWAV()
+        let subtitleURL = FileManager.default.temporaryDirectory
+            .appending(path: "external-subtitle-\(UUID().uuidString).srt")
+        try "1\n00:00:00,000 --> 00:00:01,000\n测试字幕\n".write(
+            to: subtitleURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        defer {
+            try? FileManager.default.removeItem(at: mediaURL)
+            try? FileManager.default.removeItem(at: subtitleURL)
+        }
+        let loadID = PlaybackLoadID(rawValue: 73)
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+        let catalog = try await recorder.waitForTrackCatalog(loadID: loadID)
+        let audioTrack = try #require(catalog.audioTracks.first)
+        let catalogCountBeforeExternalSubtitle = recorder.trackCatalogCount(loadID: loadID)
+
+        #expect(await engine.selectAudioTrack(audioTrack.id))
+        #expect(await engine.selectSubtitle(.off))
+        let result = await engine.loadExternalSubtitle(LocalExternalSubtitle(url: subtitleURL))
+        guard case .loaded = result else {
+            Issue.record("有效外部字幕本应成功加载，实际为 \(result)")
+            return
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(recorder.trackCatalogCount(loadID: loadID) == catalogCountBeforeExternalSubtitle)
+    }
+
     private func makeSilentWAV() throws -> URL {
         let sampleRate: UInt32 = 8_000
         let sampleCount: UInt32 = sampleRate * 2

@@ -33,15 +33,19 @@ struct PlaylistStoreContractTests {
             ),
             resumePosition: 42.5,
             playbackPreferences: EntryPlaybackPreferences(
-                audioTrackID: "audio-2",
-                embeddedSubtitleTrackID: "subtitle-4"
+                audioTrack: TrackPreference(languageCode: "en", title: "Commentary", ordinal: 2),
+                subtitle: .embedded(
+                    TrackPreference(languageCode: "zh-Hans", title: "简体中文", ordinal: 4)
+                )
             )
         )
         let duplicateEntry = PlaylistEntry(
             id: PlaylistEntryID(),
             media: firstEntry.media,
             resumePosition: 7,
-            playbackPreferences: EntryPlaybackPreferences(audioTrackID: "audio-1")
+            playbackPreferences: EntryPlaybackPreferences(
+                audioTrack: TrackPreference(languageCode: "en", title: nil, ordinal: 1)
+            )
         )
         let playlist = Playlist(
             id: PlaylistID(),
@@ -75,12 +79,54 @@ struct PlaylistStoreContractTests {
             refreshedReference, refreshedReference,
         ])
 
+        let updatedPreferences = EntryPlaybackPreferences(
+            audioTrack: TrackPreference(languageCode: "ja", title: "日本語", ordinal: 2),
+            subtitle: .off
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            preferences: updatedPreferences
+        )
+        let preferencesUpdated = try await store.loadLibrary()
+        #expect(preferencesUpdated.playlists[0].entries[0].playbackPreferences == firstEntry.playbackPreferences)
+        #expect(preferencesUpdated.playlists[0].entries[1].playbackPreferences == updatedPreferences)
+
+        let sharedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x20]),
+            lastKnownPath: "/tmp/old-shared.srt"
+        )
+        let sharedSubtitlePreferences = EntryPlaybackPreferences(
+            subtitle: .external(sharedExternalSubtitle)
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: firstEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        let relocatedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: sharedExternalSubtitle.id,
+            bookmark: Data([0x21]),
+            lastKnownPath: "/tmp/new-shared.srt"
+        )
+        try await store.updateExternalSubtitleReferences([relocatedExternalSubtitle])
+        let externalSubtitleUpdated = try await store.loadLibrary()
+        #expect(externalSubtitleUpdated.playlists[0].entries.allSatisfy {
+            $0.playbackPreferences.subtitle == .external(relocatedExternalSubtitle)
+        })
+
         let renamedAndReordered = Playlist(
             id: playlist.id,
             name: "周末电影",
             entries: [
-                refreshed.playlists[0].entries[1],
-                refreshed.playlists[0].entries[0],
+                externalSubtitleUpdated.playlists[0].entries[1],
+                externalSubtitleUpdated.playlists[0].entries[0],
             ],
             currentEntryID: firstEntry.id
         )
@@ -289,7 +335,9 @@ struct NamedPlaylistCoordinatorTests {
             NowPlayingEntry(
                 media: sharedMedia,
                 resumePosition: 9,
-                playbackPreferences: EntryPlaybackPreferences(audioTrackID: "commentary")
+                playbackPreferences: EntryPlaybackPreferences(
+                    audioTrack: TrackPreference(languageCode: "en", title: "Commentary", ordinal: 3)
+                )
             ),
         ])
         await coordinator.next()
@@ -302,7 +350,11 @@ struct NamedPlaylistCoordinatorTests {
             sharedMedia.referenceID, otherMedia.referenceID, sharedMedia.referenceID,
         ])
         #expect(saved.entries.map(\.resumePosition) == [31, nil, 9])
-        #expect(saved.entries.last?.playbackPreferences.audioTrackID == "commentary")
+        #expect(saved.entries.last?.playbackPreferences.audioTrack == TrackPreference(
+            languageCode: "en",
+            title: "Commentary",
+            ordinal: 3
+        ))
         #expect(saved.currentEntryID == saved.entries[2].id)
         #expect(coordinator.playlists == [saved])
         #expect(coordinator.persistenceNotice == .saved("收藏"))

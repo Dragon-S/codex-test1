@@ -108,6 +108,29 @@ final class ContractEventRecorder: @unchecked Sendable {
         }
     }
 
+    func waitForTrackCatalog(loadID: PlaybackLoadID) async throws -> TrackCatalog {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            for event in eventSnapshot() {
+                if case let .trackCatalogChanged(catalog, eventLoadID) = event,
+                   eventLoadID == loadID {
+                    return catalog
+                }
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw TrackCatalogTimeout(loadID: loadID, observed: eventSnapshot())
+    }
+
+    func trackCatalogCount(loadID: PlaybackLoadID) -> Int {
+        eventSnapshot().count { event in
+            if case let .trackCatalogChanged(_, eventLoadID) = event {
+                return eventLoadID == loadID
+            }
+            return false
+        }
+    }
+
     private func append(_ event: PlaybackEngineEvent) {
         lock.withLock {
             observedEvents.append(event)
@@ -168,5 +191,10 @@ private struct ContractTimeout: Error, CustomStringConvertible {
 
 private struct ContractEventTimeout: Error {
     let expected: PlaybackEngineEvent
+    let observed: [PlaybackEngineEvent]
+}
+
+private struct TrackCatalogTimeout: Error {
+    let loadID: PlaybackLoadID
     let observed: [PlaybackEngineEvent]
 }

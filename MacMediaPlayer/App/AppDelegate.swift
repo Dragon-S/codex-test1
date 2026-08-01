@@ -3,6 +3,11 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private enum ExternalSubtitlePanelAction {
+        case selectNew
+        case relocate
+    }
+
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
     private var securityScopedURLs: [URL] = []
@@ -10,16 +15,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let videoView = PlaybackCanvasView(frame: .zero)
         let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let fileAccess = SecurityScopedMediaAccess()
         let coordinator = PlaybackCoordinator(
             engine: engine,
             playlistStore: makePlaylistStore(),
-            persistentMediaAccess: SecurityScopedMediaAccess()
+            persistentMediaAccess: fileAccess,
+            externalSubtitleAccess: fileAccess,
+            defaultTrackRules: DefaultTrackRules(
+                preferredAudioLanguages: Locale.preferredLanguages,
+                preferredSubtitleLanguages: Locale.preferredLanguages,
+                subtitleAutoPolicy: .automatic
+            )
         )
         self.coordinator = coordinator
 
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
+            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle(.selectNew) },
+            relocateExternalSubtitle: { [weak self] in
+                self?.openExternalSubtitle(.relocate)
+            },
             addMediaToPlaylist: { [weak self] playlistID in
                 self?.addMedia(to: playlistID)
             },
@@ -84,6 +100,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
         Task { await coordinator.open(media) }
+    }
+
+    private func openExternalSubtitle(_ action: ExternalSubtitlePanelAction) {
+        guard let window, let coordinator else { return }
+        if case .relocate = action,
+           coordinator.currentExternalSubtitleReferenceID == nil {
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.title = switch action {
+        case .selectNew: "选择外部字幕"
+        case .relocate: "重新定位外部字幕"
+        }
+        panel.prompt = "选择"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = Self.supportedSubtitleTypes
+        panel.beginSheetModal(for: window) { [weak self, weak coordinator] response in
+            guard response == .OK, let url = panel.url, let coordinator else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    securityScopedURLs.append(url)
+                }
+                let bookmark = try? url.bookmarkData(
+                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                let subtitle = LocalExternalSubtitle(
+                    url: url,
+                    bookmark: bookmark
+                )
+                switch action {
+                case .relocate:
+                    await coordinator.relocateExternalSubtitle(subtitle)
+                case .selectNew:
+                    await coordinator.selectExternalSubtitle(subtitle)
+                }
+            }
+        }
     }
 
     private func addMedia(to playlistID: PlaylistID) {
@@ -163,4 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         "mp4", "mov", "mkv", "webm",
         "mp3", "m4a", "aac", "alac", "flac", "wav", "ogg", "opus",
     ].compactMap { UTType(filenameExtension: $0) }
+
+    private static let supportedSubtitleTypes = ["srt", "ass", "ssa", "sup"]
+        .compactMap { UTType(filenameExtension: $0) }
 }

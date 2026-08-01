@@ -11,6 +11,14 @@ public protocol PlaylistStore: Sendable {
     func commit(_ library: PlaylistLibrary) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
+    func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) async throws
+    func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) async throws
 }
 
 public actor UnavailablePlaylistStore: PlaylistStore {
@@ -33,6 +41,20 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 }
@@ -59,6 +81,24 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {
         library = library.replacingMediaReferences(references)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) {
+        library = library.replacingExternalSubtitleReferences(references)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        library = try library.replacingPlaybackPreferences(
+            playlistID: playlistID,
+            entryID: entryID,
+            preferences: preferences
+        )
     }
 }
 
@@ -124,6 +164,42 @@ public actor SQLitePlaylistStore: PlaylistStore {
         do {
             let current = try readLibrary()
             try writeLibrary(current.replacingMediaReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
+        guard !references.isEmpty else { return }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            try writeLibrary(current.replacingExternalSubtitleReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            let updated = try current.replacingPlaybackPreferences(
+                playlistID: playlistID,
+                entryID: entryID,
+                preferences: preferences
+            )
+            try writeLibrary(updated)
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -258,6 +334,73 @@ private extension PlaylistLibrary {
                 currentEntryID: playlist.currentEntryID
             )
         }
+        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
+    func replacingExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) -> PlaylistLibrary {
+        let referencesByID = Dictionary(
+            references.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let updatedEntries = playlist.entries.map { entry in
+                let updatedPreferences: EntryPlaybackPreferences
+                if case let .external(reference) = entry.playbackPreferences.subtitle,
+                   let replacement = referencesByID[reference.id] {
+                    updatedPreferences = EntryPlaybackPreferences(
+                        audioTrack: entry.playbackPreferences.audioTrack,
+                        subtitle: .external(replacement)
+                    )
+                } else {
+                    updatedPreferences = entry.playbackPreferences
+                }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: entry.media,
+                    resumePosition: entry.resumePosition,
+                    playbackPreferences: updatedPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: updatedEntries,
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
+
+    func replacingPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws -> PlaylistLibrary {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }),
+              let entryIndex = playlists[playlistIndex].entries.firstIndex(where: {
+                  $0.id == entryID
+              }) else {
+            throw PlaylistStoreError.unavailable("找不到要更新的播放列表条目")
+        }
+        var updatedPlaylists = playlists
+        let playlist = updatedPlaylists[playlistIndex]
+        var updatedEntries = playlist.entries
+        let entry = updatedEntries[entryIndex]
+        updatedEntries[entryIndex] = PlaylistEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: entry.resumePosition,
+            playbackPreferences: preferences
+        )
+        updatedPlaylists[playlistIndex] = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: updatedEntries,
+            currentEntryID: playlist.currentEntryID
+        )
         return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
     }
 }
