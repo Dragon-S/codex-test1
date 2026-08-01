@@ -10,16 +10,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let videoView = PlaybackCanvasView(frame: .zero)
         let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let fileAccess = SecurityScopedMediaAccess()
         let coordinator = PlaybackCoordinator(
             engine: engine,
             playlistStore: makePlaylistStore(),
-            persistentMediaAccess: SecurityScopedMediaAccess()
+            persistentMediaAccess: fileAccess,
+            externalSubtitleAccess: fileAccess,
+            trackSelectionSettings: TrackSelectionSettings(
+                preferredAudioLanguages: Locale.preferredLanguages,
+                preferredSubtitleLanguages: Locale.preferredLanguages,
+                subtitleAutoPolicy: .automatic
+            )
         )
         self.coordinator = coordinator
 
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
+            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle() },
             videoView: videoView
         )
         let window = NSWindow(contentViewController: viewController)
@@ -79,6 +87,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task { await coordinator.open(media) }
     }
 
+    private func openExternalSubtitle() {
+        guard let window, let coordinator else { return }
+        let panel = NSOpenPanel()
+        panel.title = "选择外部字幕"
+        panel.prompt = "选择"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = Self.supportedSubtitleTypes
+        panel.beginSheetModal(for: window) { [weak self, weak coordinator] response in
+            guard response == .OK, let url = panel.url, let coordinator else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    securityScopedURLs.append(url)
+                }
+                let bookmark = try? url.bookmarkData(
+                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                let subtitle = LocalExternalSubtitle(
+                    url: url,
+                    referenceID: coordinator.currentExternalSubtitleReferenceID
+                        ?? ExternalSubtitleReferenceID(),
+                    bookmark: bookmark
+                )
+                await coordinator.selectExternalSubtitle(subtitle)
+            }
+        }
+    }
+
     private func makePlaylistStore() -> any PlaylistStore {
         do {
             let applicationSupport = try FileManager.default.url(
@@ -112,4 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         "mp4", "mov", "mkv", "webm",
         "mp3", "m4a", "aac", "alac", "flac", "wav", "ogg", "opus",
     ].compactMap { UTType(filenameExtension: $0) }
+
+    private static let supportedSubtitleTypes = ["srt", "ass", "ssa", "sup"]
+        .compactMap { UTType(filenameExtension: $0) }
 }

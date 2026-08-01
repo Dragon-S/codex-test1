@@ -12,6 +12,28 @@ static void *MPVGetOpenGLProcAddress(void *context, const char *name) {
 
 static void MPVRenderUpdate(void *context);
 
+@implementation MPVClientTrack
+
+- (instancetype)initWithIdentifier:(NSUUID *)identifier
+                      languageCode:(NSString *)languageCode
+                              title:(NSString *)title
+                            ordinal:(NSInteger)ordinal
+                          isDefault:(BOOL)isDefault
+                            isForced:(BOOL)isForced {
+    self = [super init];
+    if (self != nil) {
+        _identifier = identifier;
+        _languageCode = [languageCode copy];
+        _title = [title copy];
+        _ordinal = ordinal;
+        _defaultTrack = isDefault;
+        _forced = isForced;
+    }
+    return self;
+}
+
+@end
+
 @interface MPVClient () {
     mpv_handle *_handle;
     dispatch_queue_t _queue;
@@ -21,6 +43,10 @@ static void MPVRenderUpdate(void *context);
     uint64_t _eventLoadID;
     NSMutableArray<NSNumber *> *_pendingLoadIDs;
     NSMutableDictionary<NSNumber *, NSNumber *> *_loadIDsByPlaylistEntryID;
+    NSMutableDictionary<NSUUID *, NSNumber *> *_audioTrackIDs;
+    NSMutableDictionary<NSUUID *, NSNumber *> *_subtitleTrackIDs;
+    NSMutableDictionary<NSNumber *, NSUUID *> *_audioIdentifiers;
+    NSMutableDictionary<NSNumber *, NSUUID *> *_subtitleIdentifiers;
     mpv_render_context *_renderContext;
     __weak NSOpenGLView *_videoView;
 }
@@ -40,6 +66,10 @@ static void MPVRenderUpdate(void *context);
     _queue = dispatch_queue_create("com.dragon-s.MacMediaPlayer.libmpv", DISPATCH_QUEUE_SERIAL);
     _pendingLoadIDs = [NSMutableArray array];
     _loadIDsByPlaylistEntryID = [NSMutableDictionary dictionary];
+    _audioTrackIDs = [NSMutableDictionary dictionary];
+    _subtitleTrackIDs = [NSMutableDictionary dictionary];
+    _audioIdentifiers = [NSMutableDictionary dictionary];
+    _subtitleIdentifiers = [NSMutableDictionary dictionary];
     _videoView = (NSOpenGLView *)videoView;
     _handle = mpv_create();
     if (_handle == NULL) {
@@ -95,6 +125,48 @@ static void MPVRenderUpdate(void *context);
 
 - (void)stop {
     [self performCommand:@[ @"stop" ]];
+}
+
+- (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL))completion {
+    dispatch_async(_queue, ^{
+        NSNumber *rawID = self->_audioTrackIDs[identifier];
+        BOOL success = rawID != nil && [self setTrackProperty:@"aid" rawID:rawID];
+        completion(success);
+    });
+}
+
+- (void)selectSubtitleTrack:(NSUUID *)identifier completion:(void (^)(BOOL))completion {
+    dispatch_async(_queue, ^{
+        if (identifier == nil) {
+            completion(mpv_set_property_string(self->_handle, "sid", "no") >= 0);
+            return;
+        }
+        NSNumber *rawID = self->_subtitleTrackIDs[identifier];
+        BOOL success = rawID != nil && [self setTrackProperty:@"sid" rawID:rawID];
+        completion(success);
+    });
+}
+
+- (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult, NSUUID *))completion {
+    dispatch_async(_queue, ^{
+        if (![[NSFileManager defaultManager] isReadableFileAtPath:url.path]) {
+            completion(MPVClientExternalSubtitleResultMissing, nil);
+            return;
+        }
+        int result = [self executeCommand:@[ @"sub-add", url.path, @"select" ]];
+        if (result < 0) {
+            completion(MPVClientExternalSubtitleResultDamaged, nil);
+            return;
+        }
+        [self reportTrackCatalog];
+        int64_t selectedID = 0;
+        if (mpv_get_property(self->_handle, "sid", MPV_FORMAT_INT64, &selectedID) < 0) {
+            completion(MPVClientExternalSubtitleResultDamaged, nil);
+            return;
+        }
+        NSUUID *identifier = self->_subtitleIdentifiers[@(selectedID)];
+        completion(identifier == nil ? MPVClientExternalSubtitleResultDamaged : MPVClientExternalSubtitleResultLoaded, identifier);
+    });
 }
 
 - (void)shutdown {
@@ -243,6 +315,7 @@ static void MPVRenderUpdate(void *context);
             case MPV_EVENT_FILE_LOADED:
                 _hasLoadedFile = YES;
                 [self reportCurrentPauseState];
+                [self reportTrackCatalog];
                 break;
             case MPV_EVENT_PROPERTY_CHANGE:
                 [self handlePropertyChange:event];
@@ -269,6 +342,78 @@ static void MPVRenderUpdate(void *context);
     _loadIDsByPlaylistEntryID[@(startFile->playlist_entry_id)] = loadID;
     _eventLoadID = loadID.unsignedLongLongValue;
     _hasLoadedFile = NO;
+    [_audioTrackIDs removeAllObjects];
+    [_subtitleTrackIDs removeAllObjects];
+    [_audioIdentifiers removeAllObjects];
+    [_subtitleIdentifiers removeAllObjects];
+}
+
+- (BOOL)setTrackProperty:(NSString *)property rawID:(NSNumber *)rawID {
+    if (_handle == NULL) {
+        return NO;
+    }
+    return mpv_set_property_string(_handle, property.UTF8String, rawID.stringValue.UTF8String) >= 0;
+}
+
+- (void)reportTrackCatalog {
+    if (_handle == NULL) {
+        return;
+    }
+    int64_t count = 0;
+    if (mpv_get_property(_handle, "track-list/count", MPV_FORMAT_INT64, &count) < 0) {
+        return;
+    }
+    NSMutableArray<MPVClientTrack *> *audioTracks = [NSMutableArray array];
+    NSMutableArray<MPVClientTrack *> *subtitleTracks = [NSMutableArray array];
+    NSInteger audioOrdinal = 0;
+    NSInteger subtitleOrdinal = 0;
+    for (int64_t index = 0; index < count; index++) {
+        NSString *prefix = [NSString stringWithFormat:@"track-list/%lld", index];
+        NSString *type = [self stringProperty:[prefix stringByAppendingString:@"/type"]];
+        int64_t rawID = [self integerProperty:[prefix stringByAppendingString:@"/id"] fallback:-1];
+        if (rawID < 0 || (! [type isEqualToString:@"audio"] && ! [type isEqualToString:@"sub"])) {
+            continue;
+        }
+        NSNumber *rawKey = @(rawID);
+        BOOL isAudio = [type isEqualToString:@"audio"];
+        NSMutableDictionary<NSNumber *, NSUUID *> *identifiers = isAudio ? _audioIdentifiers : _subtitleIdentifiers;
+        NSMutableDictionary<NSUUID *, NSNumber *> *rawIDs = isAudio ? _audioTrackIDs : _subtitleTrackIDs;
+        NSUUID *identifier = identifiers[rawKey] ?: [NSUUID UUID];
+        identifiers[rawKey] = identifier;
+        rawIDs[identifier] = rawKey;
+        NSInteger ordinal = isAudio ? ++audioOrdinal : ++subtitleOrdinal;
+        MPVClientTrack *track = [[MPVClientTrack alloc]
+            initWithIdentifier:identifier
+            languageCode:[self stringProperty:[prefix stringByAppendingString:@"/lang"]]
+            title:[self stringProperty:[prefix stringByAppendingString:@"/title"]]
+            ordinal:ordinal
+            isDefault:[self flagProperty:[prefix stringByAppendingString:@"/default"]]
+            isForced:[self flagProperty:[prefix stringByAppendingString:@"/forced"]]];
+        [isAudio ? audioTracks : subtitleTracks addObject:track];
+    }
+    if (self.trackCatalogHandler != nil) {
+        self.trackCatalogHandler(audioTracks, subtitleTracks, _eventLoadID);
+    }
+}
+
+- (nullable NSString *)stringProperty:(NSString *)name {
+    char *value = mpv_get_property_string(_handle, name.UTF8String);
+    if (value == NULL) {
+        return nil;
+    }
+    NSString *result = [NSString stringWithUTF8String:value];
+    mpv_free(value);
+    return result;
+}
+
+- (int64_t)integerProperty:(NSString *)name fallback:(int64_t)fallback {
+    int64_t value = fallback;
+    return mpv_get_property(_handle, name.UTF8String, MPV_FORMAT_INT64, &value) < 0 ? fallback : value;
+}
+
+- (BOOL)flagProperty:(NSString *)name {
+    int value = 0;
+    return mpv_get_property(_handle, name.UTF8String, MPV_FORMAT_FLAG, &value) >= 0 && value != 0;
 }
 
 - (void)handlePropertyChange:(mpv_event *)event {

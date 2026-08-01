@@ -14,22 +14,41 @@ enum SecurityScopedMediaAccessError: Error, LocalizedError {
     }
 }
 
-final class SecurityScopedMediaAccess: PersistentMediaAccess, @unchecked Sendable {
+final class SecurityScopedMediaAccess: PersistentMediaAccess, PersistentExternalSubtitleAccess, @unchecked Sendable {
     private let lock = NSLock()
     private var accessedURLs: [URL] = []
 
     func restore(_ reference: PersistentLocalMediaReference) throws -> LocalMedia {
+        let restored = try restoreBookmark(reference.bookmark, lastKnownPath: reference.lastKnownPath)
+        return LocalMedia(url: restored.url, referenceID: reference.id, bookmark: restored.bookmark)
+    }
+
+    func restore(
+        _ reference: PersistentExternalSubtitleReference
+    ) throws -> LocalExternalSubtitle {
+        let restored = try restoreBookmark(reference.bookmark, lastKnownPath: reference.lastKnownPath)
+        return LocalExternalSubtitle(
+            url: restored.url,
+            referenceID: reference.id,
+            bookmark: restored.bookmark
+        )
+    }
+
+    private func restoreBookmark(
+        _ bookmarkData: Data,
+        lastKnownPath: String
+    ) throws -> (url: URL, bookmark: Data) {
         var isStale = false
         let url: URL
         do {
             url = try URL(
-                resolvingBookmarkData: reference.bookmark,
+                resolvingBookmarkData: bookmarkData,
                 options: [.withSecurityScope, .withoutUI],
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
         } catch {
-            throw SecurityScopedMediaAccessError.bookmarkCannotBeResolved(reference.lastKnownPath)
+            throw SecurityScopedMediaAccessError.bookmarkCannotBeResolved(lastKnownPath)
         }
         let startedSecurityScope = url.startAccessingSecurityScopedResource()
         guard startedSecurityScope || FileManager.default.isReadableFile(atPath: url.path) else {
@@ -48,9 +67,9 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, @unchecked Sendabl
                 relativeTo: nil
             )
         } else {
-            bookmark = reference.bookmark
+            bookmark = bookmarkData
         }
-        return LocalMedia(url: url, referenceID: reference.id, bookmark: bookmark)
+        return (url, bookmark)
     }
 
     deinit {

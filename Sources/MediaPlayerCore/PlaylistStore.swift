@@ -10,6 +10,11 @@ public protocol PlaylistStore: Sendable {
     func create(_ playlist: Playlist) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
+    func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) async throws
 }
 
 public actor UnavailablePlaylistStore: PlaylistStore {
@@ -28,6 +33,14 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 }
@@ -49,6 +62,18 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {
         library = library.replacingMediaReferences(references)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        library = try library.replacingPlaybackPreferences(
+            playlistID: playlistID,
+            entryID: entryID,
+            preferences: preferences
+        )
     }
 }
 
@@ -102,6 +127,27 @@ public actor SQLitePlaylistStore: PlaylistStore {
         do {
             let current = try readLibrary()
             try writeLibrary(current.replacingMediaReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            let updated = try current.replacingPlaybackPreferences(
+                playlistID: playlistID,
+                entryID: entryID,
+                preferences: preferences
+            )
+            try writeLibrary(updated)
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -228,6 +274,37 @@ private extension PlaylistLibrary {
                 currentEntryID: playlist.currentEntryID
             )
         }
+        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
+
+    func replacingPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws -> PlaylistLibrary {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }),
+              let entryIndex = playlists[playlistIndex].entries.firstIndex(where: {
+                  $0.id == entryID
+              }) else {
+            throw PlaylistStoreError.unavailable("找不到要更新的播放列表条目")
+        }
+        var updatedPlaylists = playlists
+        let playlist = updatedPlaylists[playlistIndex]
+        var updatedEntries = playlist.entries
+        let entry = updatedEntries[entryIndex]
+        updatedEntries[entryIndex] = PlaylistEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: entry.resumePosition,
+            playbackPreferences: preferences
+        )
+        updatedPlaylists[playlistIndex] = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: updatedEntries,
+            currentEntryID: playlist.currentEntryID
+        )
         return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
     }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct PlaybackControlsView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let openMedia: () -> Void
+    let openExternalSubtitle: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -24,15 +25,89 @@ struct PlaybackControlsView: View {
             Button("下一首") {
                 Task { await coordinator.next() }
             }
+            audioTrackMenu
+            subtitleMenu
             Spacer()
-            Text(statusText)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("播放状态")
-                .accessibilityValue(statusText)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(statusText)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("播放状态")
+                    .accessibilityValue(statusText)
+                if let noticeText {
+                    Text(noticeText)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("轨道提示")
+                }
+            }
         }
         .buttonStyle(.bordered)
         .padding(12)
         .background(.ultraThinMaterial)
+    }
+
+    private var audioTrackMenu: some View {
+        Menu("音轨") {
+            if coordinator.availableAudioTracks.isEmpty {
+                Text("没有可用音轨")
+            } else {
+                ForEach(coordinator.availableAudioTracks) { track in
+                    Button {
+                        Task { await coordinator.selectAudioTrack(track.id) }
+                    } label: {
+                        if coordinator.trackSelection.audioTrackID == track.id {
+                            Label(track.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(track.displayName)
+                        }
+                    }
+                }
+            }
+        }
+        .disabled(coordinator.nowPlayingList.currentMedia == nil)
+        .accessibilityLabel("选择音轨")
+    }
+
+    private var subtitleMenu: some View {
+        Menu("字幕") {
+            Button {
+                Task { await coordinator.disableSubtitles() }
+            } label: {
+                if coordinator.trackSelection.subtitle == .off {
+                    Label("关闭字幕", systemImage: "checkmark")
+                } else {
+                    Text("关闭字幕")
+                }
+            }
+            ForEach(coordinator.availableEmbeddedSubtitleTracks) { track in
+                Button {
+                    Task { await coordinator.selectEmbeddedSubtitle(track.id) }
+                } label: {
+                    if coordinator.trackSelection.subtitle == .embedded(track.id) {
+                        Label(track.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(track.displayName)
+                    }
+                }
+            }
+            Divider()
+            Button("选择或重新定位外部字幕…", action: openExternalSubtitle)
+        }
+        .disabled(coordinator.nowPlayingList.currentMedia == nil)
+        .accessibilityLabel("选择字幕")
+    }
+
+    private var noticeText: String? {
+        switch coordinator.trackNotice {
+        case .none:
+            nil
+        case let .preferenceUnavailable(message), let .selectionFailed(message):
+            message
+        case let .externalSubtitleMissing(name):
+            "外部字幕“\(name)”缺失；可重新定位或停用字幕"
+        case let .externalSubtitleDamaged(name):
+            "外部字幕“\(name)”已损坏；媒体将继续播放"
+        }
     }
 
     private var statusText: String {

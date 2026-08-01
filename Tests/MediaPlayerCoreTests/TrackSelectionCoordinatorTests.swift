@@ -1,0 +1,345 @@
+import Foundation
+import Testing
+@testable import MediaPlayerCore
+
+@MainActor
+@Suite("轨道与字幕协调")
+struct TrackSelectionCoordinatorTests {
+    @Test("没有条目偏好时按首选语言选择音轨，并优先选择强制字幕")
+    func appliesDeterministicDefaults() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            trackSelectionSettings: TrackSelectionSettings(
+                preferredAudioLanguages: ["ja", "en"],
+                preferredSubtitleLanguages: ["zh-Hans", "en"],
+                subtitleAutoPolicy: .automatic
+            )
+        )
+        await coordinator.open(localMedia("movie.mkv"))
+        let loadID = try #require(await engine.loadIDs.last)
+        let japanese = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "ja",
+            title: "日本語",
+            ordinal: 1,
+            isDefault: false
+        )
+        let english = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "en",
+            title: "English",
+            ordinal: 2,
+            isDefault: true
+        )
+        let forcedChinese = EmbeddedSubtitleTrackOption(
+            id: EmbeddedSubtitleTrackID(),
+            languageCode: "zh-Hans",
+            title: "强制字幕",
+            ordinal: 1,
+            isDefault: false,
+            isForced: true
+        )
+
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [english, japanese], embeddedSubtitleTracks: [forcedChinese]),
+            loadID: loadID
+        ))
+        try await waitUntil { await engine.selectionCommands.count == 2 }
+
+        #expect(await engine.selectionCommands == [
+            .audio(japanese.id),
+            .subtitle(.embedded(forcedChinese.id)),
+        ])
+        #expect(coordinator.trackSelection.audioTrackID == japanese.id)
+        #expect(coordinator.trackSelection.subtitle == .embedded(forcedChinese.id))
+    }
+
+    @Test("用户成功选择音轨后按条目保存语义偏好")
+    func persistsSuccessfulAudioSelectionPerEntry() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        let media = LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/concert.mkv"),
+            bookmark: Data([0x01])
+        )
+        await coordinator.open(media)
+        let commentary = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "en",
+            title: "Commentary",
+            ordinal: 3,
+            isDefault: false
+        )
+        let loadID = try #require(await engine.loadIDs.last)
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [commentary], embeddedSubtitleTracks: []),
+            loadID: loadID
+        ))
+        try await waitUntil { coordinator.availableAudioTracks == [commentary] }
+
+        await coordinator.selectAudioTrack(commentary.id)
+
+        let preference = try #require(coordinator.nowPlayingList.entries.first?.playbackPreferences.audioTrack)
+        #expect(preference == commentary.preference)
+        #expect(coordinator.trackSelection.audioTrackID == commentary.id)
+
+        let saved = try await coordinator.saveNowPlayingList(as: "演唱会")
+        #expect(saved.entries[0].playbackPreferences.audioTrack == commentary.preference)
+    }
+
+    @Test("失效条目偏好会提示回退并继续播放")
+    func fallsBackWhenSavedPreferenceIsUnavailable() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            trackSelectionSettings: TrackSelectionSettings(
+                preferredAudioLanguages: ["en"],
+                preferredSubtitleLanguages: [],
+                subtitleAutoPolicy: .never
+            )
+        )
+        let missingPreference = TrackPreference(
+            languageCode: "fr",
+            title: "Français",
+            ordinal: 2
+        )
+        await coordinator.open([
+            NowPlayingEntry(
+                media: localMedia("fallback.mkv"),
+                playbackPreferences: EntryPlaybackPreferences(audioTrack: missingPreference)
+            ),
+        ])
+        let available = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "en",
+            title: "English",
+            ordinal: 1,
+            isDefault: true
+        )
+        let loadID = try #require(await engine.loadIDs.last)
+
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [available], embeddedSubtitleTracks: []),
+            loadID: loadID
+        ))
+        try await waitUntil { coordinator.trackNotice != .none }
+
+        #expect(coordinator.state == .idle)
+        #expect(coordinator.trackNotice == .preferenceUnavailable("原音轨不可用，已改用 English"))
+        #expect(await engine.selectionCommands.contains(.audio(available.id)))
+    }
+
+    @Test("外部字幕损坏时媒体继续播放并允许停用")
+    func damagedExternalSubtitleDoesNotBlockPlayback() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        await coordinator.open(localMedia("with-subtitle.mkv"))
+        let loadID = try #require(await engine.loadIDs.last)
+        engine.send(.playbackStateChanged(.playing, loadID: loadID))
+        try await waitUntil { coordinator.state == .playing }
+        await engine.setExternalSubtitleResult(.damaged)
+        let subtitle = LocalExternalSubtitle(
+            url: URL(fileURLWithPath: "/tmp/broken.ass"),
+            bookmark: Data([0x02])
+        )
+
+        await coordinator.selectExternalSubtitle(subtitle)
+
+        #expect(coordinator.state == .playing)
+        #expect(coordinator.trackNotice == .externalSubtitleDamaged("broken.ass"))
+        #expect(coordinator.nowPlayingList.entries[0].playbackPreferences.subtitle == .off)
+
+        await coordinator.disableSubtitles()
+        #expect(await engine.selectionCommands.last == .subtitle(.off))
+    }
+
+    @Test("命名 Playlist 的成功选择会立即持久化并在重启后恢复")
+    func persistsNamedPlaylistSelectionAndRestoresIt() async throws {
+        let store = InMemoryPlaylistStore()
+        let entry = PlaylistEntry(
+            media: PersistentLocalMediaReference(
+                id: LocalMediaReferenceID(),
+                bookmark: Data([0x03]),
+                lastKnownPath: "/tmp/named.mkv"
+            )
+        )
+        let playlist = Playlist(name: "命名列表", entries: [entry], currentEntryID: entry.id)
+        try await store.create(playlist)
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        try await coordinator.restorePersistentState()
+        await coordinator.play()
+        let commentary = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "en",
+            title: "Commentary",
+            ordinal: 2,
+            isDefault: false
+        )
+        let loadID = try #require(await engine.loadIDs.last)
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [commentary], embeddedSubtitleTracks: []),
+            loadID: loadID
+        ))
+        try await waitUntil { coordinator.availableAudioTracks == [commentary] }
+
+        await coordinator.selectAudioTrack(commentary.id)
+
+        let restored = await store.loadLibrary()
+        #expect(restored.playlists[0].entries[0].playbackPreferences.audioTrack == commentary.preference)
+    }
+
+    @Test("成功选择外部字幕会保存独立引用而不是媒体引用")
+    func persistsIndependentExternalSubtitleReference() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        await coordinator.open(LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/movie.mkv"),
+            referenceID: LocalMediaReferenceID(),
+            bookmark: Data([0x04])
+        ))
+        let subtitleTrackID = EmbeddedSubtitleTrackID()
+        await engine.setExternalSubtitleResult(.loaded(subtitleTrackID))
+        let subtitle = LocalExternalSubtitle(
+            url: URL(fileURLWithPath: "/tmp/movie.zh-Hans.ass"),
+            referenceID: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x05])
+        )
+
+        await coordinator.selectExternalSubtitle(subtitle)
+
+        let preference = coordinator.nowPlayingList.entries[0].playbackPreferences.subtitle
+        guard case let .external(reference) = preference else {
+            Issue.record("预期保存外部字幕引用")
+            return
+        }
+        #expect(reference.id == subtitle.referenceID)
+        #expect(reference.lastKnownPath == subtitle.url.path)
+        #expect(coordinator.nowPlayingList.entries[0].media.referenceID != LocalMediaReferenceID(
+            rawValue: reference.id.rawValue
+        ))
+    }
+
+    @Test("从不自动显示字幕会覆盖强制字幕标记")
+    func neverPolicyKeepsSubtitlesOff() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            trackSelectionSettings: TrackSelectionSettings(subtitleAutoPolicy: .never)
+        )
+        await coordinator.open(localMedia("forced.mkv"))
+        let forced = EmbeddedSubtitleTrackOption(
+            id: EmbeddedSubtitleTrackID(),
+            languageCode: "en",
+            title: "Forced",
+            ordinal: 1,
+            isDefault: true,
+            isForced: true
+        )
+        let loadID = try #require(await engine.loadIDs.last)
+
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [], embeddedSubtitleTracks: [forced]),
+            loadID: loadID
+        ))
+        try await waitUntil { await engine.selectionCommands.contains(.subtitle(.off)) }
+
+        #expect(coordinator.trackSelection.subtitle == .off)
+    }
+
+    @Test("已保存外部字幕缺失时保持媒体状态并提示重新定位")
+    func missingSavedExternalSubtitleFallsBackWithoutBlockingMedia() async throws {
+        let store = InMemoryPlaylistStore()
+        let reference = PersistentExternalSubtitleReference(
+            id: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x06]),
+            lastKnownPath: "/tmp/missing.zh-Hans.srt"
+        )
+        let entry = PlaylistEntry(
+            media: PersistentLocalMediaReference(
+                id: LocalMediaReferenceID(),
+                bookmark: Data([0x07]),
+                lastKnownPath: "/tmp/movie-with-missing-subtitle.mkv"
+            ),
+            playbackPreferences: EntryPlaybackPreferences(subtitle: .external(reference))
+        )
+        try await store.create(Playlist(name: "缺失字幕", entries: [entry], currentEntryID: entry.id))
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        try await coordinator.restorePersistentState()
+        await coordinator.play()
+        let loadID = try #require(await engine.loadIDs.last)
+
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(audioTracks: [], embeddedSubtitleTracks: []),
+            loadID: loadID
+        ))
+        try await waitUntil { coordinator.trackNotice != .none }
+
+        #expect(coordinator.state == .paused)
+        #expect(coordinator.trackNotice == .externalSubtitleMissing("missing.zh-Hans.srt"))
+        #expect(coordinator.currentExternalSubtitleReferenceID == reference.id)
+        #expect(await engine.selectionCommands.contains(.subtitle(.off)))
+    }
+
+    private func localMedia(_ name: String) -> LocalMedia {
+        LocalMedia(url: URL(fileURLWithPath: "/tmp/\(name)"))
+    }
+
+    private func waitUntil(
+        _ condition: @escaping @MainActor @Sendable () async -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if await condition() { return }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("等待协调层状态超时")
+    }
+}
+
+private enum TrackEngineCommand: Equatable, Sendable {
+    case audio(AudioTrackID)
+    case subtitle(SubtitleSelection)
+}
+
+private actor TrackFakePlaybackEngine: PlaybackEngine {
+    nonisolated let events: AsyncStream<PlaybackEngineEvent>
+    private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
+    private(set) var loadIDs: [PlaybackLoadID] = []
+    private(set) var selectionCommands: [TrackEngineCommand] = []
+    private var externalSubtitleResult: ExternalSubtitleLoadResult = .loaded(EmbeddedSubtitleTrackID())
+
+    init() {
+        (events, continuation) = AsyncStream.makeStream()
+    }
+
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) { loadIDs.append(loadID) }
+    func play() {}
+    func pause() {}
+    func stop() {}
+
+    func selectAudioTrack(_ id: AudioTrackID) -> Bool {
+        selectionCommands.append(.audio(id))
+        return true
+    }
+
+    func selectSubtitle(_ selection: SubtitleSelection) -> Bool {
+        selectionCommands.append(.subtitle(selection))
+        return true
+    }
+
+    func loadExternalSubtitle(_ subtitle: LocalExternalSubtitle) -> ExternalSubtitleLoadResult {
+        externalSubtitleResult
+    }
+
+    func setExternalSubtitleResult(_ result: ExternalSubtitleLoadResult) {
+        externalSubtitleResult = result
+    }
+
+    nonisolated func send(_ event: PlaybackEngineEvent) {
+        continuation.yield(event)
+    }
+}
