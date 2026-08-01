@@ -56,15 +56,14 @@ func verifyBasicPlaybackEngineContract(
 final class ContractEventRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [PlaybackState] = []
+    private var observedEvents: [PlaybackEngineEvent] = []
     private var eventTask: Task<Void, Never>?
 
     init(events: AsyncStream<PlaybackEngineEvent>) {
         eventTask = Task { [weak self] in
             for await event in events {
                 guard let self else { return }
-                if case let .playbackStateChanged(state, _) = event {
-                    append(state)
-                }
+                append(event)
             }
         }
     }
@@ -88,14 +87,42 @@ final class ContractEventRecorder: @unchecked Sendable {
         snapshot().dropFirst(index).contains(state)
     }
 
-    private func append(_ state: PlaybackState) {
+    func waitForState(_ state: PlaybackState, loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        let expected = PlaybackEngineEvent.playbackStateChanged(state, loadID: loadID)
+        while ContinuousClock.now < deadline {
+            if eventSnapshot().contains(expected) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractEventTimeout(expected: expected, observed: eventSnapshot())
+    }
+
+    func hasFailure(loadID: PlaybackLoadID) -> Bool {
+        eventSnapshot().contains { event in
+            if case let .playbackStateChanged(.failed, eventLoadID) = event {
+                return eventLoadID == loadID
+            }
+            return false
+        }
+    }
+
+    private func append(_ event: PlaybackEngineEvent) {
         lock.withLock {
-            states.append(state)
+            observedEvents.append(event)
+            if case let .playbackStateChanged(state, _) = event {
+                states.append(state)
+            }
         }
     }
 
     private func snapshot() -> [PlaybackState] {
         lock.withLock { states }
+    }
+
+    private func eventSnapshot() -> [PlaybackEngineEvent] {
+        lock.withLock { observedEvents }
     }
 }
 
@@ -137,4 +164,9 @@ private struct ContractTimeout: Error, CustomStringConvertible {
     var description: String {
         "等待 \(expected) 超时；已观察到 \(observed)"
     }
+}
+
+private struct ContractEventTimeout: Error {
+    let expected: PlaybackEngineEvent
+    let observed: [PlaybackEngineEvent]
 }
