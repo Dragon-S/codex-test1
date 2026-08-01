@@ -40,6 +40,11 @@ public struct LocalFileIdentity: Hashable, Codable, Sendable {
     }
 }
 
+public enum LocalMediaAvailability: String, Equatable, Codable, Sendable {
+    case available
+    case missing
+}
+
 public struct PersistentExternalSubtitleReference: Equatable, Codable, Sendable {
     public let id: ExternalSubtitleReferenceID
     public let bookmark: Data
@@ -106,17 +111,38 @@ public struct PersistentLocalMediaReference: Equatable, Codable, Sendable {
     public let bookmark: Data
     public let lastKnownPath: String
     public let fileIdentity: LocalFileIdentity?
+    public let availability: LocalMediaAvailability
 
     public init(
         id: LocalMediaReferenceID,
         bookmark: Data,
         lastKnownPath: String,
-        fileIdentity: LocalFileIdentity? = nil
+        fileIdentity: LocalFileIdentity? = nil,
+        availability: LocalMediaAvailability = .available
     ) {
         self.id = id
         self.bookmark = bookmark
         self.lastKnownPath = lastKnownPath
         self.fileIdentity = fileIdentity
+        self.availability = availability
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, bookmark, lastKnownPath, fileIdentity, availability
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try values.decode(LocalMediaReferenceID.self, forKey: .id),
+            bookmark: try values.decode(Data.self, forKey: .bookmark),
+            lastKnownPath: try values.decode(String.self, forKey: .lastKnownPath),
+            fileIdentity: try values.decodeIfPresent(LocalFileIdentity.self, forKey: .fileIdentity),
+            availability: try values.decodeIfPresent(
+                LocalMediaAvailability.self,
+                forKey: .availability
+            ) ?? .available
+        )
     }
 }
 
@@ -362,6 +388,8 @@ public struct NowPlayingEntry: Equatable, Sendable, Identifiable {
     public let isCompleted: Bool
     public let playbackPreferences: EntryPlaybackPreferences
 
+    public var isMediaMissing: Bool { media.availability == .missing }
+
     public init(
         id: PlaylistEntryID = PlaylistEntryID(),
         media: LocalMedia,
@@ -513,12 +541,38 @@ public enum PlaylistPersistenceError: Error, Equatable, Sendable {
     case missingBookmark(String)
     case playlistNotFound(PlaylistID)
     case entryNotFound(PlaylistEntryID)
+    case mediaReferenceNotFound(LocalMediaReferenceID)
     case deletionConfirmationRequired(PlaylistID)
     case invalidDestination(Int)
 }
 
+public struct MediaReplacementImpact: Equatable, Sendable {
+    public let referenceID: LocalMediaReferenceID
+    public let affectedEntryCount: Int
+    public let affectedPlaylistCount: Int
+
+    public init(
+        referenceID: LocalMediaReferenceID,
+        affectedEntryCount: Int,
+        affectedPlaylistCount: Int
+    ) {
+        self.referenceID = referenceID
+        self.affectedEntryCount = affectedEntryCount
+        self.affectedPlaylistCount = affectedPlaylistCount
+    }
+}
+
+public enum MediaRelocationResult: Equatable, Sendable {
+    case relocated
+    case confirmationRequired(MediaReplacementImpact)
+}
+
 public protocol PersistentMediaAccess: Sendable {
     func restore(_ reference: PersistentLocalMediaReference) async throws -> LocalMedia
+}
+
+public enum PersistentMediaAccessError: Error, Equatable, Sendable {
+    case missing(String)
 }
 
 public protocol PersistentExternalSubtitleAccess: Sendable {
@@ -535,7 +589,8 @@ public struct LastKnownPathMediaAccess: PersistentMediaAccess {
             url: URL(fileURLWithPath: reference.lastKnownPath),
             referenceID: reference.id,
             bookmark: reference.bookmark,
-            fileIdentity: reference.fileIdentity
+            fileIdentity: reference.fileIdentity,
+            availability: reference.availability
         )
     }
 }

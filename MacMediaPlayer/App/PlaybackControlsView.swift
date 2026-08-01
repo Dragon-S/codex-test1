@@ -211,6 +211,9 @@ struct PlaybackControlsView: View {
 struct NowPlayingListView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let addMediaToPlaylist: (PlaylistID) -> Void
+    let relocateMissingMedia: (LocalMediaReferenceID) -> Void
+    let confirmMediaReplacement: (LocalMediaReferenceID) -> Void
+    let cancelMediaReplacement: () -> Void
     @State private var playlistName = ""
     @State private var renameName = ""
     @State private var playlistAwaitingDeletion: PlaylistID?
@@ -240,6 +243,8 @@ struct NowPlayingListView: View {
             temporaryListSaver
             persistenceNotice
                 .padding(.horizontal, 12)
+            missingMediaStatus
+                .padding(.horizontal, 12)
                 .padding(.bottom, 8)
         }
         .frame(minWidth: 260, idealWidth: 300)
@@ -267,6 +272,37 @@ struct NowPlayingListView: View {
             }
         } message: {
             Text("当前媒体会继续播放，但结束后停止；该 Playlist 不会在重启后恢复。源文件不会被删除或修改。")
+        }
+        .alert(
+            missingMediaAlertTitle,
+            isPresented: Binding(
+                get: { missingMediaAlertIsPresented },
+                set: { isPresented in
+                    if !isPresented {
+                        coordinator.cancelMissingMediaRecovery()
+                        cancelMediaReplacement()
+                    }
+                }
+            )
+        ) {
+            switch coordinator.missingMediaNotice {
+            case let .recoveryRequired(entryID, referenceID):
+                Button("取消", role: .cancel) {}
+                Button("重新定位…") { relocateMissingMedia(referenceID) }
+                Button("从 Playlist 移除", role: .destructive) {
+                    guard let playlistID = playlistID(containing: entryID) else { return }
+                    Task { try? await coordinator.removeEntry(entryID, from: playlistID) }
+                }
+            case let .replacementConfirmationRequired(impact):
+                Button("取消", role: .cancel) {}
+                Button("替换并重置", role: .destructive) {
+                    confirmMediaReplacement(impact.referenceID)
+                }
+            case .none, .noPlayableEntries:
+                EmptyView()
+            }
+        } message: {
+            Text(missingMediaAlertMessage)
         }
     }
 
@@ -361,7 +397,10 @@ struct NowPlayingListView: View {
             }
             List(Array(playlist.entries.enumerated()), id: \.element.id) { index, entry in
                 HStack {
-                    Image(systemName: isPlaying(entry.id, in: playlist.id) ? "play.fill" : "circle")
+                    Image(systemName: entry.media.availability == .missing
+                        ? "exclamationmark.triangle.fill"
+                        : (isPlaying(entry.id, in: playlist.id) ? "play.fill" : "circle"))
+                        .foregroundStyle(entry.media.availability == .missing ? .orange : .primary)
                         .accessibilityHidden(true)
                     Text(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
                         .lineLimit(1)
@@ -405,7 +444,9 @@ struct NowPlayingListView: View {
                     .help("从 Playlist 移除；不会删除源文件")
                 }
                 .accessibilityLabel(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
-                .accessibilityValue(isPlaying(entry.id, in: playlist.id) ? "当前播放" : "")
+                .accessibilityValue(entry.media.availability == .missing
+                    ? "文件缺失"
+                    : (isPlaying(entry.id, in: playlist.id) ? "当前播放" : ""))
             }
         }
     }
@@ -458,6 +499,47 @@ struct NowPlayingListView: View {
         }
     }
 
+    private var missingMediaAlertIsPresented: Bool {
+        switch coordinator.missingMediaNotice {
+        case .recoveryRequired, .replacementConfirmationRequired:
+            true
+        case .none, .noPlayableEntries:
+            false
+        }
+    }
+
+    private var missingMediaAlertTitle: String {
+        switch coordinator.missingMediaNotice {
+        case .recoveryRequired:
+            "文件缺失"
+        case .replacementConfirmationRequired:
+            "替换为不同文件？"
+        case .none, .noPlayableEntries:
+            ""
+        }
+    }
+
+    private var missingMediaAlertMessage: String {
+        switch coordinator.missingMediaNotice {
+        case let .recoveryRequired(entryID, _):
+            let name = coordinator.playlists.lazy.flatMap(\.entries)
+                .first(where: { $0.id == entryID })
+                .map { URL(fileURLWithPath: $0.media.lastKnownPath).lastPathComponent }
+                ?? "所选文件"
+            return "“\(name)”无法定位。可重新定位文件，或仅从 Playlist 移除该条目；取消不会更改任何数据。"
+        case let .replacementConfirmationRequired(impact):
+            return "所选文件与原文件身份明显不同。确认后会更新共享本地媒体引用，并重置 \(impact.affectedPlaylistCount) 个 Playlist 中 \(impact.affectedEntryCount) 个关联条目的续播位置、已播完状态及音轨和字幕偏好。"
+        case .none, .noPlayableEntries:
+            return ""
+        }
+    }
+
+    private func playlistID(containing entryID: PlaylistEntryID) -> PlaylistID? {
+        coordinator.playlists.first(where: { playlist in
+            playlist.entries.contains(where: { $0.id == entryID })
+        })?.id
+    }
+
     @ViewBuilder
     private var persistenceNotice: some View {
         switch coordinator.persistenceNotice {
@@ -472,6 +554,17 @@ struct NowPlayingListView: View {
         case let .failed(message):
             Label(message, systemImage: "xmark.octagon.fill")
                 .foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
+    private var missingMediaStatus: some View {
+        if case let .noPlayableEntries(missingCount) = coordinator.missingMediaNotice {
+            Label(
+                "没有可播放条目；已跳过 \(missingCount) 个文件缺失条目",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(.orange)
         }
     }
 }

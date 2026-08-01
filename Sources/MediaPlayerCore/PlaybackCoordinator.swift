@@ -95,6 +95,13 @@ public enum TrackNotice: Equatable, Sendable {
     case externalSubtitleDamaged(String)
 }
 
+public enum MissingMediaNotice: Equatable, Sendable {
+    case none
+    case recoveryRequired(entryID: PlaylistEntryID, referenceID: LocalMediaReferenceID)
+    case noPlayableEntries(missingCount: Int)
+    case replacementConfirmationRequired(MediaReplacementImpact)
+}
+
 @MainActor
 public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var state: PlaybackState = .idle
@@ -114,6 +121,11 @@ public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var availableEmbeddedSubtitleTracks: [EmbeddedSubtitleTrackOption] = []
     @Published public private(set) var trackSelection = TrackSelectionState()
     @Published public private(set) var trackNotice: TrackNotice = .none
+    @Published public private(set) var missingMediaNotice: MissingMediaNotice = .none
+
+    public var missingMediaCount: Int {
+        nowPlayingList.entries.count(where: \.isMediaMissing)
+    }
 
     private let engine: any PlaybackEngine
     private let playlistStore: any PlaylistStore
@@ -450,6 +462,10 @@ public final class PlaybackCoordinator: ObservableObject {
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        if case let .recoveryRequired(recoveryEntryID, _) = missingMediaNotice,
+           recoveryEntryID == entryID {
+            missingMediaNotice = .none
+        }
 
         guard activePlaylistID == playlistID else { return }
         if removedCurrentEntry {
@@ -499,9 +515,32 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let currentIndex = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
             throw PlaylistPersistenceError.entryNotFound(entryID)
         }
+        let selectedEntry = playlist.entries[currentIndex]
+        guard selectedEntry.media.availability != .missing else {
+            missingMediaNotice = .recoveryRequired(
+                entryID: selectedEntry.id,
+                referenceID: selectedEntry.media.id
+            )
+            return
+        }
+        missingMediaNotice = .none
         var restoredEntries: [NowPlayingEntry] = []
+        var restoredMediaByReferenceID: [LocalMediaReferenceID: LocalMedia] = [:]
         for entry in playlist.entries {
-            let media = try await persistentMediaAccess.restore(entry.media)
+            let media: LocalMedia
+            if let restored = restoredMediaByReferenceID[entry.media.id] {
+                media = restored
+            } else if entry.media.availability == .missing {
+                media = missingLocalMedia(for: entry.media)
+            } else {
+                do {
+                    media = try await persistentMediaAccess.restore(entry.media)
+                } catch {
+                    try await markMediaReferenceMissing(entry.media)
+                    media = missingLocalMedia(for: entry.media)
+                }
+                restoredMediaByReferenceID[entry.media.id] = media
+            }
             restoredEntries.append(NowPlayingEntry(
                 id: entry.id,
                 media: media,
@@ -510,8 +549,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 playbackPreferences: entry.playbackPreferences
             ))
         }
-        var playingPlaylist = playlist.replacingEntries(
-            playlist.entries,
+        guard !restoredEntries[currentIndex].isMediaMissing else {
+            missingMediaNotice = .recoveryRequired(
+                entryID: entryID,
+                referenceID: selectedEntry.media.id
+            )
+            return
+        }
+        let refreshedPlaylist = playlists.first(where: { $0.id == playlistID }) ?? playlist
+        var playingPlaylist = refreshedPlaylist.replacingEntries(
+            refreshedPlaylist.entries,
             currentEntryID: entryID
         )
         if playlist.playbackOrder == .random {
@@ -530,6 +577,137 @@ public final class PlaybackCoordinator: ObservableObject {
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = false
         await load(restoredEntries[currentIndex].media)
+    }
+
+    public func cancelMissingMediaRecovery() {
+        missingMediaNotice = .none
+    }
+
+    @discardableResult
+    public func relocateMissingMedia(
+        referenceID: LocalMediaReferenceID,
+        to media: LocalMedia,
+        confirmedReplacement: Bool = false
+    ) async throws -> MediaRelocationResult {
+        let affectedPlaylists = playlists.filter { playlist in
+            playlist.entries.contains(where: { $0.media.id == referenceID })
+        }
+        guard let existingReference = affectedPlaylists.lazy
+            .flatMap(\.entries)
+            .first(where: { $0.media.id == referenceID })?
+            .media else {
+            throw PlaylistPersistenceError.mediaReferenceNotFound(referenceID)
+        }
+        guard let bookmark = media.bookmark else {
+            throw PlaylistPersistenceError.missingBookmark(media.url.path)
+        }
+        let impact = MediaReplacementImpact(
+            referenceID: referenceID,
+            affectedEntryCount: affectedPlaylists.reduce(0) { count, playlist in
+                count + playlist.entries.count(where: { $0.media.id == referenceID })
+            },
+            affectedPlaylistCount: affectedPlaylists.count
+        )
+        let isObviousReplacement = existingReference.fileIdentity != nil
+            && media.fileIdentity != nil
+            && existingReference.fileIdentity != media.fileIdentity
+        guard !isObviousReplacement || confirmedReplacement else {
+            missingMediaNotice = .replacementConfirmationRequired(impact)
+            return .confirmationRequired(impact)
+        }
+        let replacement = PersistentLocalMediaReference(
+            id: referenceID,
+            bookmark: bookmark,
+            lastKnownPath: media.url.path,
+            fileIdentity: media.fileIdentity ?? existingReference.fileIdentity,
+            availability: .available
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let entries = playlist.entries.map { entry in
+                guard entry.media.id == referenceID else { return entry }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: replacement,
+                    resumePosition: isObviousReplacement ? nil : entry.resumePosition,
+                    isCompleted: isObviousReplacement ? false : entry.isCompleted,
+                    playbackPreferences: isObviousReplacement
+                        ? EntryPlaybackPreferences()
+                        : entry.playbackPreferences
+                )
+            }
+            return playlist.replacingEntries(entries, currentEntryID: playlist.currentEntryID)
+        }
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        let replacementMedia = LocalMedia(
+            url: media.url,
+            referenceID: referenceID,
+            bookmark: bookmark,
+            fileIdentity: replacement.fileIdentity,
+            availability: .available
+        )
+        nowPlayingList = NowPlayingList(
+            entries: nowPlayingList.entries.map { entry in
+                guard entry.media.referenceID == referenceID else { return entry }
+                return NowPlayingEntry(
+                    id: entry.id,
+                    media: replacementMedia,
+                    resumePosition: isObviousReplacement ? nil : entry.resumePosition,
+                    isCompleted: isObviousReplacement ? false : entry.isCompleted,
+                    playbackPreferences: isObviousReplacement
+                        ? EntryPlaybackPreferences()
+                        : entry.playbackPreferences
+                )
+            },
+            currentIndex: nowPlayingList.currentIndex
+        )
+        missingMediaNotice = .none
+        return .relocated
+    }
+
+    private func markMediaReferenceMissing(
+        _ reference: PersistentLocalMediaReference
+    ) async throws {
+        let missingReference = PersistentLocalMediaReference(
+            id: reference.id,
+            bookmark: reference.bookmark,
+            lastKnownPath: reference.lastKnownPath,
+            fileIdentity: reference.fileIdentity,
+            availability: .missing
+        )
+        try await playlistStore.updateMediaReferences([missingReference])
+        let library = PlaylistLibrary(
+            playlists: playlists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        ).replacingMediaReferences([missingReference])
+        playlists = library.playlists
+        nowPlayingList = NowPlayingList(
+            entries: nowPlayingList.entries.map { entry in
+                guard entry.media.referenceID == reference.id else { return entry }
+                return NowPlayingEntry(
+                    id: entry.id,
+                    media: missingLocalMedia(for: missingReference),
+                    resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
+                    playbackPreferences: entry.playbackPreferences
+                )
+            },
+            currentIndex: nowPlayingList.currentIndex
+        )
+    }
+
+    private func missingLocalMedia(
+        for reference: PersistentLocalMediaReference
+    ) -> LocalMedia {
+        LocalMedia(
+            url: URL(fileURLWithPath: reference.lastKnownPath),
+            referenceID: reference.id,
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity,
+            availability: .missing
+        )
     }
 
     @discardableResult
@@ -609,14 +787,40 @@ public final class PlaybackCoordinator: ObservableObject {
             playbackRate = activePlaylist.playbackRate
             var restoredEntries: [NowPlayingEntry] = []
             var refreshedReferences: [PersistentLocalMediaReference] = []
+            var restoredMediaByReferenceID: [LocalMediaReferenceID: LocalMedia] = [:]
             for entry in activePlaylist.entries {
-                let media = try await persistentMediaAccess.restore(entry.media)
+                let media: LocalMedia
+                if let restored = restoredMediaByReferenceID[entry.media.id] {
+                    media = restored
+                } else {
+                    do {
+                        media = try await persistentMediaAccess.restore(entry.media)
+                    } catch {
+                        media = LocalMedia(
+                            url: URL(fileURLWithPath: entry.media.lastKnownPath),
+                            referenceID: entry.media.id,
+                            bookmark: entry.media.bookmark,
+                            fileIdentity: entry.media.fileIdentity,
+                            availability: .missing
+                        )
+                    }
+                    restoredMediaByReferenceID[entry.media.id] = media
+                }
                 if let bookmark = media.bookmark, bookmark != entry.media.bookmark {
                     refreshedReferences.append(PersistentLocalMediaReference(
                         id: entry.media.id,
                         bookmark: bookmark,
                         lastKnownPath: media.url.path,
-                        fileIdentity: media.fileIdentity ?? entry.media.fileIdentity
+                        fileIdentity: media.fileIdentity ?? entry.media.fileIdentity,
+                        availability: media.availability
+                    ))
+                } else if media.availability != entry.media.availability {
+                    refreshedReferences.append(PersistentLocalMediaReference(
+                        id: entry.media.id,
+                        bookmark: entry.media.bookmark,
+                        lastKnownPath: entry.media.lastKnownPath,
+                        fileIdentity: entry.media.fileIdentity,
+                        availability: media.availability
                     ))
                 }
                 restoredEntries.append(NowPlayingEntry(
@@ -628,6 +832,9 @@ public final class PlaybackCoordinator: ObservableObject {
                 ))
             }
             try await playlistStore.updateMediaReferences(refreshedReferences)
+            if !refreshedReferences.isEmpty {
+                playlists = library.replacingMediaReferences(refreshedReferences).playlists
+            }
             let currentIndex = activePlaylist.currentEntryID.flatMap { currentID in
                 restoredEntries.firstIndex(where: { $0.id == currentID })
             }
@@ -652,6 +859,13 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     public func play() async {
+        if let entry = currentEntry, entry.isMediaMissing {
+            missingMediaNotice = .recoveryRequired(
+                entryID: entry.id,
+                referenceID: entry.media.referenceID
+            )
+            return
+        }
         if isRestoredMediaPendingLoad, let media = nowPlayingList.currentMedia {
             isRestoredMediaPendingLoad = false
             await load(media)
@@ -886,17 +1100,22 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     private func move(by offset: Int) async {
-        guard let destination = nowPlayingList.moving(by: offset),
-              let media = destination.currentMedia else {
+        guard let currentIndex = nowPlayingList.currentIndex else {
             await engine.stop()
             return
         }
-        nowPlayingList = destination
-        if let entry = currentEntry {
-            resetTimeline(for: entry)
+        let indices: any Sequence<Int> = offset >= 0
+            ? AnySequence((currentIndex + 1)..<nowPlayingList.entries.count)
+            : AnySequence(stride(from: currentIndex - 1, through: 0, by: -1))
+        guard let destination = indices.first(where: {
+            !nowPlayingList.entries[$0].isMediaMissing
+        }) else {
+            missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
+            await engine.stop()
+            return
         }
-        await load(media)
-        await persistCurrentState(force: true)
+        missingMediaNotice = .none
+        await move(to: destination)
     }
 
     private func move(to index: Int, advancesRandomAfterFailure: Bool = false) async {
@@ -1031,13 +1250,18 @@ public final class PlaybackCoordinator: ObservableObject {
                 await advanceRandom(advancesAfterFailure: true)
                 return
             }
-            if nowPlayingList.entries.indices.contains(currentIndex + 1) {
-                await move(by: 1)
-            } else if activePlaylist?.repeatMode == .playlist,
-                      !nowPlayingList.entries.isEmpty {
-                await move(to: 0)
+            let forward = ((currentIndex + 1)..<nowPlayingList.entries.count).first(where: {
+                !nowPlayingList.entries[$0].isMediaMissing
+            })
+            let wrapped = activePlaylist?.repeatMode == .playlist
+                ? (0...currentIndex).first(where: { !nowPlayingList.entries[$0].isMediaMissing })
+                : nil
+            if let destination = forward ?? wrapped {
+                missingMediaNotice = .none
+                await move(to: destination)
             } else {
                 state = .stopped
+                missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
             }
         case let .trackCatalogChanged(catalog, loadID):
             guard loadID == activeLoadID else { return }
@@ -1078,24 +1302,28 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         let playlist = playlists[playlistIndex]
-        let availableIDs = Set(playlist.entries.map(\.id))
+        let existingIDs = Set(playlist.entries.map(\.id))
+        let playableIDs = Set(playlist.entries.lazy.filter {
+            $0.media.availability != .missing
+        }.map(\.id))
         var round = playlist.randomRound ?? makeRandomRound(for: playlist)
         var candidate = round.order.first { id in
-            availableIDs.contains(id)
+            playableIDs.contains(id)
                 && !round.playedEntryIDs.contains(id)
                 && !round.unavailableEntryIDs.contains(id)
         }
-        let eligibleIDs = availableIDs.subtracting(round.unavailableEntryIDs)
+        let eligibleIDs = playableIDs.subtracting(round.unavailableEntryIDs)
         if candidate == nil, playlist.repeatMode == .playlist, !eligibleIDs.isEmpty {
             round = RandomPlaybackRound(
                 order: randomizer.shuffled(playlist.entries.map(\.id)),
-                unavailableEntryIDs: round.unavailableEntryIDs.filter(availableIDs.contains)
+                unavailableEntryIDs: round.unavailableEntryIDs.filter(existingIDs.contains)
             )
             candidate = round.order.first(where: eligibleIDs.contains)
         }
         guard let candidate,
               let destination = nowPlayingList.entries.firstIndex(where: { $0.id == candidate }) else {
             state = .stopped
+            missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
             if stopEngineAtBoundary {
                 await engine.stop()
             }

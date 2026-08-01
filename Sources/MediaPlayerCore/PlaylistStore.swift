@@ -334,6 +334,10 @@ private extension PlaylistLibrary {
         )
     }
 
+}
+
+extension PlaylistLibrary {
+
     func replacingMediaReferences(
         _ references: [PersistentLocalMediaReference]
     ) -> PlaylistLibrary {
@@ -364,6 +368,10 @@ private extension PlaylistLibrary {
             seekStep: seekStep
         )
     }
+
+}
+
+private extension PlaylistLibrary {
 
     func replacingExternalSubtitleReferences(
         _ references: [PersistentExternalSubtitleReference]
