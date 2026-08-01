@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
+            addMediaToPlaylist: { [weak self] playlistID in
+                self?.addMedia(to: playlistID)
+            },
             videoView: videoView
         )
         let window = NSWindow(contentViewController: viewController)
@@ -71,12 +74,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            return LocalMedia(url: url, bookmark: bookmark)
+            return LocalMedia(
+                url: url,
+                bookmark: bookmark,
+                fileIdentity: Self.fileIdentity(for: url)
+            )
         }
         releaseSecurityScope()
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
         Task { await coordinator.open(media) }
+    }
+
+    private func addMedia(to playlistID: PlaylistID) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.title = "向 Playlist 添加本地媒体"
+        panel.prompt = "添加"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = Self.supportedMediaTypes
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, !panel.urls.isEmpty else { return }
+            Task { @MainActor [weak self] in
+                guard let self, let coordinator else { return }
+                guard let url = panel.urls.first else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    securityScopedURLs.append(url)
+                }
+                let bookmark = try? url.bookmarkData(
+                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                _ = try? await coordinator.add(
+                    LocalMedia(
+                        url: url,
+                        bookmark: bookmark,
+                        fileIdentity: Self.fileIdentity(for: url)
+                    ),
+                    to: playlistID
+                )
+            }
+        }
+    }
+
+    private static func fileIdentity(for url: URL) -> LocalFileIdentity? {
+        guard let identifier = try? url.resourceValues(
+            forKeys: [.fileResourceIdentifierKey]
+        ).fileResourceIdentifier else { return nil }
+        guard let data = try? NSKeyedArchiver.archivedData(
+            withRootObject: identifier,
+            requiringSecureCoding: false
+        ) else { return nil }
+        return LocalFileIdentity(rawValue: data)
     }
 
     private func makePlaylistStore() -> any PlaylistStore {

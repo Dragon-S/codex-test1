@@ -50,7 +50,12 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, @unchecked Sendabl
         } else {
             bookmark = reference.bookmark
         }
-        return LocalMedia(url: url, referenceID: reference.id, bookmark: bookmark)
+        return LocalMedia(
+            url: url,
+            referenceID: reference.id,
+            bookmark: bookmark,
+            fileIdentity: reference.fileIdentity
+        )
     }
 
     deinit {
