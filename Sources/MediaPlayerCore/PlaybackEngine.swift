@@ -2,9 +2,17 @@ import Foundation
 
 public struct LocalMedia: Equatable, Sendable {
     public let url: URL
+    public let referenceID: LocalMediaReferenceID
+    public let bookmark: Data?
 
-    public init(url: URL) {
+    public init(
+        url: URL,
+        referenceID: LocalMediaReferenceID = LocalMediaReferenceID(),
+        bookmark: Data? = nil
+    ) {
         self.url = url
+        self.referenceID = referenceID
+        self.bookmark = bookmark
     }
 }
 
