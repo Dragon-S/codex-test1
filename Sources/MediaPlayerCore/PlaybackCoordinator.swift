@@ -1110,7 +1110,7 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let destination = indices.first(where: {
             !nowPlayingList.entries[$0].isMediaMissing
         }) else {
-            missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
+            reportMissingProgressionBoundary()
             await engine.stop()
             return
         }
@@ -1261,7 +1261,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 await move(to: destination)
             } else {
                 state = .stopped
-                missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
+                reportMissingProgressionBoundary()
             }
         case let .trackCatalogChanged(catalog, loadID):
             guard loadID == activeLoadID else { return }
@@ -1323,7 +1323,7 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let candidate,
               let destination = nowPlayingList.entries.firstIndex(where: { $0.id == candidate }) else {
             state = .stopped
-            missingMediaNotice = .noPlayableEntries(missingCount: missingMediaCount)
+            reportMissingProgressionBoundary()
             if stopEngineAtBoundary {
                 await engine.stop()
             }
@@ -1342,6 +1342,12 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         await move(to: destination, advancesRandomAfterFailure: advancesAfterFailure)
+    }
+
+    private func reportMissingProgressionBoundary() {
+        missingMediaNotice = missingMediaCount > 0
+            ? .noPlayableEntries(missingCount: missingMediaCount)
+            : .none
     }
 
     private func recordRandomSelectionIfNeeded(_ entryID: PlaylistEntryID) async -> Bool {
