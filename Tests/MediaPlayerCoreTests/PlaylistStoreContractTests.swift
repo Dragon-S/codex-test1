@@ -63,6 +63,17 @@ struct PlaylistStoreContractTests {
         #expect(restored.playlists == [playlist])
         #expect(restored.activePlaylistID == playlist.id)
         #expect(restored.playlists[0].entries.map(\.media.id) == [sharedReferenceID, sharedReferenceID])
+
+        let refreshedReference = PersistentLocalMediaReference(
+            id: sharedReferenceID,
+            bookmark: Data([0xAA, 0xBB]),
+            lastKnownPath: "/tmp/moved-movie.mkv"
+        )
+        try await store.updateMediaReferences([refreshedReference, refreshedReference])
+        let refreshed = try await store.loadLibrary()
+        #expect(refreshed.playlists[0].entries.map(\.media) == [
+            refreshedReference, refreshedReference,
+        ])
     }
 }
 
@@ -181,6 +192,41 @@ struct NamedPlaylistCoordinatorTests {
 
         await coordinator.play()
         #expect(await engine.commands == [.load])
+    }
+
+    @Test("恢复层刷新书签时通过存储端口原子更新共享本地媒体引用")
+    func persistsRefreshedBookmarkDuringRestore() async throws {
+        let store = InMemoryPlaylistStore()
+        let referenceID = LocalMediaReferenceID()
+        let entry = PlaylistEntry(
+            media: PersistentLocalMediaReference(
+                id: referenceID,
+                bookmark: Data([0x01]),
+                lastKnownPath: "/tmp/old-path.mkv"
+            )
+        )
+        try await store.create(Playlist(name: "书签刷新", entries: [entry], currentEntryID: entry.id))
+        let coordinator = PlaybackCoordinator(
+            engine: PlaylistFakePlaybackEngine(),
+            playlistStore: store,
+            persistentMediaAccess: RefreshingMediaAccess()
+        )
+
+        try await coordinator.restorePersistentState()
+
+        let restoredLibrary = await store.loadLibrary()
+        #expect(restoredLibrary.playlists[0].entries[0].media.bookmark == Data([0x02]))
+        #expect(restoredLibrary.playlists[0].entries[0].media.lastKnownPath == "/tmp/new-path.mkv")
+    }
+}
+
+private struct RefreshingMediaAccess: PersistentMediaAccess {
+    func restore(_ reference: PersistentLocalMediaReference) -> LocalMedia {
+        LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/new-path.mkv"),
+            referenceID: reference.id,
+            bookmark: Data([0x02])
+        )
     }
 }
 

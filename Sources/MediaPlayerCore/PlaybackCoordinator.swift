@@ -141,8 +141,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 return
             }
             var restoredEntries: [NowPlayingEntry] = []
+            var refreshedReferences: [PersistentLocalMediaReference] = []
             for entry in activePlaylist.entries {
                 let media = try await persistentMediaAccess.restore(entry.media)
+                if let bookmark = media.bookmark, bookmark != entry.media.bookmark {
+                    refreshedReferences.append(PersistentLocalMediaReference(
+                        id: entry.media.id,
+                        bookmark: bookmark,
+                        lastKnownPath: media.url.path
+                    ))
+                }
                 restoredEntries.append(NowPlayingEntry(
                     id: entry.id,
                     media: media,
@@ -150,6 +158,7 @@ public final class PlaybackCoordinator: ObservableObject {
                     playbackPreferences: entry.playbackPreferences
                 ))
             }
+            try await playlistStore.updateMediaReferences(refreshedReferences)
             let currentIndex = activePlaylist.currentEntryID.flatMap { currentID in
                 restoredEntries.firstIndex(where: { $0.id == currentID })
             }

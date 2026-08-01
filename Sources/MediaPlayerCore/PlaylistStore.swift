@@ -9,6 +9,7 @@ public enum PlaylistStoreError: Error, Equatable, Sendable {
 public protocol PlaylistStore: Sendable {
     func create(_ playlist: Playlist) async throws
     func loadLibrary() async throws -> PlaylistLibrary
+    func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
 }
 
 public actor UnavailablePlaylistStore: PlaylistStore {
@@ -25,6 +26,10 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     public func loadLibrary() throws -> PlaylistLibrary {
         throw PlaylistStoreError.unavailable(message)
     }
+
+    public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
 }
 
 public actor InMemoryPlaylistStore: PlaylistStore {
@@ -35,17 +40,15 @@ public actor InMemoryPlaylistStore: PlaylistStore {
     }
 
     public func create(_ playlist: Playlist) throws {
-        guard !library.playlists.contains(where: { namesConflict($0.name, playlist.name) }) else {
-            throw PlaylistStoreError.nameAlreadyExists(playlist.name)
-        }
-        library = PlaylistLibrary(
-            playlists: library.playlists + [playlist],
-            activePlaylistID: playlist.id
-        )
+        library = try library.adding(playlist)
     }
 
     public func loadLibrary() -> PlaylistLibrary {
         library
+    }
+
+    public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {
+        library = library.replacingMediaReferences(references)
     }
 }
 
@@ -80,13 +83,7 @@ public actor SQLitePlaylistStore: PlaylistStore {
         try execute("BEGIN IMMEDIATE")
         do {
             let current = try readLibrary()
-            guard !current.playlists.contains(where: { namesConflict($0.name, playlist.name) }) else {
-                throw PlaylistStoreError.nameAlreadyExists(playlist.name)
-            }
-            let updated = PlaylistLibrary(
-                playlists: current.playlists + [playlist],
-                activePlaylistID: playlist.id
-            )
+            let updated = try current.adding(playlist)
             try writeLibrary(updated)
             try execute("COMMIT")
         } catch {
@@ -97,6 +94,19 @@ public actor SQLitePlaylistStore: PlaylistStore {
 
     public func loadLibrary() throws -> PlaylistLibrary {
         try readLibrary()
+    }
+
+    public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        guard !references.isEmpty else { return }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            try writeLibrary(current.replacingMediaReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
     }
 
     private func readLibrary() throws -> PlaylistLibrary {
@@ -182,4 +192,42 @@ private final class SQLiteConnection: @unchecked Sendable {
 
 private func namesConflict(_ lhs: String, _ rhs: String) -> Bool {
     lhs.compare(rhs, options: [.caseInsensitive], locale: Locale(identifier: "en_US_POSIX")) == .orderedSame
+}
+
+private extension PlaylistLibrary {
+    func adding(_ playlist: Playlist) throws -> PlaylistLibrary {
+        guard !playlists.contains(where: { namesConflict($0.name, playlist.name) }) else {
+            throw PlaylistStoreError.nameAlreadyExists(playlist.name)
+        }
+        return PlaylistLibrary(
+            playlists: playlists + [playlist],
+            activePlaylistID: playlist.id
+        )
+    }
+
+    func replacingMediaReferences(
+        _ references: [PersistentLocalMediaReference]
+    ) -> PlaylistLibrary {
+        let referencesByID = Dictionary(
+            references.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let updatedEntries = playlist.entries.map { entry in
+                PlaylistEntry(
+                    id: entry.id,
+                    media: referencesByID[entry.media.id] ?? entry.media,
+                    resumePosition: entry.resumePosition,
+                    playbackPreferences: entry.playbackPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: updatedEntries,
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
 }

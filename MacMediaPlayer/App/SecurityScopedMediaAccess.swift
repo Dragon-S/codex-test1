@@ -31,13 +31,26 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, @unchecked Sendabl
         } catch {
             throw SecurityScopedMediaAccessError.bookmarkCannotBeResolved(reference.lastKnownPath)
         }
-        guard url.startAccessingSecurityScopedResource() else {
+        let startedSecurityScope = url.startAccessingSecurityScopedResource()
+        guard startedSecurityScope || FileManager.default.isReadableFile(atPath: url.path) else {
             throw SecurityScopedMediaAccessError.permissionDenied(url.path)
         }
-        lock.withLock {
-            accessedURLs.append(url)
+        if startedSecurityScope {
+            lock.withLock {
+                accessedURLs.append(url)
+            }
         }
-        return LocalMedia(url: url, referenceID: reference.id, bookmark: reference.bookmark)
+        let bookmark: Data
+        if isStale {
+            bookmark = try url.bookmarkData(
+                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+        } else {
+            bookmark = reference.bookmark
+        }
+        return LocalMedia(url: url, referenceID: reference.id, bookmark: bookmark)
     }
 
     deinit {
