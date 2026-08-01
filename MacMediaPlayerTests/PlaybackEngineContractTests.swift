@@ -32,7 +32,10 @@ struct LibMPVPlaybackEngineContractTests {
         let mediaURL = try makeRedMP4()
         defer { try? FileManager.default.removeItem(at: mediaURL) }
 
-        await engine.load(LocalMedia(url: mediaURL))
+        await engine.load(
+            LocalMedia(url: mediaURL),
+            loadID: PlaybackLoadID(rawValue: 1)
+        )
         try await recorder.wait(for: .playing)
         try await Task.sleep(for: .milliseconds(200))
 

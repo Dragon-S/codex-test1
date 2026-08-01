@@ -9,14 +9,16 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     init(videoView: PlaybackCanvasView) {
         (events, continuation) = AsyncStream.makeStream()
         client = MPVClient(videoView: videoView)
-        client.stateHandler = { [continuation] state in
-            continuation.yield(.playbackStateChanged(Self.state(for: state)))
+        client.stateHandler = { [continuation] state, rawLoadID in
+            let loadID = PlaybackLoadID(rawValue: rawLoadID)
+            continuation.yield(.playbackStateChanged(Self.state(for: state), loadID: loadID))
         }
-        client.failureHandler = { [continuation] failure in
-            continuation.yield(.playbackStateChanged(.failed(Self.failure(for: failure))))
+        client.failureHandler = { [continuation] failure, rawLoadID in
+            let loadID = PlaybackLoadID(rawValue: rawLoadID)
+            continuation.yield(.playbackStateChanged(.failed(Self.failure(for: failure)), loadID: loadID))
         }
-        client.playbackEndedHandler = { [continuation] in
-            continuation.yield(.playbackEnded)
+        client.playbackEndedHandler = { [continuation] rawLoadID in
+            continuation.yield(.playbackEnded(loadID: PlaybackLoadID(rawValue: rawLoadID)))
         }
     }
 
@@ -25,8 +27,8 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         continuation.finish()
     }
 
-    func load(_ media: LocalMedia) async {
-        client.load(media.url)
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) async {
+        client.load(media.url, loadID: loadID.rawValue)
     }
 
     func play() async {

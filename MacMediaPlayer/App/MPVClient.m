@@ -18,6 +18,7 @@ static void MPVRenderUpdate(void *context);
     dispatch_source_t _eventTimer;
     BOOL _hasLoadedFile;
     BOOL _isReplacingFile;
+    uint64_t _loadID;
     mpv_render_context *_renderContext;
     __weak NSOpenGLView *_videoView;
 }
@@ -74,22 +75,22 @@ static void MPVRenderUpdate(void *context);
     [self shutdown];
 }
 
-- (void)loadURL:(NSURL *)url {
+- (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID {
     NSString *path = url.path;
-    [self performCommand:@[ @"loadfile", path, @"replace" ] loading:YES];
-    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO];
+    [self performCommand:@[ @"loadfile", path, @"replace" ] loading:YES loadID:loadID];
+    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO loadID:0];
 }
 
 - (void)play {
-    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO];
+    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO loadID:0];
 }
 
 - (void)pause {
-    [self performCommand:@[ @"set", @"pause", @"yes" ] loading:NO];
+    [self performCommand:@[ @"set", @"pause", @"yes" ] loading:NO loadID:0];
 }
 
 - (void)stop {
-    [self performCommand:@[ @"stop" ] loading:NO];
+    [self performCommand:@[ @"stop" ] loading:NO loadID:0];
 }
 
 - (void)shutdown {
@@ -172,8 +173,11 @@ static void MPVRenderUpdate(void *context);
     mpv_render_context_report_swap(_renderContext);
 }
 
-- (void)performCommand:(NSArray<NSString *> *)arguments loading:(BOOL)loading {
+- (void)performCommand:(NSArray<NSString *> *)arguments loading:(BOOL)loading loadID:(uint64_t)loadID {
     dispatch_async(_queue, ^{
+        if (loading) {
+            self->_loadID = loadID;
+        }
         if (self->_handle == NULL) {
             [self reportFailure:MPVClientFailureEngineUnavailable];
             return;
@@ -258,7 +262,7 @@ static void MPVRenderUpdate(void *context);
         [self reportFailure:[self failureForError:endFile->error]];
     } else if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_EOF) {
         if (self.playbackEndedHandler != nil) {
-            self.playbackEndedHandler();
+            self.playbackEndedHandler(_loadID);
         }
     } else {
         [self reportState:MPVClientPlaybackStateStopped];
@@ -291,13 +295,13 @@ static void MPVRenderUpdate(void *context);
 
 - (void)reportState:(MPVClientPlaybackState)state {
     if (self.stateHandler != nil) {
-        self.stateHandler(state);
+        self.stateHandler(state, _loadID);
     }
 }
 
 - (void)reportFailure:(MPVClientFailure)failure {
     if (self.failureHandler != nil) {
-        self.failureHandler(failure);
+        self.failureHandler(failure, _loadID);
     }
 }
 

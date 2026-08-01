@@ -24,8 +24,9 @@ func verifyBasicPlaybackEngineContract(
     try await Task.sleep(for: .milliseconds(100))
     #expect(!recorder.hasObserved(.playing))
 
+    let initialLoadID = PlaybackLoadID(rawValue: 1)
     let initialLoadMark = recorder.mark()
-    await engine.load(media)
+    await engine.load(media, loadID: initialLoadID)
     try await recorder.wait(for: .loading, after: initialLoadMark)
     try await recorder.wait(for: .playing, after: initialLoadMark)
 
@@ -42,7 +43,7 @@ func verifyBasicPlaybackEngineContract(
     try await recorder.wait(for: .paused, after: secondPauseMark)
 
     let reloadMark = recorder.mark()
-    await engine.load(media)
+    await engine.load(media, loadID: PlaybackLoadID(rawValue: 2))
     try await recorder.wait(for: .loading, after: reloadMark)
     try await recorder.wait(for: .playing, after: reloadMark)
     #expect(!recorder.hasObserved(.stopped, after: reloadMark))
@@ -61,7 +62,7 @@ final class ContractEventRecorder: @unchecked Sendable {
         eventTask = Task { [weak self] in
             for await event in events {
                 guard let self else { return }
-                if case let .playbackStateChanged(state) = event {
+                if case let .playbackStateChanged(state, _) = event {
                     append(state)
                 }
             }
@@ -101,26 +102,31 @@ final class ContractEventRecorder: @unchecked Sendable {
 private actor ContractFakePlaybackEngine: PlaybackEngine {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
+    private var currentLoadID: PlaybackLoadID?
 
     init() {
         (events, continuation) = AsyncStream.makeStream()
     }
 
-    func load(_ media: LocalMedia) {
-        continuation.yield(.playbackStateChanged(.loading))
-        continuation.yield(.playbackStateChanged(.playing))
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
+        currentLoadID = loadID
+        continuation.yield(.playbackStateChanged(.loading, loadID: loadID))
+        continuation.yield(.playbackStateChanged(.playing, loadID: loadID))
     }
 
     func play() {
-        continuation.yield(.playbackStateChanged(.playing))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.playing, loadID: currentLoadID))
     }
 
     func pause() {
-        continuation.yield(.playbackStateChanged(.paused))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.paused, loadID: currentLoadID))
     }
 
     func stop() {
-        continuation.yield(.playbackStateChanged(.stopped))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.stopped, loadID: currentLoadID))
     }
 }
 

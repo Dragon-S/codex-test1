@@ -25,15 +25,23 @@ public enum PlaybackFailure: Equatable, Sendable {
     case engineUnavailable
 }
 
+public struct PlaybackLoadID: Equatable, Hashable, Sendable {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+}
+
 public enum PlaybackEngineEvent: Equatable, Sendable {
-    case playbackStateChanged(PlaybackState)
-    case playbackEnded
+    case playbackStateChanged(PlaybackState, loadID: PlaybackLoadID)
+    case playbackEnded(loadID: PlaybackLoadID)
 }
 
 public protocol PlaybackEngine: Sendable {
     var events: AsyncStream<PlaybackEngineEvent> { get }
 
-    func load(_ media: LocalMedia) async
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) async
     func play() async
     func pause() async
     func stop() async

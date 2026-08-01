@@ -13,6 +13,13 @@ public struct NowPlayingList: Equatable, Sendable {
         self.entries = entries
         self.currentIndex = currentIndex
     }
+
+    func moving(by offset: Int) -> NowPlayingList? {
+        guard let currentIndex else { return nil }
+        let destination = currentIndex + offset
+        guard entries.indices.contains(destination) else { return nil }
+        return NowPlayingList(entries: entries, currentIndex: destination)
+    }
 }
 
 @MainActor
@@ -23,6 +30,8 @@ public final class PlaybackCoordinator: ObservableObject {
     private let engine: any PlaybackEngine
     private var eventTask: Task<Void, Never>?
     private var isFindingFirstPlayableMedia = false
+    private var activeLoadID: PlaybackLoadID?
+    private var nextLoadID: UInt64 = 0
 
     public init(engine: any PlaybackEngine) {
         self.engine = engine
@@ -38,11 +47,11 @@ public final class PlaybackCoordinator: ObservableObject {
         await open([media])
     }
 
-    public func open(_ media: [LocalMedia]) async {
-        guard let first = media.first else { return }
-        nowPlayingList = NowPlayingList(entries: media, currentIndex: 0)
+    public func open(_ mediaItems: [LocalMedia]) async {
+        guard let first = mediaItems.first else { return }
+        nowPlayingList = NowPlayingList(entries: mediaItems, currentIndex: 0)
         isFindingFirstPlayableMedia = true
-        await engine.load(first)
+        await load(first)
     }
 
     public func play() async {
@@ -68,23 +77,26 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     private func move(by offset: Int) async {
-        guard let currentIndex = nowPlayingList.currentIndex else {
+        guard let destination = nowPlayingList.moving(by: offset),
+              let media = destination.currentMedia else {
             await engine.stop()
             return
         }
-        let destination = currentIndex + offset
-        guard nowPlayingList.entries.indices.contains(destination) else {
-            await engine.stop()
-            return
-        }
-        let entries = nowPlayingList.entries
-        nowPlayingList = NowPlayingList(entries: entries, currentIndex: destination)
-        await engine.load(entries[destination])
+        nowPlayingList = destination
+        await load(media)
+    }
+
+    private func load(_ media: LocalMedia) async {
+        nextLoadID &+= 1
+        let loadID = PlaybackLoadID(rawValue: nextLoadID)
+        activeLoadID = loadID
+        await engine.load(media, loadID: loadID)
     }
 
     private func receive(_ event: PlaybackEngineEvent) async {
         switch event {
-        case let .playbackStateChanged(state):
+        case let .playbackStateChanged(state, loadID):
+            guard loadID == activeLoadID else { return }
             self.state = state
             switch state {
             case .playing, .paused:
@@ -99,7 +111,8 @@ public final class PlaybackCoordinator: ObservableObject {
             default:
                 break
             }
-        case .playbackEnded:
+        case let .playbackEnded(loadID):
+            guard loadID == activeLoadID else { return }
             isFindingFirstPlayableMedia = false
             guard let currentIndex = nowPlayingList.currentIndex else {
                 state = .stopped
