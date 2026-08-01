@@ -32,7 +32,10 @@ struct LibMPVPlaybackEngineContractTests {
         let mediaURL = try makeRedMP4()
         defer { try? FileManager.default.removeItem(at: mediaURL) }
 
-        await engine.load(LocalMedia(url: mediaURL))
+        await engine.load(
+            LocalMedia(url: mediaURL),
+            loadID: PlaybackLoadID(rawValue: 1)
+        )
         try await recorder.wait(for: .playing)
         try await Task.sleep(for: .milliseconds(200))
 
@@ -41,6 +44,26 @@ struct LibMPVPlaybackEngineContractTests {
         var pixel: [UInt8] = [0, 0, 0, 0]
         glReadPixels(160, 90, 1, 1, GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), &pixel)
         #expect(pixel[0] > 127)
+    }
+
+    @Test("真实适配器不会把被替换媒体的迟到事件标记为新加载")
+    func realAdapterKeepsEventsAssociatedWithTheirLoad() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let availableURL = try makeSilentWAV()
+        defer { try? FileManager.default.removeItem(at: availableURL) }
+        let oldLoadID = PlaybackLoadID(rawValue: 41)
+        let newLoadID = PlaybackLoadID(rawValue: 42)
+
+        await engine.load(
+            LocalMedia(url: URL(fileURLWithPath: "/tmp/replaced-missing-media.mp4")),
+            loadID: oldLoadID
+        )
+        await engine.load(LocalMedia(url: availableURL), loadID: newLoadID)
+        try await recorder.waitForState(.playing, loadID: newLoadID)
+
+        #expect(!recorder.hasFailure(loadID: newLoadID))
     }
 
     private func makeSilentWAV() throws -> URL {

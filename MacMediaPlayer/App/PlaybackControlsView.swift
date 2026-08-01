@@ -17,6 +17,12 @@ struct PlaybackControlsView: View {
             Button("停止") {
                 Task { await coordinator.stop() }
             }
+            Button("上一首") {
+                Task { await coordinator.previous() }
+            }
+            Button("下一首") {
+                Task { await coordinator.next() }
+            }
             Spacer()
             Text(statusText)
                 .foregroundStyle(.secondary)
@@ -47,5 +53,29 @@ struct PlaybackControlsView: View {
         case .decoderInitializationFailed: "解码器初始化失败"
         case .engineUnavailable: "播放引擎不可用"
         }
+    }
+}
+
+struct NowPlayingListView: View {
+    @ObservedObject var coordinator: PlaybackCoordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("正在播放列表")
+                .font(.headline)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+            List(Array(coordinator.nowPlayingList.entries.enumerated()), id: \.offset) { index, media in
+                HStack {
+                    Image(systemName: index == coordinator.nowPlayingList.currentIndex ? "play.fill" : "circle")
+                        .accessibilityHidden(true)
+                    Text(media.url.lastPathComponent)
+                        .lineLimit(1)
+                }
+                .accessibilityLabel(media.url.lastPathComponent)
+                .accessibilityValue(index == coordinator.nowPlayingList.currentIndex ? "当前播放" : "")
+            }
+        }
+        .frame(minWidth: 220, idealWidth: 260)
     }
 }

@@ -24,8 +24,9 @@ func verifyBasicPlaybackEngineContract(
     try await Task.sleep(for: .milliseconds(100))
     #expect(!recorder.hasObserved(.playing))
 
+    let initialLoadID = PlaybackLoadID(rawValue: 1)
     let initialLoadMark = recorder.mark()
-    await engine.load(media)
+    await engine.load(media, loadID: initialLoadID)
     try await recorder.wait(for: .loading, after: initialLoadMark)
     try await recorder.wait(for: .playing, after: initialLoadMark)
 
@@ -42,7 +43,7 @@ func verifyBasicPlaybackEngineContract(
     try await recorder.wait(for: .paused, after: secondPauseMark)
 
     let reloadMark = recorder.mark()
-    await engine.load(media)
+    await engine.load(media, loadID: PlaybackLoadID(rawValue: 2))
     try await recorder.wait(for: .loading, after: reloadMark)
     try await recorder.wait(for: .playing, after: reloadMark)
     #expect(!recorder.hasObserved(.stopped, after: reloadMark))
@@ -55,15 +56,14 @@ func verifyBasicPlaybackEngineContract(
 final class ContractEventRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [PlaybackState] = []
+    private var observedEvents: [PlaybackEngineEvent] = []
     private var eventTask: Task<Void, Never>?
 
     init(events: AsyncStream<PlaybackEngineEvent>) {
         eventTask = Task { [weak self] in
             for await event in events {
                 guard let self else { return }
-                if case let .playbackStateChanged(state) = event {
-                    append(state)
-                }
+                append(event)
             }
         }
     }
@@ -87,40 +87,73 @@ final class ContractEventRecorder: @unchecked Sendable {
         snapshot().dropFirst(index).contains(state)
     }
 
-    private func append(_ state: PlaybackState) {
+    func waitForState(_ state: PlaybackState, loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        let expected = PlaybackEngineEvent.playbackStateChanged(state, loadID: loadID)
+        while ContinuousClock.now < deadline {
+            if eventSnapshot().contains(expected) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractEventTimeout(expected: expected, observed: eventSnapshot())
+    }
+
+    func hasFailure(loadID: PlaybackLoadID) -> Bool {
+        eventSnapshot().contains { event in
+            if case let .playbackStateChanged(.failed, eventLoadID) = event {
+                return eventLoadID == loadID
+            }
+            return false
+        }
+    }
+
+    private func append(_ event: PlaybackEngineEvent) {
         lock.withLock {
-            states.append(state)
+            observedEvents.append(event)
+            if case let .playbackStateChanged(state, _) = event {
+                states.append(state)
+            }
         }
     }
 
     private func snapshot() -> [PlaybackState] {
         lock.withLock { states }
     }
+
+    private func eventSnapshot() -> [PlaybackEngineEvent] {
+        lock.withLock { observedEvents }
+    }
 }
 
 private actor ContractFakePlaybackEngine: PlaybackEngine {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
+    private var currentLoadID: PlaybackLoadID?
 
     init() {
         (events, continuation) = AsyncStream.makeStream()
     }
 
-    func load(_ media: LocalMedia) {
-        continuation.yield(.playbackStateChanged(.loading))
-        continuation.yield(.playbackStateChanged(.playing))
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
+        currentLoadID = loadID
+        continuation.yield(.playbackStateChanged(.loading, loadID: loadID))
+        continuation.yield(.playbackStateChanged(.playing, loadID: loadID))
     }
 
     func play() {
-        continuation.yield(.playbackStateChanged(.playing))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.playing, loadID: currentLoadID))
     }
 
     func pause() {
-        continuation.yield(.playbackStateChanged(.paused))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.paused, loadID: currentLoadID))
     }
 
     func stop() {
-        continuation.yield(.playbackStateChanged(.stopped))
+        guard let currentLoadID else { return }
+        continuation.yield(.playbackStateChanged(.stopped, loadID: currentLoadID))
     }
 }
 
@@ -131,4 +164,9 @@ private struct ContractTimeout: Error, CustomStringConvertible {
     var description: String {
         "等待 \(expected) 超时；已观察到 \(observed)"
     }
+}
+
+private struct ContractEventTimeout: Error {
+    let expected: PlaybackEngineEvent
+    let observed: [PlaybackEngineEvent]
 }
