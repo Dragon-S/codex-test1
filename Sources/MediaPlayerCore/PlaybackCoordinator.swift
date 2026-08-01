@@ -609,13 +609,16 @@ public final class PlaybackCoordinator: ObservableObject {
             },
             affectedPlaylistCount: affectedPlaylists.count
         )
-        let isObviousReplacement = existingReference.fileIdentity != nil
-            && media.fileIdentity != nil
-            && existingReference.fileIdentity != media.fileIdentity
-            || clearlyDifferentMediaTypes(
+        let isObviousReplacement: Bool
+        if let existingIdentity = existingReference.fileIdentity,
+           let replacementIdentity = media.fileIdentity {
+            isObviousReplacement = existingIdentity != replacementIdentity
+        } else {
+            isObviousReplacement = clearlyDifferentMediaTypes(
                 existingPath: existingReference.lastKnownPath,
                 replacementPath: media.url.path
             )
+        }
         guard !isObviousReplacement || confirmedReplacement else {
             missingMediaNotice = .replacementConfirmationRequired(impact)
             return .confirmationRequired(impact)

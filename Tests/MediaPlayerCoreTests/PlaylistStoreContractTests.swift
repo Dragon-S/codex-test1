@@ -877,7 +877,7 @@ struct NamedPlaylistCoordinatorTests {
         let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine(), playlistStore: store)
         try await coordinator.restorePersistentState()
         let relocated = LocalMedia(
-            url: URL(fileURLWithPath: "/tmp/new-shared.mkv"),
+            url: URL(fileURLWithPath: "/tmp/new-shared.mp4"),
             referenceID: LocalMediaReferenceID(),
             bookmark: Data([0x93]),
             fileIdentity: identity
@@ -892,7 +892,7 @@ struct NamedPlaylistCoordinatorTests {
         let persisted = await store.loadLibrary()
         let entries = persisted.playlists.flatMap(\.entries)
         #expect(entries.map(\.media.id) == [reference.id, reference.id])
-        #expect(entries.allSatisfy { $0.media.lastKnownPath == "/tmp/new-shared.mkv" })
+        #expect(entries.allSatisfy { $0.media.lastKnownPath == "/tmp/new-shared.mp4" })
         #expect(entries.allSatisfy { $0.media.bookmark == Data([0x93]) })
         #expect(entries.allSatisfy { $0.media.availability == .available })
         #expect(entries.map(\.resumePosition) == [63, 11])
@@ -900,7 +900,7 @@ struct NamedPlaylistCoordinatorTests {
         #expect(entries.map(\.playbackPreferences) == [
             first.playbackPreferences, second.playbackPreferences,
         ])
-        #expect(coordinator.nowPlayingList.entries[0].media.url.path == "/tmp/new-shared.mkv")
+        #expect(coordinator.nowPlayingList.entries[0].media.url.path == "/tmp/new-shared.mp4")
         #expect(!coordinator.nowPlayingList.entries[0].isMediaMissing)
     }
 
