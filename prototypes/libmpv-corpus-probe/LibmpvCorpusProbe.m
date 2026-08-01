@@ -199,6 +199,8 @@ static void requestMpvRender(void *context) {
 @property(nonatomic) BOOL sliderIsTracking;
 @property(nonatomic) NSTimeInterval autoExitSeconds;
 @property(nonatomic) BOOL muteAudio;
+@property(nonatomic) BOOL longAudioCheck;
+@property(nonatomic) NSInteger longAudioCheckStep;
 @end
 
 @implementation ProbeDelegate
@@ -208,7 +210,8 @@ static void requestMpvRender(void *context) {
                       mediaSHA256:(NSString *)mediaSHA256
                  evidenceDirectory:(NSString *)evidenceDirectory
                     autoExitSeconds:(NSTimeInterval)autoExitSeconds
-                           muteAudio:(BOOL)muteAudio {
+                           muteAudio:(BOOL)muteAudio
+                      longAudioCheck:(BOOL)longAudioCheck {
     self = [super init];
     if (self) {
         _mediaPath = [mediaPath copy];
@@ -217,10 +220,32 @@ static void requestMpvRender(void *context) {
         _evidenceDirectory = [evidenceDirectory copy];
         _autoExitSeconds = autoExitSeconds;
         _muteAudio = muteAudio;
+        _longAudioCheck = longAudioCheck;
         _startedAt = NSProcessInfo.processInfo.systemUptime;
         _pendingResumePosition = -1;
     }
     return self;
+}
+
+- (void)runLongAudioCheckStep {
+    if (self.longAudioCheckStep == 1) {
+        [self expectPlaybackRestartForAction:@"long_audio_seek_midpoint"];
+        [self command:@[@"seek", @"43200", @"absolute+exact"]
+               action:@"long_audio_seek_midpoint"];
+    } else if (self.longAudioCheckStep == 2) {
+        [self resumeRoundTrip:nil];
+    } else if (self.longAudioCheckStep == 3) {
+        [self expectPlaybackRestartForAction:@"long_audio_seek_near_end"];
+        [self command:@[@"seek", @"86398", @"absolute+exact"]
+               action:@"long_audio_seek_near_end"];
+    }
+}
+
+- (void)scheduleLongAudioCheckStep:(NSInteger)step {
+    self.longAudioCheckStep = step;
+    [self performSelector:@selector(runLongAudioCheckStep)
+               withObject:nil
+               afterDelay:1.0];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -358,7 +383,8 @@ static void requestMpvRender(void *context) {
     mpv_set_option_string(self.mpv, "input-default-bindings", "no");
     mpv_set_option_string(self.mpv, "input-vo-keyboard", "no");
     mpv_set_option_string(self.mpv, "hwdec", "videotoolbox,auto-safe");
-    mpv_set_option_string(self.mpv, "keep-open", "yes");
+    mpv_set_option_string(self.mpv, "keep-open",
+                          self.longAudioCheck ? "no" : "yes");
     mpv_set_option_string(self.mpv, "vo", "libmpv");
     if (self.muteAudio) {
         mpv_set_option_string(self.mpv, "mute", "yes");
@@ -546,6 +572,7 @@ static void requestMpvRender(void *context) {
                    action:@"resume_restore_seek"];
         }
     } else if (event->event_id == MPV_EVENT_PLAYBACK_RESTART) {
+        NSString *completedAction = self.pendingRestartAction;
         if (self.pendingRestartAction.length > 0) {
             fields[@"trigger_action"] = self.pendingRestartAction;
             fields[@"action_to_restart_ms"] =
@@ -560,6 +587,20 @@ static void requestMpvRender(void *context) {
             fields[@"resume_error_seconds"] = @(fabs(actual - self.pendingResumePosition));
             self.pendingResumePosition = -1;
         }
+        if (self.longAudioCheck) {
+            if ([completedAction isEqualToString:@"loadfile"] &&
+                self.longAudioCheckStep == 0) {
+                [self scheduleLongAudioCheckStep:1];
+            } else if ([completedAction
+                           isEqualToString:@"long_audio_seek_midpoint"] &&
+                       self.longAudioCheckStep == 1) {
+                [self scheduleLongAudioCheckStep:2];
+            } else if ([completedAction
+                           isEqualToString:@"resume_restore_seek"] &&
+                       self.longAudioCheckStep == 2) {
+                [self scheduleLongAudioCheckStep:3];
+            }
+        }
     } else if (event->event_id == MPV_EVENT_END_FILE && event->data != NULL) {
         mpv_event_end_file *end = event->data;
         fields[@"reason"] = @(end->reason);
@@ -567,6 +608,12 @@ static void requestMpvRender(void *context) {
         fields[@"raw_error"] = rawError;
         fields[@"suggested_domain_error"] =
             [self suggestedDomainErrorForCode:end->error rawError:rawError];
+        if (self.longAudioCheck && self.longAudioCheckStep == 3 &&
+            end->reason == MPV_END_FILE_REASON_EOF) {
+            [NSApp performSelector:@selector(terminate:)
+                        withObject:nil
+                        afterDelay:0.5];
+        }
     }
     [self logKind:@"mpv_event" fields:fields];
 }
@@ -756,6 +803,7 @@ int main(int argc, const char *argv[]) {
         NSString *evidenceDirectory = nil;
         NSTimeInterval autoExitSeconds = 0;
         BOOL muteAudio = NO;
+        BOOL longAudioCheck = NO;
         for (int index = 1; index < argc; index++) {
             NSString *argument = @(argv[index]);
             if ([argument isEqualToString:@"--media"] && index + 1 < argc) {
@@ -775,6 +823,9 @@ int main(int argc, const char *argv[]) {
             } else if ([argument isEqualToString:@"--mute-audio"] &&
                        index + 1 < argc) {
                 muteAudio = [@(argv[++index]) isEqualToString:@"yes"];
+            } else if ([argument isEqualToString:@"--long-audio-check"] &&
+                       index + 1 < argc) {
+                longAudioCheck = [@(argv[++index]) isEqualToString:@"yes"];
             }
         }
         if (mediaPath.length == 0 || sampleID.length == 0 ||
@@ -793,7 +844,8 @@ int main(int argc, const char *argv[]) {
                                          mediaSHA256:mediaSHA256
                                   evidenceDirectory:evidenceDirectory
                                      autoExitSeconds:autoExitSeconds
-                                            muteAudio:muteAudio];
+                                            muteAudio:muteAudio
+                                       longAudioCheck:longAudioCheck];
         application.delegate = delegate;
         [application run];
     }

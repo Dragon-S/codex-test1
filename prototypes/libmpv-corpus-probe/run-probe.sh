@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "用法: $0 --engine-root <包含 include/ 与 lib/ 的目录> --media <本地媒体文件> [--sample-id <非敏感样本 ID>] [--evidence-dir <目录>] [--auto-exit-seconds <秒>] [--mute-audio]"
+  echo "用法: $0 --engine-root <包含 include/ 与 lib/ 的目录> --media <本地媒体文件> [--sample-id <非敏感样本 ID>] [--evidence-dir <目录>] [--auto-exit-seconds <秒>] [--mute-audio] [--long-audio-check]"
 }
 
 ENGINE_ROOT=""
@@ -11,6 +11,7 @@ SAMPLE_ID="local-sample"
 EVIDENCE_DIR="$(pwd)/prototypes/libmpv-corpus-probe/evidence"
 AUTO_EXIT_SECONDS="0"
 MUTE_AUDIO="no"
+LONG_AUDIO_CHECK="no"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -36,6 +37,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mute-audio)
       MUTE_AUDIO="yes"
+      shift
+      ;;
+    --long-audio-check)
+      LONG_AUDIO_CHECK="yes"
       shift
       ;;
     *)
@@ -93,4 +98,5 @@ exec "$MACOS_DIR/LibmpvCorpusProbe" \
   --media-sha256 "$MEDIA_SHA256" \
   --evidence-dir "$EVIDENCE_DIR" \
   --auto-exit-seconds "$AUTO_EXIT_SECONDS" \
-  --mute-audio "$MUTE_AUDIO"
+  --mute-audio "$MUTE_AUDIO" \
+  --long-audio-check "$LONG_AUDIO_CHECK"
