@@ -287,6 +287,7 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     public func selectExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
+        let existingReferenceID = currentExternalSubtitleReferenceID
         switch await engine.loadExternalSubtitle(subtitle) {
         case .loaded:
             guard let bookmark = subtitle.bookmark else {
@@ -302,8 +303,15 @@ public final class PlaybackCoordinator: ObservableObject {
                 audioTrackID: trackSelection.audioTrackID,
                 subtitle: .external(subtitle.referenceID)
             )
-            let saved = await updateCurrentPreferences { current in
-                EntryPlaybackPreferences(audioTrack: current.audioTrack, subtitle: .external(reference))
+            let saved = if existingReferenceID == reference.id {
+                await relocateExternalSubtitle(reference)
+            } else {
+                await updateCurrentPreferences { current in
+                    EntryPlaybackPreferences(
+                        audioTrack: current.audioTrack,
+                        subtitle: .external(reference)
+                    )
+                }
             }
             if saved { trackNotice = .none }
         case .missing:
@@ -316,6 +324,11 @@ public final class PlaybackCoordinator: ObservableObject {
     public var currentExternalSubtitleReferenceID: ExternalSubtitleReferenceID? {
         guard case let .external(reference) = currentPreferences.subtitle else { return nil }
         return reference.id
+    }
+
+    public var currentExternalSubtitleName: String? {
+        guard case let .external(reference) = currentPreferences.subtitle else { return nil }
+        return URL(fileURLWithPath: reference.lastKnownPath).lastPathComponent
     }
 
     public func disableSubtitles() async {
@@ -608,6 +621,72 @@ public final class PlaybackCoordinator: ObservableObject {
             )
         }
         return true
+    }
+
+    private func relocateExternalSubtitle(
+        _ reference: PersistentExternalSubtitleReference
+    ) async -> Bool {
+        if activePlaylistID != nil {
+            do {
+                try await playlistStore.updateExternalSubtitleReferences([reference])
+            } catch {
+                trackNotice = .selectionFailed(
+                    "字幕已切换，但重新定位未能保存：\(error.localizedDescription)"
+                )
+                return false
+            }
+        }
+        nowPlayingList = NowPlayingList(
+            entries: nowPlayingList.entries.map {
+                replacingExternalSubtitleReference(reference, in: $0)
+            },
+            currentIndex: nowPlayingList.currentIndex
+        )
+        playlists = playlists.map { playlist in
+            Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: playlist.entries.map { entry in
+                    replacingExternalSubtitleReference(reference, in: entry)
+                },
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        return true
+    }
+
+    private func replacingExternalSubtitleReference(
+        _ reference: PersistentExternalSubtitleReference,
+        in entry: NowPlayingEntry
+    ) -> NowPlayingEntry {
+        guard case let .external(existing) = entry.playbackPreferences.subtitle,
+              existing.id == reference.id else { return entry }
+        return NowPlayingEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: entry.resumePosition,
+            playbackPreferences: EntryPlaybackPreferences(
+                audioTrack: entry.playbackPreferences.audioTrack,
+                subtitle: .external(reference)
+            )
+        )
+    }
+
+    private func replacingExternalSubtitleReference(
+        _ reference: PersistentExternalSubtitleReference,
+        in entry: PlaylistEntry
+    ) -> PlaylistEntry {
+        guard case let .external(existing) = entry.playbackPreferences.subtitle,
+              existing.id == reference.id else { return entry }
+        return PlaylistEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: entry.resumePosition,
+            playbackPreferences: EntryPlaybackPreferences(
+                audioTrack: entry.playbackPreferences.audioTrack,
+                subtitle: .external(reference)
+            )
+        )
     }
 
     private func setSelectedSubtitle(_ selection: ActiveSubtitleSelection) {

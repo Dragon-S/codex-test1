@@ -283,8 +283,63 @@ struct TrackSelectionCoordinatorTests {
         #expect(await engine.selectionCommands.contains(.subtitle(.off)))
     }
 
+    @Test("重新定位共享外部字幕会更新所有引用者并显示当前文件名")
+    func relocatesSharedExternalSubtitleForEveryEntry() async throws {
+        let store = InMemoryPlaylistStore()
+        let reference = PersistentExternalSubtitleReference(
+            id: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x08]),
+            lastKnownPath: "/tmp/old-shared.ass"
+        )
+        let preferences = EntryPlaybackPreferences(subtitle: .external(reference))
+        let entries = [
+            PlaylistEntry(
+                media: persistentMedia("first.mkv", bookmark: 0x09),
+                playbackPreferences: preferences
+            ),
+            PlaylistEntry(
+                media: persistentMedia("second.mkv", bookmark: 0x0A),
+                playbackPreferences: preferences
+            ),
+        ]
+        try await store.create(Playlist(
+            name: "共享字幕",
+            entries: entries,
+            currentEntryID: entries[0].id
+        ))
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        try await coordinator.restorePersistentState()
+        let relocated = LocalExternalSubtitle(
+            url: URL(fileURLWithPath: "/tmp/new-shared.ass"),
+            referenceID: reference.id,
+            bookmark: Data([0x0B])
+        )
+
+        await coordinator.selectExternalSubtitle(relocated)
+
+        let library = await store.loadLibrary()
+        let references = library.playlists[0].entries.compactMap { entry -> PersistentExternalSubtitleReference? in
+            guard case let .external(reference) = entry.playbackPreferences.subtitle else { return nil }
+            return reference
+        }
+        #expect(references.count == 2)
+        #expect(references.allSatisfy { $0.lastKnownPath == relocated.url.path })
+        #expect(references.allSatisfy { $0.bookmark == Data([0x0B]) })
+        #expect(coordinator.currentExternalSubtitleName == "new-shared.ass")
+        #expect(coordinator.trackSelection.subtitle == .external(reference.id))
+    }
+
     private func localMedia(_ name: String) -> LocalMedia {
         LocalMedia(url: URL(fileURLWithPath: "/tmp/\(name)"))
+    }
+
+    private func persistentMedia(_ name: String, bookmark: UInt8) -> PersistentLocalMediaReference {
+        PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([bookmark]),
+            lastKnownPath: "/tmp/\(name)"
+        )
     }
 
     private func waitUntil(

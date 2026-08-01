@@ -90,6 +90,9 @@ struct PlaybackControlsView: View {
                     }
                 }
             }
+            if let externalSubtitleName = coordinator.currentExternalSubtitleName {
+                Label("外部：\(externalSubtitleName)", systemImage: "checkmark")
+            }
             Divider()
             Button("选择或重新定位外部字幕…", action: openExternalSubtitle)
         }

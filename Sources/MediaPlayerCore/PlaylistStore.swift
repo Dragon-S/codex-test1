@@ -10,6 +10,9 @@ public protocol PlaylistStore: Sendable {
     func create(_ playlist: Playlist) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
+    func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) async throws
     func updateEntryPlaybackPreferences(
         playlistID: PlaylistID,
         entryID: PlaylistEntryID,
@@ -33,6 +36,12 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 
@@ -62,6 +71,12 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {
         library = library.replacingMediaReferences(references)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) {
+        library = library.replacingExternalSubtitleReferences(references)
     }
 
     public func updateEntryPlaybackPreferences(
@@ -127,6 +142,21 @@ public actor SQLitePlaylistStore: PlaylistStore {
         do {
             let current = try readLibrary()
             try writeLibrary(current.replacingMediaReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
+        guard !references.isEmpty else { return }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            try writeLibrary(current.replacingExternalSubtitleReferences(references))
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -265,6 +295,42 @@ private extension PlaylistLibrary {
                     media: referencesByID[entry.media.id] ?? entry.media,
                     resumePosition: entry.resumePosition,
                     playbackPreferences: entry.playbackPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: updatedEntries,
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
+    func replacingExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) -> PlaylistLibrary {
+        let referencesByID = Dictionary(
+            references.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let updatedEntries = playlist.entries.map { entry in
+                let updatedPreferences: EntryPlaybackPreferences
+                if case let .external(reference) = entry.playbackPreferences.subtitle,
+                   let replacement = referencesByID[reference.id] {
+                    updatedPreferences = EntryPlaybackPreferences(
+                        audioTrack: entry.playbackPreferences.audioTrack,
+                        subtitle: .external(replacement)
+                    )
+                } else {
+                    updatedPreferences = entry.playbackPreferences
+                }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: entry.media,
+                    resumePosition: entry.resumePosition,
+                    playbackPreferences: updatedPreferences
                 )
             }
             return Playlist(

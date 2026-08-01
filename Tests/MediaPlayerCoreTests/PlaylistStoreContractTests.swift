@@ -91,6 +91,35 @@ struct PlaylistStoreContractTests {
         let preferencesUpdated = try await store.loadLibrary()
         #expect(preferencesUpdated.playlists[0].entries[0].playbackPreferences == firstEntry.playbackPreferences)
         #expect(preferencesUpdated.playlists[0].entries[1].playbackPreferences == updatedPreferences)
+
+        let sharedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x20]),
+            lastKnownPath: "/tmp/old-shared.srt"
+        )
+        let sharedSubtitlePreferences = EntryPlaybackPreferences(
+            subtitle: .external(sharedExternalSubtitle)
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: firstEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        let relocatedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: sharedExternalSubtitle.id,
+            bookmark: Data([0x21]),
+            lastKnownPath: "/tmp/new-shared.srt"
+        )
+        try await store.updateExternalSubtitleReferences([relocatedExternalSubtitle])
+        let externalSubtitleUpdated = try await store.loadLibrary()
+        #expect(externalSubtitleUpdated.playlists[0].entries.allSatisfy {
+            $0.playbackPreferences.subtitle == .external(relocatedExternalSubtitle)
+        })
     }
 }
 
