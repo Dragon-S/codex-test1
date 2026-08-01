@@ -134,6 +134,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private let externalSubtitleAccess: any PersistentExternalSubtitleAccess
     private let defaultTrackRules: DefaultTrackRules
     private let randomizer: any PlaylistRandomizer
+    private let mediaReplacementAssessor: any MediaReplacementAssessing
     private var eventTask: Task<Void, Never>?
     private var isFindingFirstPlayableMedia = false
     private var isRestoredMediaPendingLoad = false
@@ -155,7 +156,8 @@ public final class PlaybackCoordinator: ObservableObject {
         timeSource: any PlaybackTimeSource = SystemPlaybackTimeSource(),
         externalSubtitleAccess: any PersistentExternalSubtitleAccess = LastKnownPathExternalSubtitleAccess(),
         defaultTrackRules: DefaultTrackRules = DefaultTrackRules(),
-        randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer()
+        randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer(),
+        mediaReplacementAssessor: any MediaReplacementAssessing = DefaultMediaReplacementAssessor()
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
@@ -166,6 +168,7 @@ public final class PlaybackCoordinator: ObservableObject {
         self.externalSubtitleAccess = externalSubtitleAccess
         self.defaultTrackRules = defaultTrackRules
         self.randomizer = randomizer
+        self.mediaReplacementAssessor = mediaReplacementAssessor
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -609,16 +612,10 @@ public final class PlaybackCoordinator: ObservableObject {
             },
             affectedPlaylistCount: affectedPlaylists.count
         )
-        let isObviousReplacement: Bool
-        if let existingIdentity = existingReference.fileIdentity,
-           let replacementIdentity = media.fileIdentity {
-            isObviousReplacement = existingIdentity != replacementIdentity
-        } else {
-            isObviousReplacement = clearlyDifferentMediaTypes(
-                existingPath: existingReference.lastKnownPath,
-                replacementPath: media.url.path
-            )
-        }
+        let isObviousReplacement = mediaReplacementAssessor.isObviousReplacement(
+            existing: existingReference,
+            candidate: media
+        )
         guard !isObviousReplacement || confirmedReplacement else {
             missingMediaNotice = .replacementConfirmationRequired(impact)
             return .confirmationRequired(impact)
@@ -718,24 +715,6 @@ public final class PlaybackCoordinator: ObservableObject {
         )
     }
 
-    private func clearlyDifferentMediaTypes(
-        existingPath: String,
-        replacementPath: String
-    ) -> Bool {
-        let existingExtension = URL(fileURLWithPath: existingPath).pathExtension.lowercased()
-        let replacementExtension = URL(fileURLWithPath: replacementPath).pathExtension.lowercased()
-        if !existingExtension.isEmpty,
-           !replacementExtension.isEmpty,
-           existingExtension != replacementExtension {
-            return true
-        }
-        guard let existing = LocalMediaContentKind.infer(fromPath: existingPath),
-              let replacement = LocalMediaContentKind.infer(fromPath: replacementPath) else {
-            return false
-        }
-        return existing != replacement
-    }
-
     @discardableResult
     public func saveNowPlayingList(as requestedName: String) async throws -> Playlist {
         let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -759,7 +738,8 @@ public final class PlaybackCoordinator: ObservableObject {
                     id: entry.media.referenceID,
                     bookmark: bookmark,
                     lastKnownPath: entry.media.url.path,
-                    fileIdentity: entry.media.fileIdentity
+                    fileIdentity: entry.media.fileIdentity,
+                    availability: entry.media.availability
                 ),
                 resumePosition: entry.resumePosition,
                 isCompleted: entry.isCompleted,
@@ -822,13 +802,7 @@ public final class PlaybackCoordinator: ObservableObject {
                     do {
                         media = try await persistentMediaAccess.restore(entry.media)
                     } catch {
-                        media = LocalMedia(
-                            url: URL(fileURLWithPath: entry.media.lastKnownPath),
-                            referenceID: entry.media.id,
-                            bookmark: entry.media.bookmark,
-                            fileIdentity: entry.media.fileIdentity,
-                            availability: .missing
-                        )
+                        media = missingLocalMedia(for: entry.media)
                     }
                     restoredMediaByReferenceID[entry.media.id] = media
                 }

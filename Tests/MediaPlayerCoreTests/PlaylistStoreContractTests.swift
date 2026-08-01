@@ -406,6 +406,41 @@ struct NamedPlaylistCoordinatorTests {
         #expect(coordinator.persistenceNotice == .saved("收藏"))
     }
 
+    @Test("存储包含文件缺失条目的当前列表会保留缺失状态")
+    func savingCurrentListPreservesMissingMediaAvailability() async throws {
+        let available = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x4A]),
+            lastKnownPath: "/tmp/available.mp4"
+        ))
+        let missing = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x4B]),
+            lastKnownPath: "/tmp/missing.mp4",
+            availability: .missing
+        ))
+        let source = Playlist(
+            name: "含缺失条目",
+            entries: [available, missing],
+            currentEntryID: available.id
+        )
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(
+            playlists: [source],
+            activePlaylistID: source.id
+        ))
+        let coordinator = PlaybackCoordinator(
+            engine: PlaylistFakePlaybackEngine(),
+            playlistStore: store
+        )
+        try await coordinator.restorePersistentState()
+
+        let saved = try await coordinator.saveNowPlayingList(as: "含缺失条目副本")
+
+        #expect(saved.entries[1].media.availability == .missing)
+        let persisted = await store.loadLibrary()
+        #expect(persisted.playlists.last?.entries[1].media.availability == .missing)
+    }
+
     @Test("重名或持久化失败会明确提示且不改变原状态")
     func reportsPersistenceFailureWithoutPretendingSuccess() async throws {
         let engine = PlaylistFakePlaybackEngine()
@@ -1012,6 +1047,39 @@ struct NamedPlaylistCoordinatorTests {
         )))
         #expect(await store.loadLibrary() == PlaylistLibrary(playlists: [playlist]))
     }
+
+    @Test("播放协调层通过媒体替换判断端口决定是否要求确认")
+    func coordinatorUsesInjectedMediaReplacementAssessor() async throws {
+        let reference = PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0xA7]),
+            lastKnownPath: "/tmp/original.mkv",
+            availability: .missing
+        )
+        let entry = PlaylistEntry(media: reference)
+        let playlist = Playlist(name: "注入判断", entries: [entry])
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(playlists: [playlist]))
+        let coordinator = PlaybackCoordinator(
+            engine: PlaylistFakePlaybackEngine(),
+            playlistStore: store,
+            mediaReplacementAssessor: AlwaysDifferentMediaReplacementAssessor()
+        )
+        try await coordinator.restorePersistentState()
+
+        let result = try await coordinator.relocateMissingMedia(
+            referenceID: reference.id,
+            to: LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/candidate.mkv"),
+                bookmark: Data([0xA8])
+            )
+        )
+
+        #expect(result == .confirmationRequired(MediaReplacementImpact(
+            referenceID: reference.id,
+            affectedEntryCount: 1,
+            affectedPlaylistCount: 1
+        )))
+    }
 }
 
 @MainActor
@@ -1296,6 +1364,15 @@ struct PlaylistProgressionTests {
 private struct ReversePlaylistRandomizer: PlaylistRandomizer {
     func shuffled(_ entryIDs: [PlaylistEntryID]) -> [PlaylistEntryID] {
         entryIDs.reversed()
+    }
+}
+
+private struct AlwaysDifferentMediaReplacementAssessor: MediaReplacementAssessing {
+    func isObviousReplacement(
+        existing: PersistentLocalMediaReference,
+        candidate: LocalMedia
+    ) -> Bool {
+        true
     }
 }
 
