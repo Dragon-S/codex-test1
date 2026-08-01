@@ -142,25 +142,119 @@ public struct PlaylistEntry: Equatable, Codable, Sendable, Identifiable {
     }
 }
 
+public enum PlaybackOrder: String, Equatable, Codable, Sendable {
+    case sequential
+    case random
+}
+
+public enum PlaylistRepeatMode: String, Equatable, Codable, Sendable {
+    case none
+    case playlist
+    case entry
+}
+
+public struct RandomPlaybackRound: Equatable, Codable, Sendable {
+    public let order: [PlaylistEntryID]
+    public let playedEntryIDs: [PlaylistEntryID]
+    public let unavailableEntryIDs: [PlaylistEntryID]
+
+    public init(
+        order: [PlaylistEntryID],
+        playedEntryIDs: [PlaylistEntryID] = [],
+        unavailableEntryIDs: [PlaylistEntryID] = []
+    ) {
+        self.order = order
+        self.playedEntryIDs = playedEntryIDs
+        self.unavailableEntryIDs = unavailableEntryIDs
+    }
+
+    func addingUnplayed(_ entryID: PlaylistEntryID) -> RandomPlaybackRound {
+        guard !order.contains(entryID) else { return self }
+        return RandomPlaybackRound(
+            order: order + [entryID],
+            playedEntryIDs: playedEntryIDs,
+            unavailableEntryIDs: unavailableEntryIDs
+        )
+    }
+
+    func removing(_ entryID: PlaylistEntryID) -> RandomPlaybackRound {
+        RandomPlaybackRound(
+            order: order.filter { $0 != entryID },
+            playedEntryIDs: playedEntryIDs.filter { $0 != entryID },
+            unavailableEntryIDs: unavailableEntryIDs.filter { $0 != entryID }
+        )
+    }
+
+    func recording(_ entryID: PlaylistEntryID) -> RandomPlaybackRound {
+        let updatedOrder = order.contains(entryID) ? order : order + [entryID]
+        let updatedHistory = playedEntryIDs.contains(entryID)
+            ? playedEntryIDs
+            : playedEntryIDs + [entryID]
+        return RandomPlaybackRound(
+            order: updatedOrder,
+            playedEntryIDs: updatedHistory,
+            unavailableEntryIDs: unavailableEntryIDs.filter { $0 != entryID }
+        )
+    }
+
+    func markingUnavailable(_ entryID: PlaylistEntryID) -> RandomPlaybackRound {
+        RandomPlaybackRound(
+            order: order,
+            playedEntryIDs: playedEntryIDs.filter { $0 != entryID },
+            unavailableEntryIDs: unavailableEntryIDs.contains(entryID)
+                ? unavailableEntryIDs
+                : unavailableEntryIDs + [entryID]
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case order, playedEntryIDs, unavailableEntryIDs
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            order: try values.decode([PlaylistEntryID].self, forKey: .order),
+            playedEntryIDs: try values.decodeIfPresent(
+                [PlaylistEntryID].self,
+                forKey: .playedEntryIDs
+            ) ?? [],
+            unavailableEntryIDs: try values.decodeIfPresent(
+                [PlaylistEntryID].self,
+                forKey: .unavailableEntryIDs
+            ) ?? []
+        )
+    }
+}
+
 public struct Playlist: Equatable, Codable, Sendable, Identifiable {
     public let id: PlaylistID
     public let name: String
     public let entries: [PlaylistEntry]
     public let currentEntryID: PlaylistEntryID?
     public let playbackRate: Double
+    public let playbackOrder: PlaybackOrder
+    public let repeatMode: PlaylistRepeatMode
+    public let randomRound: RandomPlaybackRound?
 
     public init(
         id: PlaylistID = PlaylistID(),
         name: String,
         entries: [PlaylistEntry],
         currentEntryID: PlaylistEntryID? = nil,
-        playbackRate: Double = 1
+        playbackRate: Double = 1,
+        playbackOrder: PlaybackOrder = .sequential,
+        repeatMode: PlaylistRepeatMode = .none,
+        randomRound: RandomPlaybackRound? = nil
     ) {
         self.id = id
         self.name = name
         self.entries = entries
         self.currentEntryID = currentEntryID
         self.playbackRate = playbackRate
+        self.playbackOrder = playbackOrder
+        self.repeatMode = repeatMode
+        self.randomRound = randomRound
     }
 
     func renamed(to name: String) -> Playlist {
@@ -169,7 +263,10 @@ public struct Playlist: Equatable, Codable, Sendable, Identifiable {
             name: name,
             entries: entries,
             currentEntryID: currentEntryID,
-            playbackRate: playbackRate
+            playbackRate: playbackRate,
+            playbackOrder: playbackOrder,
+            repeatMode: repeatMode,
+            randomRound: randomRound
         )
     }
 
@@ -182,7 +279,56 @@ public struct Playlist: Equatable, Codable, Sendable, Identifiable {
             name: name,
             entries: entries,
             currentEntryID: currentEntryID,
-            playbackRate: playbackRate
+            playbackRate: playbackRate,
+            playbackOrder: playbackOrder,
+            repeatMode: repeatMode,
+            randomRound: randomRound
+        )
+    }
+
+    func replacingPlaybackPolicy(
+        order: PlaybackOrder,
+        repeatMode: PlaylistRepeatMode,
+        randomRound: RandomPlaybackRound? = nil
+    ) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate,
+            playbackOrder: order,
+            repeatMode: repeatMode,
+            randomRound: randomRound
+        )
+    }
+
+    func replacingProgression(
+        currentEntryID: PlaylistEntryID?,
+        randomRound: RandomPlaybackRound?
+    ) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate,
+            playbackOrder: playbackOrder,
+            repeatMode: repeatMode,
+            randomRound: randomRound
+        )
+    }
+
+    func replacingRandomRound(_ randomRound: RandomPlaybackRound?) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate,
+            playbackOrder: playbackOrder,
+            repeatMode: repeatMode,
+            randomRound: randomRound
         )
     }
 }
@@ -281,7 +427,10 @@ extension PlaylistLibrary {
                 name: playlist.name,
                 entries: updatedEntries,
                 currentEntryID: snapshot.entryID ?? playlist.currentEntryID,
-                playbackRate: snapshot.playbackRate
+                playbackRate: snapshot.playbackRate,
+                playbackOrder: playlist.playbackOrder,
+                repeatMode: playlist.repeatMode,
+                randomRound: playlist.randomRound
             )
         }
         return PlaylistLibrary(
@@ -314,6 +463,7 @@ extension PlaylistEntry {
 extension Playlist {
     enum CodingKeys: String, CodingKey {
         case id, name, entries, currentEntryID, playbackRate
+        case playbackOrder, repeatMode, randomRound
     }
 
     public init(from decoder: any Decoder) throws {
@@ -323,7 +473,12 @@ extension Playlist {
             name: try values.decode(String.self, forKey: .name),
             entries: try values.decode([PlaylistEntry].self, forKey: .entries),
             currentEntryID: try values.decodeIfPresent(PlaylistEntryID.self, forKey: .currentEntryID),
-            playbackRate: try values.decodeIfPresent(Double.self, forKey: .playbackRate) ?? 1
+            playbackRate: try values.decodeIfPresent(Double.self, forKey: .playbackRate) ?? 1,
+            playbackOrder: try values.decodeIfPresent(PlaybackOrder.self, forKey: .playbackOrder)
+                ?? .sequential,
+            repeatMode: try values.decodeIfPresent(PlaylistRepeatMode.self, forKey: .repeatMode)
+                ?? .none,
+            randomRound: try values.decodeIfPresent(RandomPlaybackRound.self, forKey: .randomRound)
         )
     }
 }

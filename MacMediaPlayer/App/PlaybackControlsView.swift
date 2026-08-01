@@ -331,6 +331,28 @@ struct NowPlayingListView: View {
                 }
             }
             .padding(.horizontal, 12)
+            HStack {
+                Picker("播放顺序", selection: Binding(
+                    get: { playlist.playbackOrder },
+                    set: { order in
+                        Task { try? await coordinator.setPlaybackOrder(order, for: playlist.id) }
+                    }
+                )) {
+                    Text("顺序").tag(PlaybackOrder.sequential)
+                    Text("随机").tag(PlaybackOrder.random)
+                }
+                Picker("重复方式", selection: Binding(
+                    get: { playlist.repeatMode },
+                    set: { mode in
+                        Task { try? await coordinator.setRepeatMode(mode, for: playlist.id) }
+                    }
+                )) {
+                    Text("不重复").tag(PlaylistRepeatMode.none)
+                    Text("列表循环").tag(PlaylistRepeatMode.playlist)
+                    Text("单条循环").tag(PlaylistRepeatMode.entry)
+                }
+            }
+            .padding(.horizontal, 12)
             if coordinator.detachedNowPlayingEntry != nil {
                 Label("当前媒体是脱离列表的播放项", systemImage: "link.badge.plus")
                     .foregroundStyle(.secondary)
