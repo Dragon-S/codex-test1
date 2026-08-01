@@ -630,6 +630,56 @@ struct NamedPlaylistCoordinatorTests {
         #expect(await engine.loadedMediaNames == ["only-playable.mp4"])
     }
 
+    @Test("顺序自动加载期间才失去访问权限会标记缺失并继续推进")
+    func sequentialProgressionMarksNewlyUnreadableMediaMissingAndContinues() async throws {
+        let first = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x77]),
+            lastKnownPath: "/tmp/before-missing.mp4"
+        ))
+        let newlyMissing = PlaylistEntry(
+            media: PersistentLocalMediaReference(
+                id: LocalMediaReferenceID(),
+                bookmark: Data([0x78]),
+                lastKnownPath: "/tmp/newly-missing.mp4"
+            ),
+            resumePosition: 48,
+            playbackPreferences: EntryPlaybackPreferences(subtitle: .off)
+        )
+        let third = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x79]),
+            lastKnownPath: "/tmp/after-missing.mp4"
+        ))
+        let playlist = Playlist(
+            name: "播放期间缺失",
+            entries: [first, newlyMissing, third],
+            currentEntryID: first.id
+        )
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(
+            playlists: [playlist],
+            activePlaylistID: playlist.id
+        ))
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        try await coordinator.restorePersistentState()
+        await coordinator.play()
+        await engine.sendPlaybackEnded()
+        try await waitUntilAsync { await engine.loadedMediaNames.count == 2 }
+
+        await engine.sendState(.failed(.unreadable))
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 2 }
+
+        #expect(await engine.loadedMediaNames == [
+            "before-missing.mp4", "newly-missing.mp4", "after-missing.mp4",
+        ])
+        let persisted = await store.loadLibrary()
+        let missingEntry = persisted.playlists[0].entries[1]
+        #expect(missingEntry.media.availability == .missing)
+        #expect(missingEntry.resumePosition == 48)
+        #expect(missingEntry.playbackPreferences == newlyMissing.playbackPreferences)
+    }
+
     @Test("手动选择缺失条目提供恢复流程且取消不改变数据")
     func manualSelectionOffersRecoveryAndCancellationIsNonMutating() async throws {
         let reference = PersistentLocalMediaReference(
@@ -889,6 +939,39 @@ struct NamedPlaylistCoordinatorTests {
             $0.playbackPreferences == EntryPlaybackPreferences()
         })
         #expect(coordinator.missingMediaNotice == .none)
+    }
+
+    @Test("没有文件身份时媒体类型明显不同仍要求确认替换影响")
+    func replacementWithDifferentMediaTypeRequiresConfirmationWithoutFileIdentity() async throws {
+        let reference = PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0xA5]),
+            lastKnownPath: "/tmp/legacy-video.mkv",
+            availability: .missing
+        )
+        let entry = PlaylistEntry(media: reference, resumePosition: 51)
+        let playlist = Playlist(name: "旧引用", entries: [entry])
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(playlists: [playlist]))
+        let coordinator = PlaybackCoordinator(
+            engine: PlaylistFakePlaybackEngine(),
+            playlistStore: store
+        )
+        try await coordinator.restorePersistentState()
+
+        let result = try await coordinator.relocateMissingMedia(
+            referenceID: reference.id,
+            to: LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/different-audio.mp3"),
+                bookmark: Data([0xA6])
+            )
+        )
+
+        #expect(result == .confirmationRequired(MediaReplacementImpact(
+            referenceID: reference.id,
+            affectedEntryCount: 1,
+            affectedPlaylistCount: 1
+        )))
+        #expect(await store.loadLibrary() == PlaylistLibrary(playlists: [playlist]))
     }
 }
 

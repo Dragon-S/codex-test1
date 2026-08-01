@@ -112,18 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func play(_ urls: [URL]) {
         let newSecurityScopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
-        let media = urls.map { url in
-            let bookmark = try? url.bookmarkData(
-                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            return LocalMedia(
-                url: url,
-                bookmark: bookmark,
-                fileIdentity: Self.fileIdentity(for: url)
-            )
-        }
+        let media = urls.map(localMedia(for:))
         releaseSecurityScope()
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
@@ -187,17 +176,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if url.startAccessingSecurityScopedResource() {
                     securityScopedURLs.append(url)
                 }
-                let bookmark = try? url.bookmarkData(
-                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
                 _ = try? await coordinator.add(
-                    LocalMedia(
-                        url: url,
-                        bookmark: bookmark,
-                        fileIdentity: Self.fileIdentity(for: url)
-                    ),
+                    localMedia(for: url),
                     to: playlistID
                 )
             }
@@ -221,16 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if url.startAccessingSecurityScopedResource() {
                     securityScopedURLs.append(url)
                 }
-                let bookmark = try? url.bookmarkData(
-                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
-                let media = LocalMedia(
-                    url: url,
-                    bookmark: bookmark,
-                    fileIdentity: Self.fileIdentity(for: url)
-                )
+                let media = localMedia(for: url)
                 guard let result = try? await coordinator.relocateMissingMedia(
                     referenceID: referenceID,
                     to: media
@@ -256,6 +227,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 confirmedReplacement: true
             )
         }
+    }
+
+    private func localMedia(for url: URL) -> LocalMedia {
+        let bookmark = try? url.bookmarkData(
+            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        return LocalMedia(
+            url: url,
+            bookmark: bookmark,
+            fileIdentity: Self.fileIdentity(for: url)
+        )
     }
 
     private static func fileIdentity(for url: URL) -> LocalFileIdentity? {
