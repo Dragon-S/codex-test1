@@ -34,7 +34,6 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, PersistentExternal
         let restored = try restoreBookmark(reference.bookmark, lastKnownPath: reference.lastKnownPath)
         return LocalExternalSubtitle(
             url: restored.url,
-            referenceID: reference.id,
             bookmark: restored.bookmark
         )
     }

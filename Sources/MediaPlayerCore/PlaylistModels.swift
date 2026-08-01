@@ -58,16 +58,13 @@ public struct PersistentExternalSubtitleReference: Equatable, Codable, Sendable 
 
 public struct LocalExternalSubtitle: Equatable, Sendable {
     public let url: URL
-    public let referenceID: ExternalSubtitleReferenceID
     public let bookmark: Data?
 
     public init(
         url: URL,
-        referenceID: ExternalSubtitleReferenceID = ExternalSubtitleReferenceID(),
         bookmark: Data? = nil
     ) {
         self.url = url
-        self.referenceID = referenceID
         self.bookmark = bookmark
     }
 }
@@ -266,7 +263,6 @@ public struct LastKnownPathExternalSubtitleAccess: PersistentExternalSubtitleAcc
         }
         return LocalExternalSubtitle(
             url: URL(fileURLWithPath: reference.lastKnownPath),
-            referenceID: reference.id,
             bookmark: reference.bookmark
         )
     }

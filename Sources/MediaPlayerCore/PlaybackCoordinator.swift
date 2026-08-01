@@ -590,8 +590,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func selectExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
         await applyExternalSubtitle(
             subtitle,
-            referenceID: ExternalSubtitleReferenceID(),
-            relocatingSharedReference: false
+            action: .selectNew
         )
     }
 
@@ -602,21 +601,28 @@ public final class PlaybackCoordinator: ObservableObject {
         }
         await applyExternalSubtitle(
             subtitle,
-            referenceID: referenceID,
-            relocatingSharedReference: true
+            action: .relocate(referenceID)
         )
+    }
+
+    private enum ExternalSubtitleAction {
+        case selectNew
+        case relocate(ExternalSubtitleReferenceID)
     }
 
     private func applyExternalSubtitle(
         _ subtitle: LocalExternalSubtitle,
-        referenceID: ExternalSubtitleReferenceID,
-        relocatingSharedReference: Bool
+        action: ExternalSubtitleAction
     ) async {
         switch await engine.loadExternalSubtitle(subtitle) {
         case .loaded:
             guard let bookmark = subtitle.bookmark else {
                 trackNotice = .selectionFailed("无法持久保存外部字幕的只读访问权限")
                 return
+            }
+            let referenceID = switch action {
+            case .selectNew: ExternalSubtitleReferenceID()
+            case let .relocate(referenceID): referenceID
             }
             let reference = PersistentExternalSubtitleReference(
                 id: referenceID,
@@ -627,15 +633,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 audioTrackID: trackSelection.audioTrackID,
                 subtitle: .external(referenceID)
             )
-            let saved = if relocatingSharedReference {
-                await updateExternalSubtitleReference(reference)
-            } else {
+            let saved = switch action {
+            case .selectNew:
                 await updateCurrentPreferences { current in
                     EntryPlaybackPreferences(
                         audioTrack: current.audioTrack,
                         subtitle: .external(reference)
                     )
                 }
+            case .relocate:
+                await updateExternalSubtitleReference(reference)
             }
             if saved { trackNotice = .none }
         case .missing:
@@ -916,7 +923,18 @@ public final class PlaybackCoordinator: ObservableObject {
 
     private func language(_ actual: String?, matches expected: String) -> Bool {
         guard let actual else { return false }
-        return normalizedLanguage(actual) == normalizedLanguage(expected)
+        guard let actualIdentity = languageIdentity(actual),
+              let expectedIdentity = languageIdentity(expected) else {
+            return normalizedLanguage(actual) == normalizedLanguage(expected)
+        }
+        guard actualIdentity.languageCode == expectedIdentity.languageCode else {
+            return false
+        }
+        if let actualScript = actualIdentity.scriptCode,
+           let expectedScript = expectedIdentity.scriptCode {
+            return actualScript == expectedScript
+        }
+        return true
     }
 
     private func language(_ actual: String?, matchesAny expected: [String]) -> Bool {
@@ -926,6 +944,35 @@ public final class PlaybackCoordinator: ObservableObject {
     private func normalizedLanguage(_ value: String) -> String {
         value.replacingOccurrences(of: "_", with: "-").lowercased()
     }
+
+    private func languageIdentity(_ value: String) -> (
+        languageCode: String,
+        scriptCode: String?
+    )? {
+        let normalized = normalizedLanguage(value)
+        let components = normalized.split(separator: "-", omittingEmptySubsequences: false)
+        guard let primary = components.first, !primary.isEmpty else { return nil }
+        let terminologyPrimary = Self.bibliographicLanguageAliases[String(primary)]
+            ?? String(primary)
+        let identifier = ([terminologyPrimary] + components.dropFirst().map(String.init))
+            .joined(separator: "-")
+        let language = Locale.Language(identifier: identifier)
+        guard let languageCode = language.languageCode?.identifier.lowercased() else {
+            return nil
+        }
+        return (
+            languageCode: languageCode,
+            scriptCode: language.script?.identifier.lowercased()
+        )
+    }
+
+    private static let bibliographicLanguageAliases = [
+        "alb": "sqi", "arm": "hye", "baq": "eus", "bur": "mya",
+        "chi": "zho", "cze": "ces", "dut": "nld", "fre": "fra",
+        "ger": "deu", "gre": "ell", "ice": "isl", "mac": "mkd",
+        "mao": "mri", "may": "msa", "per": "fas", "rum": "ron",
+        "slo": "slk", "tib": "bod", "wel": "cym",
+    ]
 
     private var currentPreferences: EntryPlaybackPreferences {
         guard let index = nowPlayingList.currentIndex,

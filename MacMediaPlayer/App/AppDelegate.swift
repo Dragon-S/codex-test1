@@ -3,6 +3,11 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private enum ExternalSubtitlePanelAction {
+        case selectNew
+        case relocate
+    }
+
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
     private var securityScopedURLs: [URL] = []
@@ -27,9 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
-            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle(relocating: false) },
+            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle(.selectNew) },
             relocateExternalSubtitle: { [weak self] in
-                self?.openExternalSubtitle(relocating: true)
+                self?.openExternalSubtitle(.relocate)
             },
             addMediaToPlaylist: { [weak self] playlistID in
                 self?.addMedia(to: playlistID)
@@ -97,19 +102,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task { await coordinator.open(media) }
     }
 
-    private func openExternalSubtitle(relocating: Bool) {
+    private func openExternalSubtitle(_ action: ExternalSubtitlePanelAction) {
         guard let window, let coordinator else { return }
-        let referenceID: ExternalSubtitleReferenceID
-        if relocating {
-            guard let currentReferenceID = coordinator.currentExternalSubtitleReferenceID else {
-                return
-            }
-            referenceID = currentReferenceID
-        } else {
-            referenceID = ExternalSubtitleReferenceID()
+        if case .relocate = action,
+           coordinator.currentExternalSubtitleReferenceID == nil {
+            return
         }
         let panel = NSOpenPanel()
-        panel.title = relocating ? "重新定位外部字幕" : "选择外部字幕"
+        panel.title = switch action {
+        case .selectNew: "选择外部字幕"
+        case .relocate: "重新定位外部字幕"
+        }
         panel.prompt = "选择"
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -128,12 +131,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 )
                 let subtitle = LocalExternalSubtitle(
                     url: url,
-                    referenceID: referenceID,
                     bookmark: bookmark
                 )
-                if relocating {
+                switch action {
+                case .relocate:
                     await coordinator.relocateExternalSubtitle(subtitle)
-                } else {
+                case .selectNew:
                     await coordinator.selectExternalSubtitle(subtitle)
                 }
             }

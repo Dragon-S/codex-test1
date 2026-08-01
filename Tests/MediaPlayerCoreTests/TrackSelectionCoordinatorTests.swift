@@ -55,6 +55,57 @@ struct TrackSelectionCoordinatorTests {
         #expect(coordinator.trackSelection.subtitle == .embedded(forcedChinese.id))
     }
 
+    @Test("区域首选语言可匹配 libmpv 的 ISO 三字母轨道语言")
+    func matchesRegionalPreferencesToISOThreeLetterTrackLanguages() async throws {
+        let engine = TrackFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            defaultTrackRules: DefaultTrackRules(
+                preferredAudioLanguages: ["ja-JP", "en-US"],
+                preferredSubtitleLanguages: ["zh-Hans"],
+                subtitleAutoPolicy: .always
+            )
+        )
+        await coordinator.open(localMedia("language-codes.mkv"))
+        let loadID = try #require(await engine.loadIDs.last)
+        let english = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "eng",
+            title: "English",
+            ordinal: 1,
+            isDefault: true
+        )
+        let japanese = AudioTrackOption(
+            id: AudioTrackID(),
+            languageCode: "jpn",
+            title: "日本語",
+            ordinal: 2,
+            isDefault: false
+        )
+        let simplifiedChinese = EmbeddedSubtitleTrackOption(
+            id: EmbeddedSubtitleTrackID(),
+            languageCode: "zho",
+            title: "简体中文",
+            ordinal: 1,
+            isDefault: false,
+            isForced: false
+        )
+
+        engine.send(.trackCatalogChanged(
+            TrackCatalog(
+                audioTracks: [english, japanese],
+                embeddedSubtitleTracks: [simplifiedChinese]
+            ),
+            loadID: loadID
+        ))
+        try await waitUntil { await engine.selectionCommands.count == 2 }
+
+        #expect(await engine.selectionCommands == [
+            .audio(japanese.id),
+            .subtitle(.embedded(simplifiedChinese.id)),
+        ])
+    }
+
     @Test("用户成功选择音轨后按条目保存语义偏好")
     func persistsSuccessfulAudioSelectionPerEntry() async throws {
         let engine = TrackFakePlaybackEngine()
@@ -251,7 +302,6 @@ struct TrackSelectionCoordinatorTests {
         await engine.setExternalSubtitleResult(.loaded)
         let subtitle = LocalExternalSubtitle(
             url: URL(fileURLWithPath: "/tmp/movie.zh-Hans.ass"),
-            referenceID: ExternalSubtitleReferenceID(),
             bookmark: Data([0x05])
         )
 
@@ -262,7 +312,6 @@ struct TrackSelectionCoordinatorTests {
             Issue.record("预期保存外部字幕引用")
             return
         }
-        #expect(reference.id != subtitle.referenceID)
         #expect(reference.lastKnownPath == subtitle.url.path)
         #expect(coordinator.nowPlayingList.entries[0].media.referenceID != LocalMediaReferenceID(
             rawValue: reference.id.rawValue
@@ -401,7 +450,6 @@ struct TrackSelectionCoordinatorTests {
         try await coordinator.restorePersistentState()
         let relocated = LocalExternalSubtitle(
             url: URL(fileURLWithPath: "/tmp/new-shared.ass"),
-            referenceID: reference.id,
             bookmark: Data([0x0B])
         )
 
@@ -452,7 +500,6 @@ struct TrackSelectionCoordinatorTests {
         try await coordinator.restorePersistentState()
         let newlySelected = LocalExternalSubtitle(
             url: URL(fileURLWithPath: "/tmp/new-for-first.ass"),
-            referenceID: sharedReference.id,
             bookmark: Data([0x0F])
         )
 
