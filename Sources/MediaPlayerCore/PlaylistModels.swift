@@ -24,6 +24,14 @@ public struct LocalMediaReferenceID: Hashable, Codable, Sendable {
     }
 }
 
+public struct LocalFileIdentity: Hashable, Codable, Sendable {
+    public let rawValue: Data
+
+    public init(rawValue: Data) {
+        self.rawValue = rawValue
+    }
+}
+
 public struct EntryPlaybackPreferences: Equatable, Codable, Sendable {
     public let audioTrackID: String?
     public let embeddedSubtitleTrackID: String?
@@ -44,13 +52,13 @@ public struct PersistentLocalMediaReference: Equatable, Codable, Sendable {
     public let id: LocalMediaReferenceID
     public let bookmark: Data
     public let lastKnownPath: String
-    public let fileIdentity: Data?
+    public let fileIdentity: LocalFileIdentity?
 
     public init(
         id: LocalMediaReferenceID,
         bookmark: Data,
         lastKnownPath: String,
-        fileIdentity: Data? = nil
+        fileIdentity: LocalFileIdentity? = nil
     ) {
         self.id = id
         self.bookmark = bookmark

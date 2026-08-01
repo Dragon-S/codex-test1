@@ -133,8 +133,9 @@ public final class PlaybackCoordinator: ObservableObject {
             .flatMap(\.entries)
             .map(\.media)
             .first { reference in
-                if let fileIdentity = media.fileIdentity {
-                    return reference.fileIdentity == fileIdentity
+                if let fileIdentity = media.fileIdentity,
+                   let referenceIdentity = reference.fileIdentity {
+                    return referenceIdentity == fileIdentity
                 }
                 return URL(fileURLWithPath: reference.lastKnownPath).standardizedFileURL
                     == media.url.standardizedFileURL

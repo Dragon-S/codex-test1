@@ -119,14 +119,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private static func fileIdentity(for url: URL) -> Data? {
+    private static func fileIdentity(for url: URL) -> LocalFileIdentity? {
         guard let identifier = try? url.resourceValues(
             forKeys: [.fileResourceIdentifierKey]
         ).fileResourceIdentifier else { return nil }
-        return try? NSKeyedArchiver.archivedData(
+        guard let data = try? NSKeyedArchiver.archivedData(
             withRootObject: identifier,
             requiringSecureCoding: false
-        )
+        ) else { return nil }
+        return LocalFileIdentity(rawValue: data)
     }
 
     private func makePlaylistStore() -> any PlaylistStore {

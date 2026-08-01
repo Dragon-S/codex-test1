@@ -162,30 +162,40 @@ struct NamedPlaylistCoordinatorTests {
     func reusesMediaReferenceForTheSameFileIdentity() async throws {
         let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine())
         let playlist = try await coordinator.createPlaylist(named: "重复媒体")
-        let fileIdentity = Data([0xF1, 0x1E])
+        let fileIdentity = LocalFileIdentity(rawValue: Data([0xF1, 0x1E]))
         let first = try await coordinator.add(
             LocalMedia(
                 url: URL(fileURLWithPath: "/tmp/original-name.mkv"),
                 referenceID: LocalMediaReferenceID(),
-                bookmark: Data([0x51]),
-                fileIdentity: fileIdentity
+                bookmark: Data([0x51])
             ),
             to: playlist.id
         )
-        let duplicate = try await coordinator.add(
+        let upgradedLegacyReference = try await coordinator.add(
             LocalMedia(
-                url: URL(fileURLWithPath: "/tmp/renamed-file.mkv"),
+                url: URL(fileURLWithPath: "/tmp/original-name.mkv"),
                 referenceID: LocalMediaReferenceID(),
                 bookmark: Data([0x52]),
                 fileIdentity: fileIdentity
             ),
             to: playlist.id
         )
+        let duplicateAfterRename = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/renamed-file.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x53]),
+                fileIdentity: fileIdentity
+            ),
+            to: playlist.id
+        )
 
-        #expect(first.id != duplicate.id)
-        #expect(first.media.id == duplicate.media.id)
+        #expect(first.id != upgradedLegacyReference.id)
+        #expect(upgradedLegacyReference.id != duplicateAfterRename.id)
+        #expect(first.media.id == upgradedLegacyReference.media.id)
+        #expect(first.media.id == duplicateAfterRename.media.id)
         #expect(coordinator.playlists[0].entries.map(\.media.lastKnownPath) == [
-            "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv",
+            "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv",
         ])
     }
 
