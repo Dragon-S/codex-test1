@@ -11,6 +11,18 @@ public struct SystemPlaybackTimeSource: PlaybackTimeSource {
     public var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 }
 
+public protocol PlaylistRandomizer: Sendable {
+    func shuffled(_ entryIDs: [PlaylistEntryID]) -> [PlaylistEntryID]
+}
+
+public struct SystemPlaylistRandomizer: PlaylistRandomizer {
+    public init() {}
+
+    public func shuffled(_ entryIDs: [PlaylistEntryID]) -> [PlaylistEntryID] {
+        entryIDs.shuffled()
+    }
+}
+
 public struct NowPlayingList: Equatable, Sendable {
     public let entries: [NowPlayingEntry]
     public let currentIndex: Int?
@@ -109,6 +121,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private let timeSource: any PlaybackTimeSource
     private let externalSubtitleAccess: any PersistentExternalSubtitleAccess
     private let defaultTrackRules: DefaultTrackRules
+    private let randomizer: any PlaylistRandomizer
     private var eventTask: Task<Void, Never>?
     private var isFindingFirstPlayableMedia = false
     private var isRestoredMediaPendingLoad = false
@@ -119,6 +132,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private var lastConfirmedPosition: TimeInterval = 0
     private var pendingSeekTarget: TimeInterval?
     private var detachedSuccessorEntryIDs: [PlaylistEntryID] = []
+    private var randomAutomaticLoadIDs: Set<PlaybackLoadID> = []
 
     public init(
         engine: any PlaybackEngine,
@@ -127,7 +141,8 @@ public final class PlaybackCoordinator: ObservableObject {
         seekStep: TimeInterval = 10,
         timeSource: any PlaybackTimeSource = SystemPlaybackTimeSource(),
         externalSubtitleAccess: any PersistentExternalSubtitleAccess = LastKnownPathExternalSubtitleAccess(),
-        defaultTrackRules: DefaultTrackRules = DefaultTrackRules()
+        defaultTrackRules: DefaultTrackRules = DefaultTrackRules(),
+        randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer()
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
@@ -137,6 +152,7 @@ public final class PlaybackCoordinator: ObservableObject {
         lastProgressSaveTime = timeSource.now
         self.externalSubtitleAccess = externalSubtitleAccess
         self.defaultTrackRules = defaultTrackRules
+        self.randomizer = randomizer
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -206,6 +222,42 @@ public final class PlaybackCoordinator: ObservableObject {
         browsingPlaylistID = id
     }
 
+    public func setRepeatMode(
+        _ repeatMode: PlaylistRepeatMode,
+        for playlistID: PlaylistID
+    ) async throws {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playlist.replacingPlaybackPolicy(
+            order: playlist.playbackOrder,
+            repeatMode: repeatMode,
+            randomRound: playlist.randomRound
+        )
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
+    public func setPlaybackOrder(
+        _ order: PlaybackOrder,
+        for playlistID: PlaylistID
+    ) async throws {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        guard playlist.playbackOrder != order else { return }
+        let round = order == .random ? makeRandomRound(for: playlist) : nil
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playlist.replacingPlaybackPolicy(
+            order: order,
+            repeatMode: playlist.repeatMode,
+            randomRound: round
+        )
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+    }
+
     @discardableResult
     public func add(_ media: LocalMedia, to playlistID: PlaylistID) async throws -> PlaylistEntry {
         guard let bookmark = media.bookmark else {
@@ -249,10 +301,13 @@ public final class PlaybackCoordinator: ObservableObject {
             )
         }
         let playlist = updatedPlaylists[playlistIndex]
-        let updatedPlaylist = playlist.replacingEntries(
+        var updatedPlaylist = playlist.replacingEntries(
             playlist.entries + [entry],
             currentEntryID: playlist.currentEntryID
         )
+        if let round = playlist.randomRound {
+            updatedPlaylist = updatedPlaylist.replacingRandomRound(round.addingUnplayed(entry.id))
+        }
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
         if activePlaylistID == playlistID {
@@ -299,10 +354,15 @@ public final class PlaybackCoordinator: ObservableObject {
         let duplicate = PlaylistEntry(media: source.media)
         var entries = playlist.entries
         entries.insert(duplicate, at: sourceIndex + 1)
-        let updatedPlaylist = playlist.replacingEntries(
+        var updatedPlaylist = playlist.replacingEntries(
             entries,
             currentEntryID: playlist.currentEntryID
         )
+        if let round = playlist.randomRound {
+            updatedPlaylist = updatedPlaylist.replacingRandomRound(
+                round.addingUnplayed(duplicate.id)
+            )
+        }
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
@@ -378,12 +438,15 @@ public final class PlaybackCoordinator: ObservableObject {
                 entries.contains(where: { $0.id == candidate })
             }
         let successorID = entries.first(where: { detachedCandidates.contains($0.id) })?.id
-        let updatedPlaylist = playlist.replacingEntries(
+        var updatedPlaylist = playlist.replacingEntries(
             entries,
             currentEntryID: removedCurrentEntry || detachedNowPlayingEntry != nil
                 ? successorID
                 : playlist.currentEntryID
         )
+        if let round = playlist.randomRound {
+            updatedPlaylist = updatedPlaylist.replacingRandomRound(round.removing(entryID))
+        }
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
@@ -447,10 +510,15 @@ public final class PlaybackCoordinator: ObservableObject {
                 playbackPreferences: entry.playbackPreferences
             ))
         }
-        let playingPlaylist = playlist.replacingEntries(
+        var playingPlaylist = playlist.replacingEntries(
             playlist.entries,
             currentEntryID: entryID
         )
+        if playlist.playbackOrder == .random {
+            let round = (playlist.randomRound ?? makeRandomRound(for: playingPlaylist))
+                .recording(entryID)
+            playingPlaylist = playingPlaylist.replacingRandomRound(round)
+        }
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = playingPlaylist
         try await commit(updatedPlaylists, activePlaylistID: playlistID)
@@ -793,12 +861,27 @@ public final class PlaybackCoordinator: ObservableObject {
     public func next() async {
         isFindingFirstPlayableMedia = false
         await persistCurrentState(force: true)
+        if activePlaylist?.playbackOrder == .random {
+            await advanceRandom(stopEngineAtBoundary: true)
+            return
+        }
         await move(by: 1)
     }
 
     public func previous() async {
         isFindingFirstPlayableMedia = false
         await persistCurrentState(force: true)
+        if let playlist = activePlaylist,
+           playlist.playbackOrder == .random,
+           let currentEntryID = currentEntry?.id,
+           let historyIndex = playlist.randomRound?.playedEntryIDs.firstIndex(of: currentEntryID),
+           historyIndex > 0,
+           let destination = nowPlayingList.entries.firstIndex(where: {
+               $0.id == playlist.randomRound?.playedEntryIDs[historyIndex - 1]
+           }) {
+            await move(to: destination)
+            return
+        }
         await move(by: -1)
     }
 
@@ -816,10 +899,29 @@ public final class PlaybackCoordinator: ObservableObject {
         await persistCurrentState(force: true)
     }
 
-    private func load(_ media: LocalMedia) async {
+    private func move(to index: Int, advancesRandomAfterFailure: Bool = false) async {
+        guard nowPlayingList.entries.indices.contains(index) else {
+            await engine.stop()
+            return
+        }
+        nowPlayingList = NowPlayingList(entries: nowPlayingList.entries, currentIndex: index)
+        let entry = nowPlayingList.entries[index]
+        resetTimeline(for: entry)
+        await load(entry.media, advancesRandomAfterFailure: advancesRandomAfterFailure)
+        await persistCurrentState(force: true)
+    }
+
+    private func load(
+        _ media: LocalMedia,
+        advancesRandomAfterFailure: Bool = false
+    ) async {
         nextLoadID &+= 1
         let loadID = PlaybackLoadID(rawValue: nextLoadID)
         activeLoadID = loadID
+        randomAutomaticLoadIDs.removeAll(keepingCapacity: true)
+        if advancesRandomAfterFailure {
+            randomAutomaticLoadIDs.insert(loadID)
+        }
         availableAudioTracks = []
         availableEmbeddedSubtitleTracks = []
         trackSelection = TrackSelectionState()
@@ -840,6 +942,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 pendingSeekTarget = nil
             }
             self.state = state
+            if case .failed = state,
+               randomAutomaticLoadIDs.remove(loadID) != nil,
+               let entryID = currentEntry?.id {
+                guard await markRandomUnavailable(entryID) else {
+                    self.state = .stopped
+                    return
+                }
+                await advanceRandom(advancesAfterFailure: true)
+                return
+            }
             if state == .stopped {
                 detachedNowPlayingEntry = nil
                 detachedSuccessorEntryIDs = []
@@ -847,6 +959,7 @@ public final class PlaybackCoordinator: ObservableObject {
             switch state {
             case .playing, .paused:
                 isFindingFirstPlayableMedia = false
+                randomAutomaticLoadIDs.remove(loadID)
             case .failed where isFindingFirstPlayableMedia:
                 if let currentIndex = nowPlayingList.currentIndex,
                    nowPlayingList.entries.indices.contains(currentIndex + 1) {
@@ -877,6 +990,7 @@ public final class PlaybackCoordinator: ObservableObject {
             break
         case let .playbackEnded(loadID):
             guard loadID == activeLoadID else { return }
+            randomAutomaticLoadIDs.remove(loadID)
             isFindingFirstPlayableMedia = false
             if detachedNowPlayingEntry != nil {
                 let successorIndex = nowPlayingList.entries.firstIndex { entry in
@@ -885,11 +999,19 @@ public final class PlaybackCoordinator: ObservableObject {
                 detachedNowPlayingEntry = nil
                 detachedSuccessorEntryIDs = []
                 if let successorIndex {
+                    let successor = nowPlayingList.entries[successorIndex]
+                    guard await recordRandomSelectionIfNeeded(successor.id) else {
+                        state = .stopped
+                        return
+                    }
                     nowPlayingList = NowPlayingList(
                         entries: nowPlayingList.entries,
                         currentIndex: successorIndex
                     )
-                    await load(nowPlayingList.entries[successorIndex].media)
+                    await load(
+                        successor.media,
+                        advancesRandomAfterFailure: activePlaylist?.playbackOrder == .random
+                    )
                 } else {
                     state = .stopped
                 }
@@ -901,8 +1023,19 @@ public final class PlaybackCoordinator: ObservableObject {
                 state = .stopped
                 return
             }
+            if activePlaylist?.repeatMode == .entry {
+                await move(to: currentIndex)
+                return
+            }
+            if activePlaylist?.playbackOrder == .random {
+                await advanceRandom(advancesAfterFailure: true)
+                return
+            }
             if nowPlayingList.entries.indices.contains(currentIndex + 1) {
                 await move(by: 1)
+            } else if activePlaylist?.repeatMode == .playlist,
+                      !nowPlayingList.entries.isEmpty {
+                await move(to: 0)
             } else {
                 state = .stopped
             }
@@ -916,6 +1049,113 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let index = nowPlayingList.currentIndex,
               nowPlayingList.entries.indices.contains(index) else { return nil }
         return nowPlayingList.entries[index]
+    }
+
+    private var activePlaylist: Playlist? {
+        guard let activePlaylistID else { return nil }
+        return playlists.first(where: { $0.id == activePlaylistID })
+    }
+
+    private func makeRandomRound(for playlist: Playlist) -> RandomPlaybackRound {
+        let entryIDs = playlist.entries.map(\.id)
+        guard let currentEntryID = playlist.currentEntryID,
+              entryIDs.contains(currentEntryID) else {
+            return RandomPlaybackRound(order: randomizer.shuffled(entryIDs))
+        }
+        return RandomPlaybackRound(
+            order: [currentEntryID] + randomizer.shuffled(entryIDs.filter { $0 != currentEntryID }),
+            playedEntryIDs: [currentEntryID]
+        )
+    }
+
+    private func advanceRandom(
+        stopEngineAtBoundary: Bool = false,
+        advancesAfterFailure: Bool = false
+    ) async {
+        guard let activePlaylistID,
+              let playlistIndex = playlists.firstIndex(where: { $0.id == activePlaylistID }) else {
+            state = .stopped
+            return
+        }
+        let playlist = playlists[playlistIndex]
+        let availableIDs = Set(playlist.entries.map(\.id))
+        var round = playlist.randomRound ?? makeRandomRound(for: playlist)
+        var candidate = round.order.first { id in
+            availableIDs.contains(id)
+                && !round.playedEntryIDs.contains(id)
+                && !round.unavailableEntryIDs.contains(id)
+        }
+        let eligibleIDs = availableIDs.subtracting(round.unavailableEntryIDs)
+        if candidate == nil, playlist.repeatMode == .playlist, !eligibleIDs.isEmpty {
+            round = RandomPlaybackRound(
+                order: randomizer.shuffled(playlist.entries.map(\.id)),
+                unavailableEntryIDs: round.unavailableEntryIDs.filter(availableIDs.contains)
+            )
+            candidate = round.order.first(where: eligibleIDs.contains)
+        }
+        guard let candidate,
+              let destination = nowPlayingList.entries.firstIndex(where: { $0.id == candidate }) else {
+            state = .stopped
+            if stopEngineAtBoundary {
+                await engine.stop()
+            }
+            return
+        }
+        round = round.recording(candidate)
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playlist.replacingProgression(
+            currentEntryID: candidate,
+            randomRound: round
+        )
+        do {
+            try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        } catch {
+            state = .stopped
+            return
+        }
+        await move(to: destination, advancesRandomAfterFailure: advancesAfterFailure)
+    }
+
+    private func recordRandomSelectionIfNeeded(_ entryID: PlaylistEntryID) async -> Bool {
+        guard let activePlaylistID,
+              let playlistIndex = playlists.firstIndex(where: { $0.id == activePlaylistID }),
+              playlists[playlistIndex].playbackOrder == .random else {
+            return true
+        }
+        let playlist = playlists[playlistIndex]
+        var round = playlist.randomRound ?? makeRandomRound(for: playlist)
+        guard !round.playedEntryIDs.contains(entryID) else { return true }
+        round = round.recording(entryID)
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playlist.replacingProgression(
+            currentEntryID: entryID,
+            randomRound: round
+        )
+        do {
+            try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func markRandomUnavailable(_ entryID: PlaylistEntryID) async -> Bool {
+        guard let activePlaylistID,
+              let playlistIndex = playlists.firstIndex(where: { $0.id == activePlaylistID }),
+              let round = playlists[playlistIndex].randomRound else {
+            return true
+        }
+        let playlist = playlists[playlistIndex]
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playlist.replacingRandomRound(
+            round.markingUnavailable(entryID)
+        )
+        do {
+            try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private var resumePosition: TimeInterval? {
@@ -1268,12 +1508,9 @@ public final class PlaybackCoordinator: ObservableObject {
                 isCompleted: persistentEntry.isCompleted,
                 playbackPreferences: updatedPreferences
             )
-            playlists[playlistIndex] = Playlist(
-                id: playlist.id,
-                name: playlist.name,
-                entries: persistentEntries,
-                currentEntryID: playlist.currentEntryID,
-                playbackRate: playlist.playbackRate
+            playlists[playlistIndex] = playlist.replacingEntries(
+                persistentEntries,
+                currentEntryID: playlist.currentEntryID
             )
         }
         return true
@@ -1299,14 +1536,11 @@ public final class PlaybackCoordinator: ObservableObject {
             currentIndex: nowPlayingList.currentIndex
         )
         playlists = playlists.map { playlist in
-            Playlist(
-                id: playlist.id,
-                name: playlist.name,
-                entries: playlist.entries.map { entry in
+            playlist.replacingEntries(
+                playlist.entries.map { entry in
                     replacingExternalSubtitleReference(reference, in: entry)
                 },
-                currentEntryID: playlist.currentEntryID,
-                playbackRate: playlist.playbackRate
+                currentEntryID: playlist.currentEntryID
             )
         }
         return true

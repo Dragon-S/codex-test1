@@ -52,7 +52,14 @@ struct PlaylistStoreContractTests {
             id: PlaylistID(),
             name: "Weekend Movies",
             entries: [firstEntry, duplicateEntry],
-            currentEntryID: duplicateEntry.id
+            currentEntryID: duplicateEntry.id,
+            playbackOrder: .random,
+            repeatMode: .playlist,
+            randomRound: RandomPlaybackRound(
+                order: [duplicateEntry.id, firstEntry.id],
+                playedEntryIDs: [duplicateEntry.id],
+                unavailableEntryIDs: [firstEntry.id]
+            )
         )
 
         try await store.create(playlist)
@@ -81,6 +88,9 @@ struct PlaylistStoreContractTests {
         let playbackState = try await store.loadLibrary()
         #expect(playbackState.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
         #expect(playbackState.playlists[0].playbackRate == 1.5)
+        #expect(playbackState.playlists[0].playbackOrder == .random)
+        #expect(playbackState.playlists[0].repeatMode == .playlist)
+        #expect(playbackState.playlists[0].randomRound == playlist.randomRound)
         #expect(playbackState.playerVolume == 0.4)
         #expect(playbackState.isMuted)
 
@@ -157,7 +167,10 @@ struct PlaylistStoreContractTests {
                 externalSubtitleUpdated.playlists[0].entries[1],
                 externalSubtitleUpdated.playlists[0].entries[0],
             ],
-            currentEntryID: firstEntry.id
+            currentEntryID: firstEntry.id,
+            playbackOrder: .random,
+            repeatMode: .playlist,
+            randomRound: playlist.randomRound
         )
         try await store.commit(PlaylistLibrary(
             playlists: [renamedAndReordered],
@@ -489,6 +502,256 @@ struct NamedPlaylistCoordinatorTests {
     }
 }
 
+@MainActor
+@Suite("播放顺序、重复方式与随机轮次")
+struct PlaylistProgressionTests {
+    @Test("顺序播放分别在边界停止、循环列表或重复单条")
+    func advancesSequentiallyForEveryRepeatMode() async throws {
+        let noRepeat = try await makeProgressionFixture(repeatMode: .none)
+        await noRepeat.engine.sendPlaybackEnded()
+        try await waitUntil { noRepeat.coordinator.nowPlayingList.currentIndex == 1 }
+        await noRepeat.engine.sendPlaybackEnded()
+        try await waitUntil { noRepeat.coordinator.state == .stopped }
+        #expect(noRepeat.coordinator.nowPlayingList.currentIndex == 1)
+
+        let repeatPlaylist = try await makeProgressionFixture(repeatMode: .playlist)
+        await repeatPlaylist.engine.sendPlaybackEnded()
+        try await waitUntil { repeatPlaylist.coordinator.nowPlayingList.currentIndex == 1 }
+        await repeatPlaylist.engine.sendPlaybackEnded()
+        try await waitUntil { repeatPlaylist.coordinator.nowPlayingList.currentIndex == 0 }
+
+        let repeatEntry = try await makeProgressionFixture(repeatMode: .entry)
+        await repeatEntry.engine.sendPlaybackEnded()
+        try await waitUntilAsync { await repeatEntry.engine.commands.count == 2 }
+        #expect(repeatEntry.coordinator.nowPlayingList.currentIndex == 0)
+    }
+
+    @Test("随机不重复会按持久轮次选完所有条目，重启后继续而不早重复")
+    func persistsRandomRoundAcrossRestartWithoutPrematureRepeats() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "随机")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x71), to: playlist.id)
+        let second = try await coordinator.add(bookmarkedMedia("second.mp4", 0x72), to: playlist.id)
+        let third = try await coordinator.add(bookmarkedMedia("third.mp4", 0x73), to: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 2 }
+
+        let persistedRound = try #require((await store.loadLibrary()).playlists[0].randomRound)
+        #expect(persistedRound.order == [first.id, third.id, second.id])
+        #expect(persistedRound.playedEntryIDs == [first.id, third.id])
+
+        let restoredEngine = PlaylistFakePlaybackEngine()
+        let restored = PlaybackCoordinator(
+            engine: restoredEngine,
+            playlistStore: store,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        try await restored.restorePersistentState()
+        #expect(restored.nowPlayingList.currentIndex == 2)
+        await restored.play()
+        await restoredEngine.sendPlaybackEnded()
+        try await waitUntil { restored.nowPlayingList.currentIndex == 1 }
+        await restoredEngine.sendPlaybackEnded()
+        try await waitUntil { restored.state == .stopped }
+
+        let completedRound = try #require((await store.loadLibrary()).playlists[0].randomRound)
+        #expect(completedRound.playedEntryIDs == [first.id, third.id, second.id])
+    }
+
+    @Test("随机轮次吸收新增、移除删除且不受重排影响，关闭后回到实时顺序")
+    func reconcilesPlaylistEditsAndLeavesRandomAtLivePosition() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "编辑随机轮次")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x81), to: playlist.id)
+        let second = try await coordinator.add(bookmarkedMedia("second.mp4", 0x82), to: playlist.id)
+        let third = try await coordinator.add(bookmarkedMedia("third.mp4", 0x83), to: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+
+        let initialRound = try #require(coordinator.playlists[0].randomRound)
+        let fourth = try await coordinator.add(bookmarkedMedia("fourth.mp4", 0x84), to: playlist.id)
+        let afterAdd = try #require(coordinator.playlists[0].randomRound)
+        #expect(afterAdd.order.contains(fourth.id))
+        #expect(!afterAdd.playedEntryIDs.contains(fourth.id))
+
+        try await coordinator.moveEntry(second.id, in: playlist.id, to: 0)
+        #expect(coordinator.playlists[0].randomRound == afterAdd)
+
+        try await coordinator.removeEntry(third.id, from: playlist.id)
+        let afterRemove = try #require(coordinator.playlists[0].randomRound)
+        #expect(!afterRemove.order.contains(third.id))
+        #expect(!afterRemove.playedEntryIDs.contains(third.id))
+        #expect(afterRemove.order.filter { $0 != fourth.id } == initialRound.order.filter { $0 != third.id })
+
+        try await coordinator.setPlaybackOrder(.sequential, for: playlist.id)
+        #expect(coordinator.playlists[0].randomRound == nil)
+        #expect(coordinator.nowPlayingList.currentIndex == 1)
+        await coordinator.next()
+        #expect(coordinator.nowPlayingList.currentIndex == 2)
+        #expect(coordinator.nowPlayingList.currentMedia?.url.lastPathComponent == "fourth.mp4")
+    }
+
+    @Test("随机下一首使用轮次，上一首回到已播放历史")
+    func navigatesRandomRoundAndHistory() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "随机导航")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x91), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("second.mp4", 0x92), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("third.mp4", 0x93), to: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+
+        await coordinator.next()
+        #expect(coordinator.nowPlayingList.currentIndex == 2)
+        await coordinator.previous()
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
+    }
+
+    @Test("随机播放在空列表和单条列表的三种重复边界都有限终止")
+    func handlesEmptyAndSingleEntryRandomBoundaries() async throws {
+        let emptyEngine = PlaylistFakePlaybackEngine()
+        let empty = PlaybackCoordinator(engine: emptyEngine)
+        let emptyPlaylist = try await empty.createPlaylist(named: "空")
+        try await empty.setPlaybackOrder(.random, for: emptyPlaylist.id)
+        try await empty.setRepeatMode(.playlist, for: emptyPlaylist.id)
+        await empty.next()
+        #expect(await emptyEngine.commands == [.stop])
+
+        let noRepeat = try await makeSingleEntryRandomFixture(repeatMode: .none)
+        await noRepeat.engine.sendPlaybackEnded()
+        try await waitUntil { noRepeat.coordinator.state == .stopped }
+        #expect(await noRepeat.engine.commands == [.load])
+
+        let repeatPlaylist = try await makeSingleEntryRandomFixture(repeatMode: .playlist)
+        await repeatPlaylist.engine.sendPlaybackEnded()
+        try await waitUntilAsync { await repeatPlaylist.engine.commands.count == 2 }
+        #expect(repeatPlaylist.coordinator.nowPlayingList.currentIndex == 0)
+
+        let repeatEntry = try await makeSingleEntryRandomFixture(repeatMode: .entry)
+        await repeatEntry.engine.sendPlaybackEnded()
+        try await waitUntilAsync { await repeatEntry.engine.commands.count == 2 }
+        #expect(repeatEntry.coordinator.nowPlayingList.currentIndex == 0)
+    }
+
+    @Test("随机轮次删除当前条目后不会再次自动选择脱离状态的后继条目")
+    func removesCurrentEntryFromRandomRoundWithoutRepeatingItsSuccessor() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "删除当前随机条目")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0xA1), to: playlist.id)
+        let second = try await coordinator.add(bookmarkedMedia("second.mp4", 0xA2), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("third.mp4", 0xA3), to: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+
+        try await coordinator.removeEntry(first.id, from: playlist.id)
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 0 }
+        #expect(coordinator.nowPlayingList.entries[0].id == second.id)
+
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 1 }
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.state == .stopped }
+        #expect(await engine.commands == [.load, .load, .load])
+    }
+
+    @Test("随机自动推进会有限跳过失败条目且不把它们算作已播放")
+    func exhaustsFailedRandomEntriesWithoutCountingThemAsPlayed() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "全不可播放")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0xB1), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("second.mp4", 0xB2), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("third.mp4", 0xB3), to: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+
+        await engine.sendPlaybackEnded()
+        try await waitUntilAsync { await engine.commands.count == 2 }
+        await engine.sendState(.failed(.unreadable))
+        try await waitUntilAsync { await engine.commands.count == 3 }
+        await engine.sendState(.failed(.corrupted))
+        try await waitUntil { coordinator.state == .stopped }
+
+        let round = try #require((await store.loadLibrary()).playlists[0].randomRound)
+        #expect(round.playedEntryIDs == [first.id])
+        #expect(round.unavailableEntryIDs.count == 2)
+        #expect(await engine.commands == [.load, .load, .load])
+    }
+
+    private func makeProgressionFixture(
+        repeatMode: PlaylistRepeatMode
+    ) async throws -> ProgressionFixture {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        let playlist = try await coordinator.createPlaylist(named: "推进")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x61), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("second.mp4", 0x62), to: playlist.id)
+        try await coordinator.setRepeatMode(repeatMode, for: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+        return ProgressionFixture(coordinator: coordinator, engine: engine, store: store)
+    }
+
+    private func makeSingleEntryRandomFixture(
+        repeatMode: PlaylistRepeatMode
+    ) async throws -> ProgressionFixture {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            randomizer: ReversePlaylistRandomizer()
+        )
+        let playlist = try await coordinator.createPlaylist(named: "单条")
+        let entry = try await coordinator.add(bookmarkedMedia("only.mp4", 0x94), to: playlist.id)
+        try await coordinator.playEntry(entry.id, in: playlist.id)
+        try await coordinator.setPlaybackOrder(.random, for: playlist.id)
+        try await coordinator.setRepeatMode(repeatMode, for: playlist.id)
+        return ProgressionFixture(coordinator: coordinator, engine: engine, store: store)
+    }
+}
+
+private struct ReversePlaylistRandomizer: PlaylistRandomizer {
+    func shuffled(_ entryIDs: [PlaylistEntryID]) -> [PlaylistEntryID] {
+        entryIDs.reversed()
+    }
+}
+
+private struct ProgressionFixture {
+    let coordinator: PlaybackCoordinator
+    let engine: PlaylistFakePlaybackEngine
+    let store: InMemoryPlaylistStore
+}
+
 private func bookmarkedMedia(_ name: String, _ bookmarkByte: UInt8) -> LocalMedia {
     LocalMedia(
         url: URL(fileURLWithPath: "/tmp/\(name)"),
@@ -504,6 +767,18 @@ private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throw
         try await Task.sleep(for: .milliseconds(1))
     }
     Issue.record("等待协调层状态更新超时")
+}
+
+@MainActor
+private func waitUntilAsync(
+    _ condition: @escaping @MainActor () async -> Bool
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(1)
+    while ContinuousClock.now < deadline {
+        if await condition() { return }
+        try await Task.sleep(for: .milliseconds(1))
+    }
+    Issue.record("等待协调层异步状态更新超时")
 }
 
 private struct RefreshingMediaAccess: PersistentMediaAccess {
@@ -548,5 +823,10 @@ private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     func sendPlaybackEnded() {
         guard let loadID = loadIDs.last else { return }
         continuation.yield(.playbackEnded(loadID: loadID))
+    }
+
+    func sendState(_ state: PlaybackState) {
+        guard let loadID = loadIDs.last else { return }
+        continuation.yield(.playbackStateChanged(state, loadID: loadID))
     }
 }

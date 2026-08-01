@@ -351,12 +351,9 @@ private extension PlaylistLibrary {
                     playbackPreferences: entry.playbackPreferences
                 )
             }
-            return Playlist(
-                id: playlist.id,
-                name: playlist.name,
-                entries: updatedEntries,
-                currentEntryID: playlist.currentEntryID,
-                playbackRate: playlist.playbackRate
+            return playlist.replacingEntries(
+                updatedEntries,
+                currentEntryID: playlist.currentEntryID
             )
         }
         return PlaylistLibrary(
@@ -395,12 +392,9 @@ private extension PlaylistLibrary {
                     playbackPreferences: updatedPreferences
                 )
             }
-            return Playlist(
-                id: playlist.id,
-                name: playlist.name,
-                entries: updatedEntries,
-                currentEntryID: playlist.currentEntryID,
-                playbackRate: playlist.playbackRate
+            return playlist.replacingEntries(
+                updatedEntries,
+                currentEntryID: playlist.currentEntryID
             )
         }
         return PlaylistLibrary(
@@ -435,12 +429,9 @@ private extension PlaylistLibrary {
             isCompleted: entry.isCompleted,
             playbackPreferences: preferences
         )
-        updatedPlaylists[playlistIndex] = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: updatedEntries,
-            currentEntryID: playlist.currentEntryID,
-            playbackRate: playlist.playbackRate
+        updatedPlaylists[playlistIndex] = playlist.replacingEntries(
+            updatedEntries,
+            currentEntryID: playlist.currentEntryID
         )
         return PlaylistLibrary(
             playlists: updatedPlaylists,
