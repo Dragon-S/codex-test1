@@ -45,6 +45,27 @@ public enum LocalMediaAvailability: String, Equatable, Codable, Sendable {
     case missing
 }
 
+public enum LocalMediaContentKind: Equatable, Sendable {
+    case audio
+    case video
+
+    public static let audioFilenameExtensions = [
+        "aac", "aiff", "alac", "flac", "m4a", "mp3", "ogg", "opus", "wav",
+    ]
+    public static let videoFilenameExtensions = [
+        "avi", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "webm",
+    ]
+    public static let supportedFilenameExtensions =
+        videoFilenameExtensions + audioFilenameExtensions
+
+    public static func infer(fromPath path: String) -> LocalMediaContentKind? {
+        let filenameExtension = URL(fileURLWithPath: path).pathExtension.lowercased()
+        if audioFilenameExtensions.contains(filenameExtension) { return .audio }
+        if videoFilenameExtensions.contains(filenameExtension) { return .video }
+        return nil
+    }
+}
+
 public struct PersistentExternalSubtitleReference: Equatable, Codable, Sendable {
     public let id: ExternalSubtitleReferenceID
     public let bookmark: Data

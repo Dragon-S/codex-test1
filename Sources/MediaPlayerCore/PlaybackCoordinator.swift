@@ -719,22 +719,17 @@ public final class PlaybackCoordinator: ObservableObject {
         existingPath: String,
         replacementPath: String
     ) -> Bool {
-        enum MediaCategory {
-            case audio
-            case video
+        let existingExtension = URL(fileURLWithPath: existingPath).pathExtension.lowercased()
+        let replacementExtension = URL(fileURLWithPath: replacementPath).pathExtension.lowercased()
+        if !existingExtension.isEmpty,
+           !replacementExtension.isEmpty,
+           existingExtension != replacementExtension {
+            return true
         }
-        func category(for path: String) -> MediaCategory? {
-            switch URL(fileURLWithPath: path).pathExtension.lowercased() {
-            case "aac", "aiff", "alac", "flac", "m4a", "mp3", "ogg", "opus", "wav":
-                .audio
-            case "avi", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "webm":
-                .video
-            default:
-                nil
-            }
+        guard let existing = LocalMediaContentKind.infer(fromPath: existingPath),
+              let replacement = LocalMediaContentKind.infer(fromPath: replacementPath) else {
+            return false
         }
-        guard let existing = category(for: existingPath),
-              let replacement = category(for: replacementPath) else { return false }
         return existing != replacement
     }
 
@@ -1220,7 +1215,7 @@ public final class PlaybackCoordinator: ObservableObject {
                         }
                         await advanceRandom(advancesAfterFailure: true)
                     } else {
-                        await move(by: 1)
+                        await advanceSequentialAutomatically()
                     }
                 } else {
                     missingMediaNotice = .recoveryRequired(
@@ -1322,19 +1317,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 await advanceRandom(advancesAfterFailure: true)
                 return
             }
-            let forward = ((currentIndex + 1)..<nowPlayingList.entries.count).first(where: {
-                !nowPlayingList.entries[$0].isMediaMissing
-            })
-            let wrapped = activePlaylist?.repeatMode == .playlist
-                ? (0...currentIndex).first(where: { !nowPlayingList.entries[$0].isMediaMissing })
-                : nil
-            if let destination = forward ?? wrapped {
-                missingMediaNotice = .none
-                await move(to: destination, automaticallySelected: true)
-            } else {
-                state = .stopped
-                reportMissingProgressionBoundary()
-            }
+            await advanceSequentialAutomatically()
         case let .trackCatalogChanged(catalog, loadID):
             guard loadID == activeLoadID else { return }
             await applyTrackCatalog(catalog)
@@ -1362,6 +1345,26 @@ public final class PlaybackCoordinator: ObservableObject {
             order: [currentEntryID] + randomizer.shuffled(entryIDs.filter { $0 != currentEntryID }),
             playedEntryIDs: [currentEntryID]
         )
+    }
+
+    private func advanceSequentialAutomatically() async {
+        guard let currentIndex = nowPlayingList.currentIndex else {
+            state = .stopped
+            return
+        }
+        let forward = ((currentIndex + 1)..<nowPlayingList.entries.count).first(where: {
+            !nowPlayingList.entries[$0].isMediaMissing
+        })
+        let wrapped = activePlaylist?.repeatMode == .playlist
+            ? (0...currentIndex).first(where: { !nowPlayingList.entries[$0].isMediaMissing })
+            : nil
+        guard let destination = forward ?? wrapped else {
+            state = .stopped
+            reportMissingProgressionBoundary()
+            return
+        }
+        missingMediaNotice = .none
+        await move(to: destination, automaticallySelected: true)
     }
 
     private func advanceRandom(

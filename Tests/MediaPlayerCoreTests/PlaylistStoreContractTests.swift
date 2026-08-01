@@ -680,6 +680,45 @@ struct NamedPlaylistCoordinatorTests {
         #expect(missingEntry.playbackPreferences == newlyMissing.playbackPreferences)
     }
 
+    @Test("列表循环的末项自动加载失败后跳过缺失并有限回绕")
+    func repeatPlaylistWrapsAfterLastEntryBecomesUnreadable() async throws {
+        let first = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x7A]),
+            lastKnownPath: "/tmp/repeat-first.mp4"
+        ))
+        let last = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x7B]),
+            lastKnownPath: "/tmp/repeat-last.mp4"
+        ))
+        let playlist = Playlist(
+            name: "循环期间缺失",
+            entries: [first, last],
+            currentEntryID: first.id,
+            repeatMode: .playlist
+        )
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(
+            playlists: [playlist],
+            activePlaylistID: playlist.id
+        ))
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        try await coordinator.restorePersistentState()
+        await coordinator.play()
+        await engine.sendPlaybackEnded()
+        try await waitUntilAsync { await engine.loadedMediaNames.count == 2 }
+
+        await engine.sendState(.failed(.unreadable))
+        try await waitUntilAsync { await engine.loadedMediaNames.count == 3 }
+
+        #expect(await engine.loadedMediaNames == [
+            "repeat-first.mp4", "repeat-last.mp4", "repeat-first.mp4",
+        ])
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
+        #expect(coordinator.missingMediaCount == 1)
+    }
+
     @Test("手动选择缺失条目提供恢复流程且取消不改变数据")
     func manualSelectionOffersRecoveryAndCancellationIsNonMutating() async throws {
         let reference = PersistentLocalMediaReference(
@@ -941,7 +980,7 @@ struct NamedPlaylistCoordinatorTests {
         #expect(coordinator.missingMediaNotice == .none)
     }
 
-    @Test("没有文件身份时媒体类型明显不同仍要求确认替换影响")
+    @Test("没有文件身份时文件名与容器格式明显不同仍要求确认替换影响")
     func replacementWithDifferentMediaTypeRequiresConfirmationWithoutFileIdentity() async throws {
         let reference = PersistentLocalMediaReference(
             id: LocalMediaReferenceID(),
@@ -961,7 +1000,7 @@ struct NamedPlaylistCoordinatorTests {
         let result = try await coordinator.relocateMissingMedia(
             referenceID: reference.id,
             to: LocalMedia(
-                url: URL(fileURLWithPath: "/tmp/different-audio.mp3"),
+                url: URL(fileURLWithPath: "/tmp/different-video.mp4"),
                 bookmark: Data([0xA6])
             )
         )

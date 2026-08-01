@@ -274,9 +274,9 @@ struct NowPlayingListView: View {
             Text("当前媒体会继续播放，但结束后停止；该 Playlist 不会在重启后恢复。源文件不会被删除或修改。")
         }
         .alert(
-            missingMediaAlertTitle,
+            missingMediaAlertPresentation?.title ?? "",
             isPresented: Binding(
-                get: { missingMediaAlertIsPresented },
+                get: { missingMediaAlertPresentation != nil },
                 set: { isPresented in
                     if !isPresented {
                         coordinator.cancelMissingMediaRecovery()
@@ -302,7 +302,7 @@ struct NowPlayingListView: View {
                 EmptyView()
             }
         } message: {
-            Text(missingMediaAlertMessage)
+            Text(missingMediaAlertPresentation?.message ?? "")
         }
     }
 
@@ -499,38 +499,29 @@ struct NowPlayingListView: View {
         }
     }
 
-    private var missingMediaAlertIsPresented: Bool {
-        switch coordinator.missingMediaNotice {
-        case .recoveryRequired, .replacementConfirmationRequired:
-            true
-        case .none, .noPlayableEntries:
-            false
-        }
+    private struct MissingMediaAlertPresentation {
+        let title: String
+        let message: String
     }
 
-    private var missingMediaAlertTitle: String {
-        switch coordinator.missingMediaNotice {
-        case .recoveryRequired:
-            "文件缺失"
-        case .replacementConfirmationRequired:
-            "替换为不同文件？"
-        case .none, .noPlayableEntries:
-            ""
-        }
-    }
-
-    private var missingMediaAlertMessage: String {
+    private var missingMediaAlertPresentation: MissingMediaAlertPresentation? {
         switch coordinator.missingMediaNotice {
         case let .recoveryRequired(entryID, _):
             let name = coordinator.playlists.lazy.flatMap(\.entries)
                 .first(where: { $0.id == entryID })
                 .map { URL(fileURLWithPath: $0.media.lastKnownPath).lastPathComponent }
                 ?? "所选文件"
-            return "“\(name)”无法定位。可重新定位文件，或仅从 Playlist 移除该条目；取消不会更改任何数据。"
+            return MissingMediaAlertPresentation(
+                title: "文件缺失",
+                message: "“\(name)”无法定位。可重新定位文件，或仅从 Playlist 移除该条目；取消不会更改任何数据。"
+            )
         case let .replacementConfirmationRequired(impact):
-            return "所选文件与原文件身份明显不同。确认后会更新共享本地媒体引用，并重置 \(impact.affectedPlaylistCount) 个 Playlist 中 \(impact.affectedEntryCount) 个关联条目的续播位置、已播完状态及音轨和字幕偏好。"
+            return MissingMediaAlertPresentation(
+                title: "替换为不同文件？",
+                message: "所选文件与原文件身份明显不同。确认后会更新共享本地媒体引用，并重置 \(impact.affectedPlaylistCount) 个 Playlist 中 \(impact.affectedEntryCount) 个关联条目的续播位置、已播完状态及音轨和字幕偏好。"
+            )
         case .none, .noPlayableEntries:
-            return ""
+            return nil
         }
     }
 

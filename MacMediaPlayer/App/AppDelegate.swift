@@ -282,10 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         securityScopedURLs = []
     }
 
-    private static let supportedMediaTypes = [
-        "mp4", "mov", "mkv", "webm",
-        "mp3", "m4a", "aac", "alac", "flac", "wav", "ogg", "opus",
-    ].compactMap { UTType(filenameExtension: $0) }
+    private static let supportedMediaTypes = LocalMediaContentKind.supportedFilenameExtensions
+        .compactMap { UTType(filenameExtension: $0) }
 
     private static let supportedSubtitleTypes = ["srt", "ass", "ssa", "sup"]
         .compactMap { UTType(filenameExtension: $0) }
