@@ -80,6 +80,47 @@ struct ResumeAndPlaybackSettingsTests {
         #expect(fixture.coordinator.position == 48)
     }
 
+    @Test("连续拖动只把最新定位目标确认为最终保存位置")
+    func consecutiveSeeksPersistLatestConfirmedTarget() async throws {
+        let fixture = try await makePersistentFixture(entryCount: 1, resumePositions: [48])
+
+        await fixture.coordinator.seek(to: 0)
+        await fixture.coordinator.seek(to: 30)
+        await fixture.engine.sendTimeline(position: 0, duration: 120)
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(fixture.coordinator.position == 30)
+        #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 48)
+
+        await fixture.engine.sendTimeline(position: 30, duration: 120)
+        try await waitUntil {
+            try await storedEntry(in: fixture.store, at: 0).resumePosition == 30
+        }
+    }
+
+    @Test("退出前保存失败会拒绝终止并保留可见错误")
+    func failedTerminationSaveCancelsTermination() async throws {
+        let entry = PlaylistEntry(
+            media: PersistentLocalMediaReference(
+                id: LocalMediaReferenceID(),
+                bookmark: Data([0x01]),
+                lastKnownPath: "/tmp/termination.mp4"
+            ),
+            resumePosition: 21
+        )
+        let playlist = Playlist(name: "退出保存", entries: [entry], currentEntryID: entry.id)
+        let store = FailingSnapshotStore(
+            library: PlaylistLibrary(playlists: [playlist], activePlaylistID: playlist.id)
+        )
+        let coordinator = PlaybackCoordinator(
+            engine: ProgressFakePlaybackEngine(),
+            playlistStore: store
+        )
+        try await coordinator.restorePersistentState()
+
+        #expect(!(await coordinator.prepareToTerminate()))
+        #expect(coordinator.persistenceNotice == .failed("退出保存失败"))
+    }
+
     @Test("同一本地媒体的不同条目保存互不影响")
     func duplicateMediaEntriesKeepIndependentProgress() async throws {
         let sharedReferenceID = LocalMediaReferenceID()
@@ -233,6 +274,21 @@ private final class MutablePlaybackTimeSource: PlaybackTimeSource, @unchecked Se
 
     func advance(by interval: TimeInterval) {
         now += interval
+    }
+}
+
+private actor FailingSnapshotStore: PlaylistStore {
+    private let library: PlaylistLibrary
+
+    init(library: PlaylistLibrary) {
+        self.library = library
+    }
+
+    func create(_ playlist: Playlist) {}
+    func loadLibrary() -> PlaylistLibrary { library }
+    func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {}
+    func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) throws {
+        throw PlaylistStoreError.unavailable("退出保存失败")
     }
 }
 

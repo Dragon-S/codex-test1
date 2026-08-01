@@ -49,9 +49,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let coordinator else { return .terminateNow }
         isPreparingTermination = true
         Task { @MainActor [weak self] in
-            await coordinator.prepareToTerminate()
-            self?.releaseSecurityScope()
-            sender.reply(toApplicationShouldTerminate: true)
+            let didSave = await coordinator.prepareToTerminate()
+            if didSave {
+                self?.releaseSecurityScope()
+            } else {
+                self?.isPreparingTermination = false
+                self?.window?.makeKeyAndOrderFront(nil)
+            }
+            sender.reply(toApplicationShouldTerminate: didSave)
         }
         return .terminateLater
     }

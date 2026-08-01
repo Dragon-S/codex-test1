@@ -63,7 +63,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private var lastPersistedPosition: TimeInterval?
     private var lastProgressSaveTime: TimeInterval
     private var lastConfirmedPosition: TimeInterval = 0
-    private var isUserSeekPending = false
+    private var pendingSeekTarget: TimeInterval?
 
     public init(
         engine: any PlaybackEngine,
@@ -245,7 +245,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func seek(to requestedPosition: TimeInterval) async {
         let upperBound = duration > 0 ? duration : .greatestFiniteMagnitude
         position = min(max(0, requestedPosition), upperBound)
-        isUserSeekPending = true
+        pendingSeekTarget = position
         await engine.seek(to: position)
     }
 
@@ -295,8 +295,10 @@ public final class PlaybackCoordinator: ObservableObject {
         }
     }
 
-    public func prepareToTerminate() async {
-        await persistCurrentState(force: true)
+    @discardableResult
+    public func prepareToTerminate() async -> Bool {
+        guard activePlaylistID != nil else { return true }
+        return await persistCurrentState(force: true)
     }
 
     public func next() async {
@@ -321,8 +323,8 @@ public final class PlaybackCoordinator: ObservableObject {
         if let entry = currentEntry {
             resetTimeline(for: entry)
         }
-        await persistCurrentState(force: true)
         await load(media)
+        await persistCurrentState(force: true)
     }
 
     private func load(_ media: LocalMedia) async {
@@ -340,9 +342,9 @@ public final class PlaybackCoordinator: ObservableObject {
         switch event {
         case let .playbackStateChanged(state, loadID):
             guard loadID == activeLoadID else { return }
-            if case .failed = state, isUserSeekPending {
+            if case .failed = state, pendingSeekTarget != nil {
                 position = lastConfirmedPosition
-                isUserSeekPending = false
+                pendingSeekTarget = nil
             }
             self.state = state
             switch state {
@@ -360,11 +362,16 @@ public final class PlaybackCoordinator: ObservableObject {
             }
         case let .timelineChanged(newPosition, newDuration, loadID):
             guard loadID == activeLoadID else { return }
+            if let pendingSeekTarget,
+               abs(newPosition - pendingSeekTarget) >= 0.5 {
+                duration = max(0, newDuration)
+                return
+            }
             position = max(0, newPosition)
             duration = max(0, newDuration)
             lastConfirmedPosition = position
-            let confirmsUserSeek = isUserSeekPending
-            isUserSeekPending = false
+            let confirmsUserSeek = pendingSeekTarget != nil
+            pendingSeekTarget = nil
             let wasCompleted = currentEntry?.isCompleted ?? false
             let completed = isAtCompletionThreshold
             updateCurrentEntryProgress(resumePosition: resumePosition, isCompleted: completed)
@@ -410,7 +417,7 @@ public final class PlaybackCoordinator: ObservableObject {
         duration = 0
         lastPersistedPosition = entry.resumePosition
         lastProgressSaveTime = timeSource.now
-        isUserSeekPending = false
+        pendingSeekTarget = nil
     }
 
     private func updateCurrentEntryProgress(
@@ -435,7 +442,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private func persistCurrentState(force: Bool) async -> Bool {
         let completed = currentEntry?.isCompleted ?? false
         let candidate: TimeInterval?
-        if isUserSeekPending {
+        if pendingSeekTarget != nil {
             candidate = completed ? nil : currentEntry?.resumePosition
         } else {
             candidate = completed ? nil : resumePosition
