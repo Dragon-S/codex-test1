@@ -5,11 +5,15 @@ final class PlaybackViewController: NSViewController {
     let videoView: PlaybackCanvasView
 
     private let controlsView: NSHostingView<PlaybackControlsView>
+    private let nowPlayingListView: NSHostingView<NowPlayingListView>
 
     init(coordinator: PlaybackCoordinator, openMedia: @escaping () -> Void, videoView: PlaybackCanvasView) {
         self.videoView = videoView
         controlsView = NSHostingView(
             rootView: PlaybackControlsView(coordinator: coordinator, openMedia: openMedia)
+        )
+        nowPlayingListView = NSHostingView(
+            rootView: NowPlayingListView(coordinator: coordinator)
         )
         super.init(nibName: nil, bundle: nil)
     }
@@ -23,17 +27,23 @@ final class PlaybackViewController: NSViewController {
         let container = NSView()
         videoView.translatesAutoresizingMaskIntoConstraints = false
         controlsView.translatesAutoresizingMaskIntoConstraints = false
+        nowPlayingListView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(videoView)
         container.addSubview(controlsView)
+        container.addSubview(nowPlayingListView)
 
         NSLayoutConstraint.activate([
             videoView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            videoView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            videoView.trailingAnchor.constraint(equalTo: nowPlayingListView.leadingAnchor),
             videoView.topAnchor.constraint(equalTo: container.topAnchor),
             videoView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             controlsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            controlsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            controlsView.trailingAnchor.constraint(equalTo: videoView.trailingAnchor),
             controlsView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            nowPlayingListView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            nowPlayingListView.topAnchor.constraint(equalTo: container.topAnchor),
+            nowPlayingListView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            nowPlayingListView.widthAnchor.constraint(equalToConstant: 260),
         ])
         view = container
     }

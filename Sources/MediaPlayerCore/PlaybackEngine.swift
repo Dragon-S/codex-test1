@@ -27,6 +27,7 @@ public enum PlaybackFailure: Equatable, Sendable {
 
 public enum PlaybackEngineEvent: Equatable, Sendable {
     case playbackStateChanged(PlaybackState)
+    case playbackEnded
 }
 
 public protocol PlaybackEngine: Sendable {

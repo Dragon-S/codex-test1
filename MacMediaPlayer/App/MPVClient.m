@@ -256,6 +256,10 @@ static void MPVRenderUpdate(void *context);
     _isReplacingFile = NO;
     if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_ERROR) {
         [self reportFailure:[self failureForError:endFile->error]];
+    } else if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_EOF) {
+        if (self.playbackEndedHandler != nil) {
+            self.playbackEndedHandler();
+        }
     } else {
         [self reportState:MPVClientPlaybackStateStopped];
     }

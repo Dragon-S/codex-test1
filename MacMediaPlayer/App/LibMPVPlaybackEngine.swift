@@ -15,6 +15,9 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         client.failureHandler = { [continuation] failure in
             continuation.yield(.playbackStateChanged(.failed(Self.failure(for: failure))))
         }
+        client.playbackEndedHandler = { [continuation] in
+            continuation.yield(.playbackEnded)
+        }
     }
 
     deinit {

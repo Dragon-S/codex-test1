@@ -5,8 +5,7 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
-    private var selectedURL: URL?
-    private var hasSecurityScope = false
+    private var securityScopedURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let videoView = PlaybackCanvasView(frame: .zero)
@@ -45,31 +44,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let panel = NSOpenPanel()
         panel.title = "打开本地媒体"
         panel.prompt = "打开"
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedMediaTypes
         panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
+            guard response == .OK, !panel.urls.isEmpty else { return }
             Task { @MainActor [weak self] in
-                self?.play(url)
+                self?.play(panel.urls)
             }
         }
     }
 
-    private func play(_ url: URL) {
+    private func play(_ urls: [URL]) {
+        let newSecurityScopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
         releaseSecurityScope()
-        selectedURL = url
-        hasSecurityScope = url.startAccessingSecurityScopedResource()
+        securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
-        Task { await coordinator.open(LocalMedia(url: url)) }
+        Task { await coordinator.open(urls.map(LocalMedia.init(url:))) }
     }
 
     private func releaseSecurityScope() {
-        if hasSecurityScope {
-            selectedURL?.stopAccessingSecurityScopedResource()
+        for url in securityScopedURLs {
+            url.stopAccessingSecurityScopedResource()
         }
-        selectedURL = nil
-        hasSecurityScope = false
+        securityScopedURLs = []
     }
 
     private static let supportedMediaTypes = [
