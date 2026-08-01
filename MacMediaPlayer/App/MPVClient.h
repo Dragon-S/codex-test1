@@ -46,6 +46,8 @@ typedef NS_ENUM(NSInteger, MPVClientExternalSubtitleResult) {
 @property (nonatomic, copy, nullable) void (^stateHandler)(MPVClientPlaybackState state, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^failureHandler)(MPVClientFailure failure, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^playbackEndedHandler)(uint64_t loadID);
+@property (nonatomic, copy, nullable) void (^timelineHandler)(double position, double duration, uint64_t loadID);
+@property (nonatomic, copy, nullable) void (^settingsHandler)(double rate, double volume, BOOL muted, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^trackCatalogHandler)(NSArray<MPVClientTrack *> *audioTracks, NSArray<MPVClientTrack *> *subtitleTracks, uint64_t loadID);
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
@@ -53,6 +55,10 @@ typedef NS_ENUM(NSInteger, MPVClientExternalSubtitleResult) {
 - (void)play;
 - (void)pause;
 - (void)stop;
+- (void)seekTo:(double)position;
+- (void)setPlaybackRate:(double)rate;
+- (void)setPlayerVolume:(double)volume;
+- (void)setMuted:(BOOL)muted;
 - (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL success))completion;
 - (void)selectSubtitleTrack:(nullable NSUUID *)identifier completion:(void (^)(BOOL success))completion;
 - (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult result, NSUUID * _Nullable identifier))completion;

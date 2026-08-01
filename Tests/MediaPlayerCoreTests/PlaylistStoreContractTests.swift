@@ -32,6 +32,7 @@ struct PlaylistStoreContractTests {
                 lastKnownPath: "/tmp/movie.mkv"
             ),
             resumePosition: 42.5,
+            isCompleted: true,
             playbackPreferences: EntryPlaybackPreferences(
                 audioTrack: TrackPreference(languageCode: "en", title: "Commentary", ordinal: 2),
                 subtitle: .embedded(
@@ -68,6 +69,21 @@ struct PlaylistStoreContractTests {
         #expect(restored.activePlaylistID == playlist.id)
         #expect(restored.playlists[0].entries.map(\.media.id) == [sharedReferenceID, sharedReferenceID])
 
+        try await store.savePlaybackSnapshot(PlaybackPersistenceSnapshot(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            resumePosition: 73,
+            isCompleted: false,
+            playbackRate: 1.5,
+            playerVolume: 0.4,
+            isMuted: true
+        ))
+        let playbackState = try await store.loadLibrary()
+        #expect(playbackState.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
+        #expect(playbackState.playlists[0].playbackRate == 1.5)
+        #expect(playbackState.playerVolume == 0.4)
+        #expect(playbackState.isMuted)
+
         let refreshedReference = PersistentLocalMediaReference(
             id: sharedReferenceID,
             bookmark: Data([0xAA, 0xBB]),
@@ -78,6 +94,11 @@ struct PlaylistStoreContractTests {
         #expect(refreshed.playlists[0].entries.map(\.media) == [
             refreshedReference, refreshedReference,
         ])
+        #expect(refreshed.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
+        #expect(refreshed.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(refreshed.playlists[0].playbackRate == 1.5)
+        #expect(refreshed.playerVolume == 0.4)
+        #expect(refreshed.isMuted)
 
         let updatedPreferences = EntryPlaybackPreferences(
             audioTrack: TrackPreference(languageCode: "ja", title: "日本語", ordinal: 2),
@@ -91,6 +112,10 @@ struct PlaylistStoreContractTests {
         let preferencesUpdated = try await store.loadLibrary()
         #expect(preferencesUpdated.playlists[0].entries[0].playbackPreferences == firstEntry.playbackPreferences)
         #expect(preferencesUpdated.playlists[0].entries[1].playbackPreferences == updatedPreferences)
+        #expect(preferencesUpdated.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(preferencesUpdated.playlists[0].playbackRate == 1.5)
+        #expect(preferencesUpdated.playerVolume == 0.4)
+        #expect(preferencesUpdated.isMuted)
 
         let sharedExternalSubtitle = PersistentExternalSubtitleReference(
             id: ExternalSubtitleReferenceID(),
@@ -120,6 +145,10 @@ struct PlaylistStoreContractTests {
         #expect(externalSubtitleUpdated.playlists[0].entries.allSatisfy {
             $0.playbackPreferences.subtitle == .external(relocatedExternalSubtitle)
         })
+        #expect(externalSubtitleUpdated.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(externalSubtitleUpdated.playlists[0].playbackRate == 1.5)
+        #expect(externalSubtitleUpdated.playerVolume == 0.4)
+        #expect(externalSubtitleUpdated.isMuted)
 
         let renamedAndReordered = Playlist(
             id: playlist.id,
@@ -511,6 +540,10 @@ private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
     func stop() { commands.append(.stop) }
+    func seek(to position: TimeInterval) {}
+    func setPlaybackRate(_ rate: Double) {}
+    func setPlayerVolume(_ volume: Double) {}
+    func setMuted(_ isMuted: Bool) {}
 
     func sendPlaybackEnded() {
         guard let loadID = loadIDs.last else { return }

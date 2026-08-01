@@ -20,6 +20,19 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         client.playbackEndedHandler = { [continuation] rawLoadID in
             continuation.yield(.playbackEnded(loadID: PlaybackLoadID(rawValue: rawLoadID)))
         }
+        client.timelineHandler = { [continuation] position, duration, rawLoadID in
+            continuation.yield(.timelineChanged(
+                position: position,
+                duration: duration,
+                loadID: PlaybackLoadID(rawValue: rawLoadID)
+            ))
+        }
+        client.settingsHandler = { [continuation] rate, volume, isMuted, rawLoadID in
+            continuation.yield(.settingsChanged(
+                PlaybackSettings(rate: rate, volume: volume, isMuted: isMuted),
+                loadID: PlaybackLoadID(rawValue: rawLoadID)
+            ))
+        }
         client.trackCatalogHandler = { [continuation] audioTracks, subtitleTracks, rawLoadID in
             let audioOptions = audioTracks.map { track in
                 AudioTrackOption(
@@ -69,6 +82,22 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
 
     func stop() async {
         client.stop()
+    }
+
+    func seek(to position: TimeInterval) async {
+        client.seek(to: position)
+    }
+
+    func setPlaybackRate(_ rate: Double) async {
+        client.setPlaybackRate(rate)
+    }
+
+    func setPlayerVolume(_ volume: Double) async {
+        client.setPlayerVolume(volume)
+    }
+
+    func setMuted(_ isMuted: Bool) async {
+        client.setMuted(isMuted)
     }
 
     func selectAudioTrack(_ id: AudioTrackID) async -> Bool {

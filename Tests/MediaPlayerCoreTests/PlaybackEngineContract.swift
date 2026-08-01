@@ -34,6 +34,17 @@ func verifyBasicPlaybackEngineContract(
     await engine.pause()
     try await recorder.wait(for: .paused, after: firstPauseMark)
 
+    await engine.seek(to: 0.5)
+    try await recorder.waitForPosition(0.5, loadID: initialLoadID)
+    await engine.setPlaybackRate(1.25)
+    await engine.setPlayerVolume(0.4)
+    await engine.setMuted(true)
+    await engine.setMuted(false)
+    try await recorder.waitForSettings(
+        PlaybackSettings(rate: 1.25, volume: 0.4, isMuted: false),
+        loadID: initialLoadID
+    )
+
     let playMark = recorder.mark()
     await engine.play()
     try await recorder.wait(for: .playing, after: playMark)
@@ -108,6 +119,31 @@ final class ContractEventRecorder: @unchecked Sendable {
         }
     }
 
+    func waitForPosition(_ position: TimeInterval, loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if eventSnapshot().contains(where: { event in
+                guard case let .timelineChanged(observed, _, eventLoadID) = event else { return false }
+                return eventLoadID == loadID && abs(observed - position) < 0.2
+            }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractTimelineTimeout(expected: position, observed: eventSnapshot())
+    }
+
+    func waitForSettings(_ settings: PlaybackSettings, loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if eventSnapshot().contains(.settingsChanged(settings, loadID: loadID)) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractSettingsTimeout(expected: settings, observed: eventSnapshot())
+    }
+
     func waitForTrackCatalog(loadID: PlaybackLoadID) async throws -> TrackCatalog {
         let deadline = ContinuousClock.now + .seconds(5)
         while ContinuousClock.now < deadline {
@@ -153,6 +189,7 @@ private actor ContractFakePlaybackEngine: PlaybackEngine {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private var currentLoadID: PlaybackLoadID?
+    private var settings = PlaybackSettings(rate: 1, volume: 1, isMuted: false)
 
     init() {
         (events, continuation) = AsyncStream.makeStream()
@@ -178,6 +215,31 @@ private actor ContractFakePlaybackEngine: PlaybackEngine {
         guard let currentLoadID else { return }
         continuation.yield(.playbackStateChanged(.stopped, loadID: currentLoadID))
     }
+
+    func seek(to position: TimeInterval) {
+        guard let currentLoadID else { return }
+        continuation.yield(.timelineChanged(position: position, duration: 2, loadID: currentLoadID))
+    }
+
+    func setPlaybackRate(_ rate: Double) {
+        settings = PlaybackSettings(rate: rate, volume: settings.volume, isMuted: settings.isMuted)
+        reportSettings()
+    }
+
+    func setPlayerVolume(_ volume: Double) {
+        settings = PlaybackSettings(rate: settings.rate, volume: volume, isMuted: settings.isMuted)
+        reportSettings()
+    }
+
+    func setMuted(_ isMuted: Bool) {
+        settings = PlaybackSettings(rate: settings.rate, volume: settings.volume, isMuted: isMuted)
+        reportSettings()
+    }
+
+    private func reportSettings() {
+        guard let currentLoadID else { return }
+        continuation.yield(.settingsChanged(settings, loadID: currentLoadID))
+    }
 }
 
 private struct ContractTimeout: Error, CustomStringConvertible {
@@ -191,6 +253,16 @@ private struct ContractTimeout: Error, CustomStringConvertible {
 
 private struct ContractEventTimeout: Error {
     let expected: PlaybackEngineEvent
+    let observed: [PlaybackEngineEvent]
+}
+
+private struct ContractTimelineTimeout: Error {
+    let expected: TimeInterval
+    let observed: [PlaybackEngineEvent]
+}
+
+private struct ContractSettingsTimeout: Error {
+    let expected: PlaybackSettings
     let observed: [PlaybackEngineEvent]
 }
 

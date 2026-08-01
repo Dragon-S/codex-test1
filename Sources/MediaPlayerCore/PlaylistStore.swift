@@ -11,6 +11,7 @@ public protocol PlaylistStore: Sendable {
     func commit(_ library: PlaylistLibrary) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
+    func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) async throws
     func updateExternalSubtitleReferences(
         _ references: [PersistentExternalSubtitleReference]
     ) async throws
@@ -41,6 +42,10 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 
@@ -81,6 +86,10 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {
         library = library.replacingMediaReferences(references)
+    }
+
+    public func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) {
+        library = library.applying(snapshot)
     }
 
     public func updateExternalSubtitleReferences(
@@ -164,6 +173,17 @@ public actor SQLitePlaylistStore: PlaylistStore {
         do {
             let current = try readLibrary()
             try writeLibrary(current.replacingMediaReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) throws {
+        try execute("BEGIN IMMEDIATE")
+        do {
+            try writeLibrary(try readLibrary().applying(snapshot))
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -307,7 +327,10 @@ private extension PlaylistLibrary {
         }
         return PlaylistLibrary(
             playlists: playlists + [playlist],
-            activePlaylistID: playlist.id
+            activePlaylistID: playlist.id,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
         )
     }
 
@@ -324,6 +347,7 @@ private extension PlaylistLibrary {
                     id: entry.id,
                     media: referencesByID[entry.media.id] ?? entry.media,
                     resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
                     playbackPreferences: entry.playbackPreferences
                 )
             }
@@ -331,10 +355,17 @@ private extension PlaylistLibrary {
                 id: playlist.id,
                 name: playlist.name,
                 entries: updatedEntries,
-                currentEntryID: playlist.currentEntryID
+                currentEntryID: playlist.currentEntryID,
+                playbackRate: playlist.playbackRate
             )
         }
-        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        )
     }
 
     func replacingExternalSubtitleReferences(
@@ -360,6 +391,7 @@ private extension PlaylistLibrary {
                     id: entry.id,
                     media: entry.media,
                     resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
                     playbackPreferences: updatedPreferences
                 )
             }
@@ -367,10 +399,17 @@ private extension PlaylistLibrary {
                 id: playlist.id,
                 name: playlist.name,
                 entries: updatedEntries,
-                currentEntryID: playlist.currentEntryID
+                currentEntryID: playlist.currentEntryID,
+                playbackRate: playlist.playbackRate
             )
         }
-        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        )
     }
 
 
@@ -393,14 +432,22 @@ private extension PlaylistLibrary {
             id: entry.id,
             media: entry.media,
             resumePosition: entry.resumePosition,
+            isCompleted: entry.isCompleted,
             playbackPreferences: preferences
         )
         updatedPlaylists[playlistIndex] = Playlist(
             id: playlist.id,
             name: playlist.name,
             entries: updatedEntries,
-            currentEntryID: playlist.currentEntryID
+            currentEntryID: playlist.currentEntryID,
+            playbackRate: playlist.playbackRate
         )
-        return PlaylistLibrary(playlists: updatedPlaylists, activePlaylistID: activePlaylistID)
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        )
     }
 }

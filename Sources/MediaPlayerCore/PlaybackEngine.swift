@@ -44,6 +44,18 @@ public struct PlaybackLoadID: Equatable, Hashable, Sendable {
     }
 }
 
+public struct PlaybackSettings: Equatable, Sendable {
+    public let rate: Double
+    public let volume: Double
+    public let isMuted: Bool
+
+    public init(rate: Double, volume: Double, isMuted: Bool) {
+        self.rate = rate
+        self.volume = volume
+        self.isMuted = isMuted
+    }
+}
+
 public struct AudioTrackID: Equatable, Hashable, Sendable {
     public let rawValue: UUID
 
@@ -161,6 +173,8 @@ public enum ExternalSubtitleLoadResult: Equatable, Sendable {
 
 public enum PlaybackEngineEvent: Equatable, Sendable {
     case playbackStateChanged(PlaybackState, loadID: PlaybackLoadID)
+    case timelineChanged(position: TimeInterval, duration: TimeInterval, loadID: PlaybackLoadID)
+    case settingsChanged(PlaybackSettings, loadID: PlaybackLoadID)
     case playbackEnded(loadID: PlaybackLoadID)
     case trackCatalogChanged(TrackCatalog, loadID: PlaybackLoadID)
 }
@@ -172,6 +186,10 @@ public protocol PlaybackEngine: Sendable {
     func play() async
     func pause() async
     func stop() async
+    func seek(to position: TimeInterval) async
+    func setPlaybackRate(_ rate: Double) async
+    func setPlayerVolume(_ volume: Double) async
+    func setMuted(_ isMuted: Bool) async
     func selectAudioTrack(_ id: AudioTrackID) async -> Bool
     func selectSubtitle(_ selection: SubtitleSelection) async -> Bool
     func loadExternalSubtitle(_ subtitle: LocalExternalSubtitle) async -> ExternalSubtitleLoadResult

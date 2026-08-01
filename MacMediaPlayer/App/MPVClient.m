@@ -49,6 +49,13 @@ static void MPVRenderUpdate(void *context);
     NSMutableDictionary<NSNumber *, NSUUID *> *_subtitleIdentifiers;
     mpv_render_context *_renderContext;
     __weak NSOpenGLView *_videoView;
+    double _position;
+    double _duration;
+    CFAbsoluteTime _lastTimelineReportTime;
+    BOOL _forceNextPositionReport;
+    double _playbackRate;
+    double _playerVolume;
+    BOOL _muted;
 }
 @end
 
@@ -95,7 +102,15 @@ static void MPVRenderUpdate(void *context);
         return self;
     }
 
-    mpv_observe_property(_handle, 0, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(_handle, 1, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(_handle, 2, "time-pos", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 3, "duration", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 4, "speed", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 5, "volume", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 6, "mute", MPV_FORMAT_FLAG);
+    _playbackRate = 1;
+    _playerVolume = 1;
+    _muted = NO;
     [self startEventTimer];
     _videoView.postsFrameChangedNotifications = YES;
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -125,6 +140,36 @@ static void MPVRenderUpdate(void *context);
 
 - (void)stop {
     [self performCommand:@[ @"stop" ]];
+}
+
+- (void)seekTo:(double)position {
+    NSString *value = [NSString stringWithFormat:@"%.6f", MAX(0, position)];
+    dispatch_async(_queue, ^{
+        if (self->_handle == NULL) {
+            [self reportFailure:MPVClientFailureEngineUnavailable loadID:self->_requestedLoadID];
+            return;
+        }
+        self->_forceNextPositionReport = YES;
+        int result = [self executeCommand:@[ @"seek", value, @"absolute+exact" ]];
+        if (result < 0) {
+            self->_forceNextPositionReport = NO;
+            [self reportFailure:[self failureForError:result] loadID:self->_requestedLoadID];
+        }
+    });
+}
+
+- (void)setPlaybackRate:(double)rate {
+    NSString *value = [NSString stringWithFormat:@"%.6f", MIN(MAX(rate, 0.25), 4.0)];
+    [self performCommand:@[ @"set", @"speed", value ]];
+}
+
+- (void)setPlayerVolume:(double)volume {
+    NSString *value = [NSString stringWithFormat:@"%.3f", MIN(MAX(volume, 0), 1) * 100];
+    [self performCommand:@[ @"set", @"volume", value ]];
+}
+
+- (void)setMuted:(BOOL)muted {
+    [self performCommand:@[ @"set", @"mute", muted ? @"yes" : @"no" ]];
 }
 
 - (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL))completion {
@@ -344,6 +389,9 @@ static void MPVRenderUpdate(void *context);
     _loadIDsByPlaylistEntryID[@(startFile->playlist_entry_id)] = loadID;
     _eventLoadID = loadID.unsignedLongLongValue;
     _hasLoadedFile = NO;
+    _position = 0;
+    _duration = 0;
+    _lastTimelineReportTime = 0;
     [_audioTrackIDs removeAllObjects];
     [_subtitleTrackIDs removeAllObjects];
     [_audioIdentifiers removeAllObjects];
@@ -426,14 +474,48 @@ static void MPVRenderUpdate(void *context);
         return;
     }
     mpv_event_property *property = event->data;
-    if (property == NULL || strcmp(property->name, "pause") != 0 ||
-        property->format != MPV_FORMAT_FLAG || property->data == NULL) {
+    if (property == NULL || property->data == NULL) {
         return;
     }
+    if (strcmp(property->name, "pause") == 0 && property->format == MPV_FORMAT_FLAG) {
+        int paused = *(int *)property->data;
+        [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying
+                  loadID:_eventLoadID];
+    } else if (strcmp(property->name, "time-pos") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _position = *(double *)property->data;
+        BOOL force = _forceNextPositionReport;
+        _forceNextPositionReport = NO;
+        [self reportTimelineIfNeeded:force];
+    } else if (strcmp(property->name, "duration") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _duration = *(double *)property->data;
+        [self reportTimelineIfNeeded:YES];
+    } else if (strcmp(property->name, "speed") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _playbackRate = *(double *)property->data;
+        [self reportSettings];
+    } else if (strcmp(property->name, "volume") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _playerVolume = *(double *)property->data / 100;
+        [self reportSettings];
+    } else if (strcmp(property->name, "mute") == 0 && property->format == MPV_FORMAT_FLAG) {
+        _muted = *(int *)property->data != 0;
+        [self reportSettings];
+    }
+}
 
-    int paused = *(int *)property->data;
-    [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying
-              loadID:_eventLoadID];
+- (void)reportSettings {
+    if (self.settingsHandler != nil) {
+        self.settingsHandler(_playbackRate, _playerVolume, _muted, _eventLoadID);
+    }
+}
+
+- (void)reportTimelineIfNeeded:(BOOL)force {
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (!force && now - _lastTimelineReportTime < 0.25) {
+        return;
+    }
+    _lastTimelineReportTime = now;
+    if (self.timelineHandler != nil) {
+        self.timelineHandler(MAX(0, _position), MAX(0, _duration), _eventLoadID);
+    }
 }
 
 - (void)handleEndFile:(mpv_event *)event {

@@ -570,6 +570,10 @@ private actor TrackFakePlaybackEngine: PlaybackEngine {
     func play() {}
     func pause() {}
     func stop() {}
+    func seek(to position: TimeInterval) {}
+    func setPlaybackRate(_ rate: Double) {}
+    func setPlayerVolume(_ volume: Double) {}
+    func setMuted(_ isMuted: Bool) {}
 
     func selectAudioTrack(_ id: AudioTrackID) -> Bool {
         selectionCommands.append(.audio(id))
