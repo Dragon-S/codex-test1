@@ -1,0 +1,182 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000101 /* PlaybackEngine.swift */; };
+		A10000000000000000000002 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000102 /* PlaybackCoordinator.swift */; };
+		A10000000000000000000003 /* ApplicationMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000103 /* ApplicationMain.swift */; };
+		A10000000000000000000004 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000104 /* AppDelegate.swift */; };
+		A10000000000000000000005 /* PlaybackCanvasView.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000105 /* PlaybackCanvasView.m */; };
+		A10000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000106 /* PlaybackControlsView.swift */; };
+		A10000000000000000000007 /* PlaybackViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000107 /* PlaybackViewController.swift */; };
+		A10000000000000000000008 /* LibMPVPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000108 /* LibMPVPlaybackEngine.swift */; };
+		A10000000000000000000009 /* MPVClient.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000109 /* MPVClient.m */; };
+		A1000000000000000000000A /* PlaybackEngineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000010A /* PlaybackEngineContractTests.swift */; };
+		A1000000000000000000000B /* PlaybackEngineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000111 /* PlaybackEngineContract.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10000000000000000000201 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000500 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000400;
+			remoteInfo = MacMediaPlayer;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000100 /* MacMediaPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacMediaPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000101 /* PlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackEngine.swift; path = ../Sources/MediaPlayerCore/PlaybackEngine.swift; sourceTree = "<group>"; };
+		A10000000000000000000102 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackCoordinator.swift; path = ../Sources/MediaPlayerCore/PlaybackCoordinator.swift; sourceTree = "<group>"; };
+		A10000000000000000000103 /* ApplicationMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMain.swift; sourceTree = "<group>"; };
+		A10000000000000000000104 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A10000000000000000000105 /* PlaybackCanvasView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PlaybackCanvasView.m; sourceTree = "<group>"; };
+		A1000000000000000000010F /* PlaybackCanvasView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlaybackCanvasView.h; sourceTree = "<group>"; };
+		A10000000000000000000106 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
+		A10000000000000000000107 /* PlaybackViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackViewController.swift; sourceTree = "<group>"; };
+		A10000000000000000000108 /* LibMPVPlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibMPVPlaybackEngine.swift; sourceTree = "<group>"; };
+		A10000000000000000000109 /* MPVClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MPVClient.m; sourceTree = "<group>"; };
+		A1000000000000000000010B /* MPVClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MPVClient.h; sourceTree = "<group>"; };
+		A1000000000000000000010C /* MacMediaPlayer-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MacMediaPlayer-Bridging-Header.h"; sourceTree = "<group>"; };
+		A1000000000000000000010D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1000000000000000000010E /* MacMediaPlayer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacMediaPlayer.entitlements; sourceTree = "<group>"; };
+		A1000000000000000000010A /* PlaybackEngineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackEngineContractTests.swift; path = ../MacMediaPlayerTests/PlaybackEngineContractTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000110 /* MacMediaPlayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacMediaPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000111 /* PlaybackEngineContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackEngineContract.swift; path = ../Tests/MediaPlayerCoreTests/PlaybackEngineContract.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000210 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000211 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000300 = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000301 /* App */,
+				A10000000000000000000302 /* Core */,
+				A10000000000000000000303 /* Tests */,
+				A10000000000000000000304 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000301 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000103 /* ApplicationMain.swift */,
+				A10000000000000000000104 /* AppDelegate.swift */,
+				A10000000000000000000105 /* PlaybackCanvasView.m */,
+				A1000000000000000000010F /* PlaybackCanvasView.h */,
+				A10000000000000000000106 /* PlaybackControlsView.swift */,
+				A10000000000000000000107 /* PlaybackViewController.swift */,
+				A10000000000000000000108 /* LibMPVPlaybackEngine.swift */,
+				A10000000000000000000109 /* MPVClient.m */,
+				A1000000000000000000010B /* MPVClient.h */,
+				A1000000000000000000010C /* MacMediaPlayer-Bridging-Header.h */,
+				A1000000000000000000010D /* Info.plist */,
+				A1000000000000000000010E /* MacMediaPlayer.entitlements */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */); name = Core; sourceTree = "<group>"; };
+		A10000000000000000000303 /* Tests */ = {isa = PBXGroup; children = (A1000000000000000000010A /* PlaybackEngineContractTests.swift */, A10000000000000000000111 /* PlaybackEngineContract.swift */); name = Tests; sourceTree = "<group>"; };
+		A10000000000000000000304 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000100 /* MacMediaPlayer.app */, A10000000000000000000110 /* MacMediaPlayerTests.xctest */); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000400 /* MacMediaPlayer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000801 /* Build configuration list for PBXNativeTarget "MacMediaPlayer" */;
+			buildPhases = (A10000000000000000000221 /* Sources */, A10000000000000000000210 /* Frameworks */, A10000000000000000000220 /* Embed engine dylibs */);
+			buildRules = ();
+			dependencies = ();
+			name = MacMediaPlayer;
+			packageProductDependencies = ();
+			productName = MacMediaPlayer;
+			productReference = A10000000000000000000100 /* MacMediaPlayer.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000401 /* MacMediaPlayerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000802 /* Build configuration list for PBXNativeTarget "MacMediaPlayerTests" */;
+			buildPhases = (A10000000000000000000222 /* Sources */, A10000000000000000000211 /* Frameworks */);
+			buildRules = ();
+			dependencies = (A10000000000000000000202 /* PBXTargetDependency */);
+			name = MacMediaPlayerTests;
+			packageProductDependencies = ();
+			productName = MacMediaPlayerTests;
+			productReference = A10000000000000000000110 /* MacMediaPlayerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000500 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2660; TargetAttributes = {A10000000000000000000400 = {CreatedOnToolsVersion = 26.6;}; A10000000000000000000401 = {CreatedOnToolsVersion = 26.6; TestTargetID = A10000000000000000000400;};};};
+			buildConfigurationList = A10000000000000000000800 /* Build configuration list for PBXProject "MacMediaPlayer" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = zh_CN;
+			hasScannedForEncodings = 0;
+			knownRegions = (Base, zh_CN);
+			mainGroup = A10000000000000000000300;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A10000000000000000000304 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A10000000000000000000400 /* MacMediaPlayer */, A10000000000000000000401 /* MacMediaPlayerTests */);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A10000000000000000000220 /* Embed engine dylibs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputFileListPaths = ();
+			inputPaths = ("$(ENGINE_ROOT)/lib",);
+			name = "Embed engine dylibs";
+			outputFileListPaths = ();
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)",);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nif [[ -z \"${ENGINE_ROOT:-}\" ]]; then\n  print -u2 \"ENGINE_ROOT 未设置\"\n  exit 1\nfi\ndestination=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nresources=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ThirdPartyNotices\"\nidentity=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\nmkdir -p \"$destination\" \"$resources\"\nfor dylib in \"${ENGINE_ROOT}/lib/\"*.dylib; do\n  ditto \"$dylib\" \"$destination/${dylib:t}\"\n  if [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" ]]; then\n    codesign --force --options runtime --timestamp=none --sign \"$identity\" \"$destination/${dylib:t}\"\n  fi\ndone\nfor notice in \"${ENGINE_ROOT}/notices/\"*.txt; do\n  ditto \"$notice\" \"$resources/${notice:t}\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000222 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A1000000000000000000000B); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10000000000000000000202 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A10000000000000000000400 /* MacMediaPlayer */; targetProxy = A10000000000000000000201 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A10000000000000000000600 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 6.0;}; name = Debug; };
+		A10000000000000000000601 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 6.0;}; name = Release; };
+		A10000000000000000000610 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = "$(ARCHS_STANDARD)"; CODE_SIGN_ENTITLEMENTS = App/MacMediaPlayer.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEAD_CODE_STRIPPING = YES; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; ENABLE_LIBRARY_VALIDATION = YES; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = NO; HEADER_SEARCH_PATHS = ("$(inherited)", "$(ENGINE_ROOT)/include"); INFOPLIST_FILE = App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ENGINE_ROOT)/lib"); MARKETING_VERSION = 0.1.0; ONLY_ACTIVE_ARCH = YES; OTHER_LDFLAGS = ("$(inherited)", "-lmpv.2", "-framework", OpenGL); PRODUCT_BUNDLE_IDENTIFIER = "com.dragon-s.MacMediaPlayer"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_OBJC_BRIDGING_HEADER = "App/MacMediaPlayer-Bridging-Header.h"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0;}; name = Debug; };
+		A10000000000000000000611 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = "$(ARCHS_STANDARD)"; CODE_SIGN_ENTITLEMENTS = App/MacMediaPlayer.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEAD_CODE_STRIPPING = YES; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; ENABLE_LIBRARY_VALIDATION = YES; GENERATE_INFOPLIST_FILE = NO; HEADER_SEARCH_PATHS = ("$(inherited)", "$(ENGINE_ROOT)/include"); INFOPLIST_FILE = App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ENGINE_ROOT)/lib"); MARKETING_VERSION = 0.1.0; OTHER_LDFLAGS = ("$(inherited)", "-lmpv.2", "-framework", OpenGL); PRODUCT_BUNDLE_IDENTIFIER = "com.dragon-s.MacMediaPlayer"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_OBJC_BRIDGING_HEADER = "App/MacMediaPlayer-Bridging-Header.h"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0;}; name = Release; };
+		A10000000000000000000620 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; ONLY_ACTIVE_ARCH = YES; OTHER_SWIFT_FLAGS = ("$(inherited)", "-Xcc", "-DGL_SILENCE_DEPRECATION"); PRODUCT_BUNDLE_IDENTIFIER = "com.dragon-s.MacMediaPlayerTests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacMediaPlayer.app/Contents/MacOS/MacMediaPlayer";}; name = Debug; };
+		A10000000000000000000621 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; OTHER_SWIFT_FLAGS = ("$(inherited)", "-Xcc", "-DGL_SILENCE_DEPRECATION"); PRODUCT_BUNDLE_IDENTIFIER = "com.dragon-s.MacMediaPlayerTests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacMediaPlayer.app/Contents/MacOS/MacMediaPlayer";}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000000000000000000800 /* Build configuration list for PBXProject "MacMediaPlayer" */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000600, A10000000000000000000601); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000801 /* Build configuration list for PBXNativeTarget "MacMediaPlayer" */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000610, A10000000000000000000611); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000802 /* Build configuration list for PBXNativeTarget "MacMediaPlayerTests" */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000620, A10000000000000000000621); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000500 /* Project object */;
+}
