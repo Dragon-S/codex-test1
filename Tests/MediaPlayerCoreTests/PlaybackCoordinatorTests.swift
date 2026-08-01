@@ -110,6 +110,7 @@ struct PlaybackCoordinatorTests {
         await boundaryCoordinator.previous()
         #expect(await boundaryEngine.commands == [.load(onlyMedia), .stop, .stop])
         #expect(boundaryCoordinator.nowPlayingList.currentMedia == onlyMedia)
+        #expect(boundaryCoordinator.missingMediaNotice == .none)
     }
 
     @Test("新打开的首项不可用时会继续尝试下一项")

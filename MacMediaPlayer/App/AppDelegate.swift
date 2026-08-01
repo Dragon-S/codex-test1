@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
     private var securityScopedURLs: [URL] = []
+    private var pendingMediaReplacement: (referenceID: LocalMediaReferenceID, media: LocalMedia)?
     private var isPreparingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -39,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             },
             addMediaToPlaylist: { [weak self] playlistID in
                 self?.addMedia(to: playlistID)
+            },
+            relocateMissingMedia: { [weak self] referenceID in
+                self?.relocateMedia(referenceID: referenceID)
+            },
+            confirmMediaReplacement: { [weak self] referenceID in
+                self?.confirmMediaReplacement(referenceID: referenceID)
+            },
+            cancelMediaReplacement: { [weak self] in
+                self?.pendingMediaReplacement = nil
             },
             videoView: videoView
         )
@@ -102,18 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func play(_ urls: [URL]) {
         let newSecurityScopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
-        let media = urls.map { url in
-            let bookmark = try? url.bookmarkData(
-                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            return LocalMedia(
-                url: url,
-                bookmark: bookmark,
-                fileIdentity: Self.fileIdentity(for: url)
-            )
-        }
+        let media = urls.map(localMedia(for:))
         releaseSecurityScope()
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
@@ -177,21 +176,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if url.startAccessingSecurityScopedResource() {
                     securityScopedURLs.append(url)
                 }
-                let bookmark = try? url.bookmarkData(
-                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
                 _ = try? await coordinator.add(
-                    LocalMedia(
-                        url: url,
-                        bookmark: bookmark,
-                        fileIdentity: Self.fileIdentity(for: url)
-                    ),
+                    localMedia(for: url),
                     to: playlistID
                 )
             }
         }
+    }
+
+    private func relocateMedia(referenceID: LocalMediaReferenceID) {
+        guard let window, let coordinator else { return }
+        let panel = NSOpenPanel()
+        panel.title = "重新定位本地媒体"
+        panel.prompt = "选择"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = Self.supportedMediaTypes
+        panel.beginSheetModal(for: window) { [weak self, weak coordinator] response in
+            guard response == .OK,
+                  let self,
+                  let coordinator,
+                  let url = panel.url else { return }
+            Task { @MainActor in
+                if url.startAccessingSecurityScopedResource() {
+                    securityScopedURLs.append(url)
+                }
+                let media = localMedia(for: url)
+                guard let result = try? await coordinator.relocateMissingMedia(
+                    referenceID: referenceID,
+                    to: media
+                ) else { return }
+                if case .confirmationRequired = result {
+                    pendingMediaReplacement = (referenceID, media)
+                } else {
+                    pendingMediaReplacement = nil
+                }
+            }
+        }
+    }
+
+    private func confirmMediaReplacement(referenceID: LocalMediaReferenceID) {
+        guard let coordinator,
+              let pendingMediaReplacement,
+              pendingMediaReplacement.referenceID == referenceID else { return }
+        self.pendingMediaReplacement = nil
+        Task {
+            _ = try? await coordinator.relocateMissingMedia(
+                referenceID: referenceID,
+                to: pendingMediaReplacement.media,
+                confirmedReplacement: true
+            )
+        }
+    }
+
+    private func localMedia(for url: URL) -> LocalMedia {
+        let bookmark = try? url.bookmarkData(
+            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        return LocalMedia(
+            url: url,
+            bookmark: bookmark,
+            fileIdentity: Self.fileIdentity(for: url)
+        )
     }
 
     private static func fileIdentity(for url: URL) -> LocalFileIdentity? {
@@ -234,10 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         securityScopedURLs = []
     }
 
-    private static let supportedMediaTypes = [
-        "mp4", "mov", "mkv", "webm",
-        "mp3", "m4a", "aac", "alac", "flac", "wav", "ogg", "opus",
-    ].compactMap { UTType(filenameExtension: $0) }
+    private static let supportedMediaTypes = MVPSelectableMediaFormats.filenameExtensions
+        .compactMap { UTType(filenameExtension: $0) }
 
     private static let supportedSubtitleTypes = ["srt", "ass", "ssa", "sup"]
         .compactMap { UTType(filenameExtension: $0) }

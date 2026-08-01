@@ -5,17 +5,20 @@ public struct LocalMedia: Equatable, Sendable {
     public let referenceID: LocalMediaReferenceID
     public let bookmark: Data?
     public let fileIdentity: LocalFileIdentity?
+    public let availability: LocalMediaAvailability
 
     public init(
         url: URL,
         referenceID: LocalMediaReferenceID = LocalMediaReferenceID(),
         bookmark: Data? = nil,
-        fileIdentity: LocalFileIdentity? = nil
+        fileIdentity: LocalFileIdentity? = nil,
+        availability: LocalMediaAvailability = .available
     ) {
         self.url = url
         self.referenceID = referenceID
         self.bookmark = bookmark
         self.fileIdentity = fileIdentity
+        self.availability = availability
     }
 }
 

@@ -95,6 +95,13 @@ public enum TrackNotice: Equatable, Sendable {
     case externalSubtitleDamaged(String)
 }
 
+public enum MissingMediaNotice: Equatable, Sendable {
+    case none
+    case recoveryRequired(entryID: PlaylistEntryID, referenceID: LocalMediaReferenceID)
+    case noPlayableEntries(missingCount: Int)
+    case replacementConfirmationRequired(MediaReplacementImpact)
+}
+
 @MainActor
 public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var state: PlaybackState = .idle
@@ -114,6 +121,11 @@ public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var availableEmbeddedSubtitleTracks: [EmbeddedSubtitleTrackOption] = []
     @Published public private(set) var trackSelection = TrackSelectionState()
     @Published public private(set) var trackNotice: TrackNotice = .none
+    @Published public private(set) var missingMediaNotice: MissingMediaNotice = .none
+
+    public var missingMediaCount: Int {
+        nowPlayingList.entries.count(where: \.isMediaMissing)
+    }
 
     private let engine: any PlaybackEngine
     private let playlistStore: any PlaylistStore
@@ -122,6 +134,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private let externalSubtitleAccess: any PersistentExternalSubtitleAccess
     private let defaultTrackRules: DefaultTrackRules
     private let randomizer: any PlaylistRandomizer
+    private let mediaReplacementAssessor: any MediaReplacementAssessing
     private var eventTask: Task<Void, Never>?
     private var isFindingFirstPlayableMedia = false
     private var isRestoredMediaPendingLoad = false
@@ -133,6 +146,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private var pendingSeekTarget: TimeInterval?
     private var detachedSuccessorEntryIDs: [PlaylistEntryID] = []
     private var randomAutomaticLoadIDs: Set<PlaybackLoadID> = []
+    private var automaticLoadIDs: Set<PlaybackLoadID> = []
 
     public init(
         engine: any PlaybackEngine,
@@ -142,7 +156,8 @@ public final class PlaybackCoordinator: ObservableObject {
         timeSource: any PlaybackTimeSource = SystemPlaybackTimeSource(),
         externalSubtitleAccess: any PersistentExternalSubtitleAccess = LastKnownPathExternalSubtitleAccess(),
         defaultTrackRules: DefaultTrackRules = DefaultTrackRules(),
-        randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer()
+        randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer(),
+        mediaReplacementAssessor: any MediaReplacementAssessing = DefaultMediaReplacementAssessor()
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
@@ -153,6 +168,7 @@ public final class PlaybackCoordinator: ObservableObject {
         self.externalSubtitleAccess = externalSubtitleAccess
         self.defaultTrackRules = defaultTrackRules
         self.randomizer = randomizer
+        self.mediaReplacementAssessor = mediaReplacementAssessor
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -450,6 +466,10 @@ public final class PlaybackCoordinator: ObservableObject {
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        if case let .recoveryRequired(recoveryEntryID, _) = missingMediaNotice,
+           recoveryEntryID == entryID {
+            missingMediaNotice = .none
+        }
 
         guard activePlaylistID == playlistID else { return }
         if removedCurrentEntry {
@@ -499,9 +519,32 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let currentIndex = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
             throw PlaylistPersistenceError.entryNotFound(entryID)
         }
+        let selectedEntry = playlist.entries[currentIndex]
+        guard selectedEntry.media.availability != .missing else {
+            missingMediaNotice = .recoveryRequired(
+                entryID: selectedEntry.id,
+                referenceID: selectedEntry.media.id
+            )
+            return
+        }
+        missingMediaNotice = .none
         var restoredEntries: [NowPlayingEntry] = []
+        var restoredMediaByReferenceID: [LocalMediaReferenceID: LocalMedia] = [:]
         for entry in playlist.entries {
-            let media = try await persistentMediaAccess.restore(entry.media)
+            let media: LocalMedia
+            if let restored = restoredMediaByReferenceID[entry.media.id] {
+                media = restored
+            } else if entry.media.availability == .missing {
+                media = missingLocalMedia(for: entry.media)
+            } else {
+                do {
+                    media = try await persistentMediaAccess.restore(entry.media)
+                } catch {
+                    try await markMediaReferenceMissing(entry.media)
+                    media = missingLocalMedia(for: entry.media)
+                }
+                restoredMediaByReferenceID[entry.media.id] = media
+            }
             restoredEntries.append(NowPlayingEntry(
                 id: entry.id,
                 media: media,
@@ -510,8 +553,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 playbackPreferences: entry.playbackPreferences
             ))
         }
-        var playingPlaylist = playlist.replacingEntries(
-            playlist.entries,
+        guard !restoredEntries[currentIndex].isMediaMissing else {
+            missingMediaNotice = .recoveryRequired(
+                entryID: entryID,
+                referenceID: selectedEntry.media.id
+            )
+            return
+        }
+        let refreshedPlaylist = playlists.first(where: { $0.id == playlistID }) ?? playlist
+        var playingPlaylist = refreshedPlaylist.replacingEntries(
+            refreshedPlaylist.entries,
             currentEntryID: entryID
         )
         if playlist.playbackOrder == .random {
@@ -530,6 +581,138 @@ public final class PlaybackCoordinator: ObservableObject {
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = false
         await load(restoredEntries[currentIndex].media)
+    }
+
+    public func cancelMissingMediaRecovery() {
+        missingMediaNotice = .none
+    }
+
+    @discardableResult
+    public func relocateMissingMedia(
+        referenceID: LocalMediaReferenceID,
+        to media: LocalMedia,
+        confirmedReplacement: Bool = false
+    ) async throws -> MediaRelocationResult {
+        let affectedPlaylists = playlists.filter { playlist in
+            playlist.entries.contains(where: { $0.media.id == referenceID })
+        }
+        guard let existingReference = affectedPlaylists.lazy
+            .flatMap(\.entries)
+            .first(where: { $0.media.id == referenceID })?
+            .media else {
+            throw PlaylistPersistenceError.mediaReferenceNotFound(referenceID)
+        }
+        guard let bookmark = media.bookmark else {
+            throw PlaylistPersistenceError.missingBookmark(media.url.path)
+        }
+        let impact = MediaReplacementImpact(
+            referenceID: referenceID,
+            affectedEntryCount: affectedPlaylists.reduce(0) { count, playlist in
+                count + playlist.entries.count(where: { $0.media.id == referenceID })
+            },
+            affectedPlaylistCount: affectedPlaylists.count
+        )
+        let isObviousReplacement = mediaReplacementAssessor.isObviousReplacement(
+            existing: existingReference,
+            candidate: media
+        )
+        guard !isObviousReplacement || confirmedReplacement else {
+            missingMediaNotice = .replacementConfirmationRequired(impact)
+            return .confirmationRequired(impact)
+        }
+        let replacement = PersistentLocalMediaReference(
+            id: referenceID,
+            bookmark: bookmark,
+            lastKnownPath: media.url.path,
+            fileIdentity: media.fileIdentity ?? existingReference.fileIdentity,
+            availability: .available
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let entries = playlist.entries.map { entry in
+                guard entry.media.id == referenceID else { return entry }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: replacement,
+                    resumePosition: isObviousReplacement ? nil : entry.resumePosition,
+                    isCompleted: isObviousReplacement ? false : entry.isCompleted,
+                    playbackPreferences: isObviousReplacement
+                        ? EntryPlaybackPreferences()
+                        : entry.playbackPreferences
+                )
+            }
+            return playlist.replacingEntries(entries, currentEntryID: playlist.currentEntryID)
+        }
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        let replacementMedia = LocalMedia(
+            url: media.url,
+            referenceID: referenceID,
+            bookmark: bookmark,
+            fileIdentity: replacement.fileIdentity,
+            availability: .available
+        )
+        nowPlayingList = NowPlayingList(
+            entries: nowPlayingList.entries.map { entry in
+                guard entry.media.referenceID == referenceID else { return entry }
+                return NowPlayingEntry(
+                    id: entry.id,
+                    media: replacementMedia,
+                    resumePosition: isObviousReplacement ? nil : entry.resumePosition,
+                    isCompleted: isObviousReplacement ? false : entry.isCompleted,
+                    playbackPreferences: isObviousReplacement
+                        ? EntryPlaybackPreferences()
+                        : entry.playbackPreferences
+                )
+            },
+            currentIndex: nowPlayingList.currentIndex
+        )
+        missingMediaNotice = .none
+        return .relocated
+    }
+
+    private func markMediaReferenceMissing(
+        _ reference: PersistentLocalMediaReference
+    ) async throws {
+        let missingReference = PersistentLocalMediaReference(
+            id: reference.id,
+            bookmark: reference.bookmark,
+            lastKnownPath: reference.lastKnownPath,
+            fileIdentity: reference.fileIdentity,
+            availability: .missing
+        )
+        try await playlistStore.updateMediaReferences([missingReference])
+        let library = PlaylistLibrary(
+            playlists: playlists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        ).replacingMediaReferences([missingReference])
+        playlists = library.playlists
+        nowPlayingList = NowPlayingList(
+            entries: nowPlayingList.entries.map { entry in
+                guard entry.media.referenceID == reference.id else { return entry }
+                return NowPlayingEntry(
+                    id: entry.id,
+                    media: missingLocalMedia(for: missingReference),
+                    resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
+                    playbackPreferences: entry.playbackPreferences
+                )
+            },
+            currentIndex: nowPlayingList.currentIndex
+        )
+    }
+
+    private func missingLocalMedia(
+        for reference: PersistentLocalMediaReference
+    ) -> LocalMedia {
+        LocalMedia(
+            url: URL(fileURLWithPath: reference.lastKnownPath),
+            referenceID: reference.id,
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity,
+            availability: .missing
+        )
     }
 
     @discardableResult
@@ -555,7 +738,8 @@ public final class PlaybackCoordinator: ObservableObject {
                     id: entry.media.referenceID,
                     bookmark: bookmark,
                     lastKnownPath: entry.media.url.path,
-                    fileIdentity: entry.media.fileIdentity
+                    fileIdentity: entry.media.fileIdentity,
+                    availability: entry.media.availability
                 ),
                 resumePosition: entry.resumePosition,
                 isCompleted: entry.isCompleted,
@@ -609,14 +793,34 @@ public final class PlaybackCoordinator: ObservableObject {
             playbackRate = activePlaylist.playbackRate
             var restoredEntries: [NowPlayingEntry] = []
             var refreshedReferences: [PersistentLocalMediaReference] = []
+            var restoredMediaByReferenceID: [LocalMediaReferenceID: LocalMedia] = [:]
             for entry in activePlaylist.entries {
-                let media = try await persistentMediaAccess.restore(entry.media)
+                let media: LocalMedia
+                if let restored = restoredMediaByReferenceID[entry.media.id] {
+                    media = restored
+                } else {
+                    do {
+                        media = try await persistentMediaAccess.restore(entry.media)
+                    } catch {
+                        media = missingLocalMedia(for: entry.media)
+                    }
+                    restoredMediaByReferenceID[entry.media.id] = media
+                }
                 if let bookmark = media.bookmark, bookmark != entry.media.bookmark {
                     refreshedReferences.append(PersistentLocalMediaReference(
                         id: entry.media.id,
                         bookmark: bookmark,
                         lastKnownPath: media.url.path,
-                        fileIdentity: media.fileIdentity ?? entry.media.fileIdentity
+                        fileIdentity: media.fileIdentity ?? entry.media.fileIdentity,
+                        availability: media.availability
+                    ))
+                } else if media.availability != entry.media.availability {
+                    refreshedReferences.append(PersistentLocalMediaReference(
+                        id: entry.media.id,
+                        bookmark: entry.media.bookmark,
+                        lastKnownPath: entry.media.lastKnownPath,
+                        fileIdentity: entry.media.fileIdentity,
+                        availability: media.availability
                     ))
                 }
                 restoredEntries.append(NowPlayingEntry(
@@ -628,6 +832,9 @@ public final class PlaybackCoordinator: ObservableObject {
                 ))
             }
             try await playlistStore.updateMediaReferences(refreshedReferences)
+            if !refreshedReferences.isEmpty {
+                playlists = library.replacingMediaReferences(refreshedReferences).playlists
+            }
             let currentIndex = activePlaylist.currentEntryID.flatMap { currentID in
                 restoredEntries.firstIndex(where: { $0.id == currentID })
             }
@@ -652,6 +859,13 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     public func play() async {
+        if let entry = currentEntry, entry.isMediaMissing {
+            missingMediaNotice = .recoveryRequired(
+                entryID: entry.id,
+                referenceID: entry.media.referenceID
+            )
+            return
+        }
         if isRestoredMediaPendingLoad, let media = nowPlayingList.currentMedia {
             isRestoredMediaPendingLoad = false
             await load(media)
@@ -879,27 +1093,36 @@ public final class PlaybackCoordinator: ObservableObject {
            let destination = nowPlayingList.entries.firstIndex(where: {
                $0.id == playlist.randomRound?.playedEntryIDs[historyIndex - 1]
            }) {
-            await move(to: destination)
+            await move(to: destination, automaticallySelected: true)
             return
         }
         await move(by: -1)
     }
 
     private func move(by offset: Int) async {
-        guard let destination = nowPlayingList.moving(by: offset),
-              let media = destination.currentMedia else {
+        guard let currentIndex = nowPlayingList.currentIndex else {
             await engine.stop()
             return
         }
-        nowPlayingList = destination
-        if let entry = currentEntry {
-            resetTimeline(for: entry)
+        let indices: any Sequence<Int> = offset >= 0
+            ? AnySequence((currentIndex + 1)..<nowPlayingList.entries.count)
+            : AnySequence(stride(from: currentIndex - 1, through: 0, by: -1))
+        guard let destination = indices.first(where: {
+            !nowPlayingList.entries[$0].isMediaMissing
+        }) else {
+            reportMissingProgressionBoundary()
+            await engine.stop()
+            return
         }
-        await load(media)
-        await persistCurrentState(force: true)
+        missingMediaNotice = .none
+        await move(to: destination, automaticallySelected: true)
     }
 
-    private func move(to index: Int, advancesRandomAfterFailure: Bool = false) async {
+    private func move(
+        to index: Int,
+        advancesRandomAfterFailure: Bool = false,
+        automaticallySelected: Bool = false
+    ) async {
         guard nowPlayingList.entries.indices.contains(index) else {
             await engine.stop()
             return
@@ -907,20 +1130,29 @@ public final class PlaybackCoordinator: ObservableObject {
         nowPlayingList = NowPlayingList(entries: nowPlayingList.entries, currentIndex: index)
         let entry = nowPlayingList.entries[index]
         resetTimeline(for: entry)
-        await load(entry.media, advancesRandomAfterFailure: advancesRandomAfterFailure)
+        await load(
+            entry.media,
+            advancesRandomAfterFailure: advancesRandomAfterFailure,
+            automaticallySelected: automaticallySelected
+        )
         await persistCurrentState(force: true)
     }
 
     private func load(
         _ media: LocalMedia,
-        advancesRandomAfterFailure: Bool = false
+        advancesRandomAfterFailure: Bool = false,
+        automaticallySelected: Bool = false
     ) async {
         nextLoadID &+= 1
         let loadID = PlaybackLoadID(rawValue: nextLoadID)
         activeLoadID = loadID
         randomAutomaticLoadIDs.removeAll(keepingCapacity: true)
+        automaticLoadIDs.removeAll(keepingCapacity: true)
         if advancesRandomAfterFailure {
             randomAutomaticLoadIDs.insert(loadID)
+        }
+        if automaticallySelected || advancesRandomAfterFailure {
+            automaticLoadIDs.insert(loadID)
         }
         availableAudioTracks = []
         availableEmbeddedSubtitleTracks = []
@@ -942,6 +1174,34 @@ public final class PlaybackCoordinator: ObservableObject {
                 pendingSeekTarget = nil
             }
             self.state = state
+            let wasAutomaticallySelected = automaticLoadIDs.remove(loadID) != nil
+            if case .failed(.unreadable) = state,
+               let entry = currentEntry,
+               let reference = activePlaylist?.entries.first(where: { $0.id == entry.id })?.media {
+                do {
+                    try await markMediaReferenceMissing(reference)
+                } catch {
+                    self.state = .stopped
+                    return
+                }
+                if wasAutomaticallySelected {
+                    if activePlaylist?.playbackOrder == .random {
+                        guard await markRandomUnavailable(entry.id) else {
+                            self.state = .stopped
+                            return
+                        }
+                        await advanceRandom(advancesAfterFailure: true)
+                    } else {
+                        await advanceSequentialAutomatically()
+                    }
+                } else {
+                    missingMediaNotice = .recoveryRequired(
+                        entryID: entry.id,
+                        referenceID: reference.id
+                    )
+                }
+                return
+            }
             if case .failed = state,
                randomAutomaticLoadIDs.remove(loadID) != nil,
                let entryID = currentEntry?.id {
@@ -960,6 +1220,7 @@ public final class PlaybackCoordinator: ObservableObject {
             case .playing, .paused:
                 isFindingFirstPlayableMedia = false
                 randomAutomaticLoadIDs.remove(loadID)
+                automaticLoadIDs.remove(loadID)
             case .failed where isFindingFirstPlayableMedia:
                 if let currentIndex = nowPlayingList.currentIndex,
                    nowPlayingList.entries.indices.contains(currentIndex + 1) {
@@ -991,6 +1252,7 @@ public final class PlaybackCoordinator: ObservableObject {
         case let .playbackEnded(loadID):
             guard loadID == activeLoadID else { return }
             randomAutomaticLoadIDs.remove(loadID)
+            automaticLoadIDs.remove(loadID)
             isFindingFirstPlayableMedia = false
             if detachedNowPlayingEntry != nil {
                 let successorIndex = nowPlayingList.entries.firstIndex { entry in
@@ -1010,7 +1272,8 @@ public final class PlaybackCoordinator: ObservableObject {
                     )
                     await load(
                         successor.media,
-                        advancesRandomAfterFailure: activePlaylist?.playbackOrder == .random
+                        advancesRandomAfterFailure: activePlaylist?.playbackOrder == .random,
+                        automaticallySelected: true
                     )
                 } else {
                     state = .stopped
@@ -1024,21 +1287,14 @@ public final class PlaybackCoordinator: ObservableObject {
                 return
             }
             if activePlaylist?.repeatMode == .entry {
-                await move(to: currentIndex)
+                await move(to: currentIndex, automaticallySelected: true)
                 return
             }
             if activePlaylist?.playbackOrder == .random {
                 await advanceRandom(advancesAfterFailure: true)
                 return
             }
-            if nowPlayingList.entries.indices.contains(currentIndex + 1) {
-                await move(by: 1)
-            } else if activePlaylist?.repeatMode == .playlist,
-                      !nowPlayingList.entries.isEmpty {
-                await move(to: 0)
-            } else {
-                state = .stopped
-            }
+            await advanceSequentialAutomatically()
         case let .trackCatalogChanged(catalog, loadID):
             guard loadID == activeLoadID else { return }
             await applyTrackCatalog(catalog)
@@ -1068,6 +1324,26 @@ public final class PlaybackCoordinator: ObservableObject {
         )
     }
 
+    private func advanceSequentialAutomatically() async {
+        guard let currentIndex = nowPlayingList.currentIndex else {
+            state = .stopped
+            return
+        }
+        let forward = ((currentIndex + 1)..<nowPlayingList.entries.count).first(where: {
+            !nowPlayingList.entries[$0].isMediaMissing
+        })
+        let wrapped = activePlaylist?.repeatMode == .playlist
+            ? (0...currentIndex).first(where: { !nowPlayingList.entries[$0].isMediaMissing })
+            : nil
+        guard let destination = forward ?? wrapped else {
+            state = .stopped
+            reportMissingProgressionBoundary()
+            return
+        }
+        missingMediaNotice = .none
+        await move(to: destination, automaticallySelected: true)
+    }
+
     private func advanceRandom(
         stopEngineAtBoundary: Bool = false,
         advancesAfterFailure: Bool = false
@@ -1078,24 +1354,28 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         let playlist = playlists[playlistIndex]
-        let availableIDs = Set(playlist.entries.map(\.id))
+        let existingIDs = Set(playlist.entries.map(\.id))
+        let playableIDs = Set(playlist.entries.lazy.filter {
+            $0.media.availability != .missing
+        }.map(\.id))
         var round = playlist.randomRound ?? makeRandomRound(for: playlist)
         var candidate = round.order.first { id in
-            availableIDs.contains(id)
+            playableIDs.contains(id)
                 && !round.playedEntryIDs.contains(id)
                 && !round.unavailableEntryIDs.contains(id)
         }
-        let eligibleIDs = availableIDs.subtracting(round.unavailableEntryIDs)
+        let eligibleIDs = playableIDs.subtracting(round.unavailableEntryIDs)
         if candidate == nil, playlist.repeatMode == .playlist, !eligibleIDs.isEmpty {
             round = RandomPlaybackRound(
                 order: randomizer.shuffled(playlist.entries.map(\.id)),
-                unavailableEntryIDs: round.unavailableEntryIDs.filter(availableIDs.contains)
+                unavailableEntryIDs: round.unavailableEntryIDs.filter(existingIDs.contains)
             )
             candidate = round.order.first(where: eligibleIDs.contains)
         }
         guard let candidate,
               let destination = nowPlayingList.entries.firstIndex(where: { $0.id == candidate }) else {
             state = .stopped
+            reportMissingProgressionBoundary()
             if stopEngineAtBoundary {
                 await engine.stop()
             }
@@ -1113,7 +1393,17 @@ public final class PlaybackCoordinator: ObservableObject {
             state = .stopped
             return
         }
-        await move(to: destination, advancesRandomAfterFailure: advancesAfterFailure)
+        await move(
+            to: destination,
+            advancesRandomAfterFailure: advancesAfterFailure,
+            automaticallySelected: true
+        )
+    }
+
+    private func reportMissingProgressionBoundary() {
+        missingMediaNotice = missingMediaCount > 0
+            ? .noPlayableEntries(missingCount: missingMediaCount)
+            : .none
     }
 
     private func recordRandomSelectionIfNeeded(_ entryID: PlaylistEntryID) async -> Bool {
