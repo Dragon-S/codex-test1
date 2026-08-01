@@ -280,6 +280,8 @@ struct TrackSelectionCoordinatorTests {
         #expect(coordinator.state == .paused)
         #expect(coordinator.trackNotice == .externalSubtitleMissing("missing.zh-Hans.srt"))
         #expect(coordinator.currentExternalSubtitleReferenceID == reference.id)
+        #expect(coordinator.preferredExternalSubtitleName == "missing.zh-Hans.srt")
+        #expect(!coordinator.isPreferredExternalSubtitleActive)
         #expect(await engine.selectionCommands.contains(.subtitle(.off)))
     }
 
@@ -326,7 +328,8 @@ struct TrackSelectionCoordinatorTests {
         #expect(references.count == 2)
         #expect(references.allSatisfy { $0.lastKnownPath == relocated.url.path })
         #expect(references.allSatisfy { $0.bookmark == Data([0x0B]) })
-        #expect(coordinator.currentExternalSubtitleName == "new-shared.ass")
+        #expect(coordinator.preferredExternalSubtitleName == "new-shared.ass")
+        #expect(coordinator.isPreferredExternalSubtitleActive)
         #expect(coordinator.trackSelection.subtitle == .external(reference.id))
     }
 

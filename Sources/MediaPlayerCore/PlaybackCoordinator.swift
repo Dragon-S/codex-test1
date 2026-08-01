@@ -326,9 +326,14 @@ public final class PlaybackCoordinator: ObservableObject {
         return reference.id
     }
 
-    public var currentExternalSubtitleName: String? {
+    public var preferredExternalSubtitleName: String? {
         guard case let .external(reference) = currentPreferences.subtitle else { return nil }
         return URL(fileURLWithPath: reference.lastKnownPath).lastPathComponent
+    }
+
+    public var isPreferredExternalSubtitleActive: Bool {
+        guard let referenceID = currentExternalSubtitleReferenceID else { return false }
+        return trackSelection.subtitle == .external(referenceID)
     }
 
     public func disableSubtitles() async {
