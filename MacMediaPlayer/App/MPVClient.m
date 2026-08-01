@@ -158,14 +158,16 @@ static void MPVRenderUpdate(void *context);
             completion(MPVClientExternalSubtitleResultDamaged, nil);
             return;
         }
-        [self reportTrackCatalog];
         int64_t selectedID = 0;
         if (mpv_get_property(self->_handle, "sid", MPV_FORMAT_INT64, &selectedID) < 0) {
             completion(MPVClientExternalSubtitleResultDamaged, nil);
             return;
         }
-        NSUUID *identifier = self->_subtitleIdentifiers[@(selectedID)];
-        completion(identifier == nil ? MPVClientExternalSubtitleResultDamaged : MPVClientExternalSubtitleResultLoaded, identifier);
+        NSNumber *rawKey = @(selectedID);
+        NSUUID *identifier = self->_subtitleIdentifiers[rawKey] ?: [NSUUID UUID];
+        self->_subtitleIdentifiers[rawKey] = identifier;
+        self->_subtitleTrackIDs[identifier] = rawKey;
+        completion(MPVClientExternalSubtitleResultLoaded, identifier);
     });
 }
 
@@ -376,6 +378,9 @@ static void MPVRenderUpdate(void *context);
         }
         NSNumber *rawKey = @(rawID);
         BOOL isAudio = [type isEqualToString:@"audio"];
+        if (!isAudio && [self flagProperty:[prefix stringByAppendingString:@"/external"]]) {
+            continue;
+        }
         NSMutableDictionary<NSNumber *, NSUUID *> *identifiers = isAudio ? _audioIdentifiers : _subtitleIdentifiers;
         NSMutableDictionary<NSUUID *, NSNumber *> *rawIDs = isAudio ? _audioTrackIDs : _subtitleTrackIDs;
         NSUUID *identifier = identifiers[rawKey] ?: [NSUUID UUID];

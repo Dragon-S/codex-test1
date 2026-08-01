@@ -99,13 +99,11 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
             client.loadExternalSubtitleURL(subtitle.url) { result, identifier in
                 switch result {
                 case .loaded:
-                    guard let identifier else {
+                    guard identifier != nil else {
                         continuation.resume(returning: .damaged)
                         return
                     }
-                    continuation.resume(returning: .loaded(
-                        EmbeddedSubtitleTrackID(rawValue: identifier as UUID)
-                    ))
+                    continuation.resume(returning: .loaded)
                 case .missing:
                     continuation.resume(returning: .missing)
                 case .damaged:

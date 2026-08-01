@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             playlistStore: makePlaylistStore(),
             persistentMediaAccess: fileAccess,
             externalSubtitleAccess: fileAccess,
-            trackSelectionSettings: TrackSelectionSettings(
+            defaultTrackRules: DefaultTrackRules(
                 preferredAudioLanguages: Locale.preferredLanguages,
                 preferredSubtitleLanguages: Locale.preferredLanguages,
                 subtitleAutoPolicy: .automatic

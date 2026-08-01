@@ -122,6 +122,15 @@ final class ContractEventRecorder: @unchecked Sendable {
         throw TrackCatalogTimeout(loadID: loadID, observed: eventSnapshot())
     }
 
+    func trackCatalogCount(loadID: PlaybackLoadID) -> Int {
+        eventSnapshot().count { event in
+            if case let .trackCatalogChanged(_, eventLoadID) = event {
+                return eventLoadID == loadID
+            }
+            return false
+        }
+    }
+
     private func append(_ event: PlaybackEngineEvent) {
         lock.withLock {
             observedEvents.append(event)

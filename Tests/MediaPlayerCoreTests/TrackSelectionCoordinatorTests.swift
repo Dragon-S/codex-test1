@@ -10,7 +10,7 @@ struct TrackSelectionCoordinatorTests {
         let engine = TrackFakePlaybackEngine()
         let coordinator = PlaybackCoordinator(
             engine: engine,
-            trackSelectionSettings: TrackSelectionSettings(
+            defaultTrackRules: DefaultTrackRules(
                 preferredAudioLanguages: ["ja", "en"],
                 preferredSubtitleLanguages: ["zh-Hans", "en"],
                 subtitleAutoPolicy: .automatic
@@ -94,7 +94,7 @@ struct TrackSelectionCoordinatorTests {
         let engine = TrackFakePlaybackEngine()
         let coordinator = PlaybackCoordinator(
             engine: engine,
-            trackSelectionSettings: TrackSelectionSettings(
+            defaultTrackRules: DefaultTrackRules(
                 preferredAudioLanguages: ["en"],
                 preferredSubtitleLanguages: [],
                 subtitleAutoPolicy: .never
@@ -200,8 +200,7 @@ struct TrackSelectionCoordinatorTests {
             referenceID: LocalMediaReferenceID(),
             bookmark: Data([0x04])
         ))
-        let subtitleTrackID = EmbeddedSubtitleTrackID()
-        await engine.setExternalSubtitleResult(.loaded(subtitleTrackID))
+        await engine.setExternalSubtitleResult(.loaded)
         let subtitle = LocalExternalSubtitle(
             url: URL(fileURLWithPath: "/tmp/movie.zh-Hans.ass"),
             referenceID: ExternalSubtitleReferenceID(),
@@ -227,7 +226,7 @@ struct TrackSelectionCoordinatorTests {
         let engine = TrackFakePlaybackEngine()
         let coordinator = PlaybackCoordinator(
             engine: engine,
-            trackSelectionSettings: TrackSelectionSettings(subtitleAutoPolicy: .never)
+            defaultTrackRules: DefaultTrackRules(subtitleAutoPolicy: .never)
         )
         await coordinator.open(localMedia("forced.mkv"))
         let forced = EmbeddedSubtitleTrackOption(
@@ -310,7 +309,7 @@ private actor TrackFakePlaybackEngine: PlaybackEngine {
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private(set) var loadIDs: [PlaybackLoadID] = []
     private(set) var selectionCommands: [TrackEngineCommand] = []
-    private var externalSubtitleResult: ExternalSubtitleLoadResult = .loaded(EmbeddedSubtitleTrackID())
+    private var externalSubtitleResult: ExternalSubtitleLoadResult = .loaded
 
     init() {
         (events, continuation) = AsyncStream.makeStream()

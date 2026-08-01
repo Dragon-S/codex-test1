@@ -33,7 +33,7 @@ public enum SubtitleAutoPolicy: Equatable, Codable, Sendable {
     case never
 }
 
-public struct TrackSelectionSettings: Equatable, Codable, Sendable {
+public struct DefaultTrackRules: Equatable, Codable, Sendable {
     public let preferredAudioLanguages: [String]
     public let preferredSubtitleLanguages: [String]
     public let subtitleAutoPolicy: SubtitleAutoPolicy
@@ -49,11 +49,17 @@ public struct TrackSelectionSettings: Equatable, Codable, Sendable {
     }
 }
 
+public enum ActiveSubtitleSelection: Equatable, Sendable {
+    case off
+    case embedded(EmbeddedSubtitleTrackID)
+    case external(ExternalSubtitleReferenceID)
+}
+
 public struct TrackSelectionState: Equatable, Sendable {
     public let audioTrackID: AudioTrackID?
-    public let subtitle: SubtitleSelection
+    public let subtitle: ActiveSubtitleSelection
 
-    public init(audioTrackID: AudioTrackID? = nil, subtitle: SubtitleSelection = .off) {
+    public init(audioTrackID: AudioTrackID? = nil, subtitle: ActiveSubtitleSelection = .off) {
         self.audioTrackID = audioTrackID
         self.subtitle = subtitle
     }
@@ -83,7 +89,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private let playlistStore: any PlaylistStore
     private let persistentMediaAccess: any PersistentMediaAccess
     private let externalSubtitleAccess: any PersistentExternalSubtitleAccess
-    private let trackSelectionSettings: TrackSelectionSettings
+    private let defaultTrackRules: DefaultTrackRules
     private var eventTask: Task<Void, Never>?
     private var isFindingFirstPlayableMedia = false
     private var isRestoredMediaPendingLoad = false
@@ -95,13 +101,13 @@ public final class PlaybackCoordinator: ObservableObject {
         playlistStore: any PlaylistStore = InMemoryPlaylistStore(),
         persistentMediaAccess: any PersistentMediaAccess = LastKnownPathMediaAccess(),
         externalSubtitleAccess: any PersistentExternalSubtitleAccess = LastKnownPathExternalSubtitleAccess(),
-        trackSelectionSettings: TrackSelectionSettings = TrackSelectionSettings()
+        defaultTrackRules: DefaultTrackRules = DefaultTrackRules()
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
         self.persistentMediaAccess = persistentMediaAccess
         self.externalSubtitleAccess = externalSubtitleAccess
-        self.trackSelectionSettings = trackSelectionSettings
+        self.defaultTrackRules = defaultTrackRules
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -282,7 +288,7 @@ public final class PlaybackCoordinator: ObservableObject {
 
     public func selectExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
         switch await engine.loadExternalSubtitle(subtitle) {
-        case let .loaded(id):
+        case .loaded:
             guard let bookmark = subtitle.bookmark else {
                 trackNotice = .selectionFailed("无法持久保存外部字幕的只读访问权限")
                 return
@@ -294,7 +300,7 @@ public final class PlaybackCoordinator: ObservableObject {
             )
             trackSelection = TrackSelectionState(
                 audioTrackID: trackSelection.audioTrackID,
-                subtitle: .embedded(id)
+                subtitle: .external(subtitle.referenceID)
             )
             let saved = await updateCurrentPreferences { current in
                 EntryPlaybackPreferences(audioTrack: current.audioTrack, subtitle: .external(reference))
@@ -430,8 +436,8 @@ public final class PlaybackCoordinator: ObservableObject {
             do {
                 let subtitle = try await externalSubtitleAccess.restore(reference)
                 switch await engine.loadExternalSubtitle(subtitle) {
-                case let .loaded(id):
-                    setSelectedSubtitle(.embedded(id))
+                case .loaded:
+                    setSelectedSubtitle(.external(reference.id))
                 case .missing:
                     await fallBackFromExternalSubtitle(
                         reference: reference,
@@ -478,7 +484,7 @@ public final class PlaybackCoordinator: ObservableObject {
         selectedAudio: AudioTrackOption?
     ) async {
         let selected: EmbeddedSubtitleTrackOption?
-        switch trackSelectionSettings.subtitleAutoPolicy {
+        switch defaultTrackRules.subtitleAutoPolicy {
         case .never:
             selected = nil
         case .always:
@@ -494,7 +500,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 selected = forced
             } else {
                 let audioMatchesPreference = selectedAudio.map { audio in
-                    language(audio.languageCode, matchesAny: trackSelectionSettings.preferredAudioLanguages)
+                    language(audio.languageCode, matchesAny: defaultTrackRules.preferredAudioLanguages)
                 } ?? false
                 selected = audioMatchesPreference
                     ? nil
@@ -502,14 +508,15 @@ public final class PlaybackCoordinator: ObservableObject {
             }
         }
 
-        let selection = selected.map { SubtitleSelection.embedded($0.id) } ?? .off
-        if await engine.selectSubtitle(selection) {
-            setSelectedSubtitle(selection)
+        let engineSelection = selected.map { SubtitleSelection.embedded($0.id) } ?? .off
+        if await engine.selectSubtitle(engineSelection) {
+            let activeSelection = selected.map { ActiveSubtitleSelection.embedded($0.id) } ?? .off
+            setSelectedSubtitle(activeSelection)
         }
     }
 
     private func defaultAudioTrack(in tracks: [AudioTrackOption]) -> AudioTrackOption? {
-        for languageCode in trackSelectionSettings.preferredAudioLanguages {
+        for languageCode in defaultTrackRules.preferredAudioLanguages {
             if let match = tracks.first(where: { language($0.languageCode, matches: languageCode) }) {
                 return match
             }
@@ -520,7 +527,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private func preferredSubtitle(
         in tracks: [EmbeddedSubtitleTrackOption]
     ) -> EmbeddedSubtitleTrackOption? {
-        for languageCode in trackSelectionSettings.preferredSubtitleLanguages {
+        for languageCode in defaultTrackRules.preferredSubtitleLanguages {
             if let match = tracks.first(where: { language($0.languageCode, matches: languageCode) }) {
                 return match
             }
@@ -603,7 +610,7 @@ public final class PlaybackCoordinator: ObservableObject {
         return true
     }
 
-    private func setSelectedSubtitle(_ selection: SubtitleSelection) {
+    private func setSelectedSubtitle(_ selection: ActiveSubtitleSelection) {
         trackSelection = TrackSelectionState(
             audioTrackID: trackSelection.audioTrackID,
             subtitle: selection

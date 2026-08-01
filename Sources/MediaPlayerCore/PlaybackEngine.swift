@@ -151,7 +151,7 @@ public enum SubtitleSelection: Equatable, Sendable {
 }
 
 public enum ExternalSubtitleLoadResult: Equatable, Sendable {
-    case loaded(EmbeddedSubtitleTrackID)
+    case loaded
     case missing
     case damaged
 }

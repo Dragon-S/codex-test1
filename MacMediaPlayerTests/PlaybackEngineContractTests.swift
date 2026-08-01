@@ -87,6 +87,7 @@ struct LibMPVPlaybackEngineContractTests {
         await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
         let catalog = try await recorder.waitForTrackCatalog(loadID: loadID)
         let audioTrack = try #require(catalog.audioTracks.first)
+        let catalogCountBeforeExternalSubtitle = recorder.trackCatalogCount(loadID: loadID)
 
         #expect(await engine.selectAudioTrack(audioTrack.id))
         #expect(await engine.selectSubtitle(.off))
@@ -95,6 +96,8 @@ struct LibMPVPlaybackEngineContractTests {
             Issue.record("有效外部字幕本应成功加载，实际为 \(result)")
             return
         }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(recorder.trackCatalogCount(loadID: loadID) == catalogCountBeforeExternalSubtitle)
     }
 
     private func makeSilentWAV() throws -> URL {
