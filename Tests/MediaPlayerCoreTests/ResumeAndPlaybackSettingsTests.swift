@@ -158,12 +158,15 @@ struct ResumeAndPlaybackSettingsTests {
         await fixture.coordinator.setPlaybackRate(1.5)
         await fixture.coordinator.setPlayerVolume(0.35)
         await fixture.coordinator.setMuted(true)
+        let activePlaylistID = try #require(fixture.coordinator.activePlaylistID)
+        try await fixture.coordinator.renamePlaylist(id: activePlaylistID, to: "保留播放设置")
 
         #expect(await fixture.engine.commands.suffix(5) == [
             .seek(to: 70), .seek(to: 40), .setRate(1.5), .setVolume(0.35), .setMuted(true),
         ])
         let library = await fixture.store.loadLibrary()
         #expect(library.playlists[0].playbackRate == 1.5)
+        #expect(library.playlists[0].name == "保留播放设置")
         #expect(library.playerVolume == 0.35)
         #expect(library.isMuted)
         #expect(library.seekStep == 30)
@@ -285,8 +288,17 @@ private actor FailingSnapshotStore: PlaylistStore {
     }
 
     func create(_ playlist: Playlist) {}
+    func commit(_ library: PlaylistLibrary) {}
     func loadLibrary() -> PlaylistLibrary { library }
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) {}
+    func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) {}
+    func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) {}
     func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) throws {
         throw PlaylistStoreError.unavailable("退出保存失败")
     }

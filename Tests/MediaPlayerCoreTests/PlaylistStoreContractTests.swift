@@ -19,7 +19,7 @@ struct PlaylistStoreContractTests {
 
         let reopenedStore = try SQLitePlaylistStore(databaseURL: databaseURL)
         let restoredAfterReopen = try await reopenedStore.loadLibrary()
-        #expect(restoredAfterReopen.playlists.map(\.name) == ["Weekend Movies"])
+        #expect(restoredAfterReopen.playlists.map(\.name) == ["周末电影"])
     }
 
     private func verifyPlaylistStoreContract(store: some PlaylistStore) async throws {
@@ -32,16 +32,21 @@ struct PlaylistStoreContractTests {
                 lastKnownPath: "/tmp/movie.mkv"
             ),
             resumePosition: 42.5,
+            isCompleted: true,
             playbackPreferences: EntryPlaybackPreferences(
-                audioTrackID: "audio-2",
-                embeddedSubtitleTrackID: "subtitle-4"
+                audioTrack: TrackPreference(languageCode: "en", title: "Commentary", ordinal: 2),
+                subtitle: .embedded(
+                    TrackPreference(languageCode: "zh-Hans", title: "简体中文", ordinal: 4)
+                )
             )
         )
         let duplicateEntry = PlaylistEntry(
             id: PlaylistEntryID(),
             media: firstEntry.media,
             resumePosition: 7,
-            playbackPreferences: EntryPlaybackPreferences(audioTrackID: "audio-1")
+            playbackPreferences: EntryPlaybackPreferences(
+                audioTrack: TrackPreference(languageCode: "en", title: nil, ordinal: 1)
+            )
         )
         let playlist = Playlist(
             id: PlaylistID(),
@@ -90,12 +95,254 @@ struct PlaylistStoreContractTests {
             refreshedReference, refreshedReference,
         ])
         #expect(refreshed.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
+        #expect(refreshed.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(refreshed.playlists[0].playbackRate == 1.5)
+        #expect(refreshed.playerVolume == 0.4)
+        #expect(refreshed.isMuted)
+
+        let updatedPreferences = EntryPlaybackPreferences(
+            audioTrack: TrackPreference(languageCode: "ja", title: "日本語", ordinal: 2),
+            subtitle: .off
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            preferences: updatedPreferences
+        )
+        let preferencesUpdated = try await store.loadLibrary()
+        #expect(preferencesUpdated.playlists[0].entries[0].playbackPreferences == firstEntry.playbackPreferences)
+        #expect(preferencesUpdated.playlists[0].entries[1].playbackPreferences == updatedPreferences)
+        #expect(preferencesUpdated.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(preferencesUpdated.playlists[0].playbackRate == 1.5)
+        #expect(preferencesUpdated.playerVolume == 0.4)
+        #expect(preferencesUpdated.isMuted)
+
+        let sharedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: ExternalSubtitleReferenceID(),
+            bookmark: Data([0x20]),
+            lastKnownPath: "/tmp/old-shared.srt"
+        )
+        let sharedSubtitlePreferences = EntryPlaybackPreferences(
+            subtitle: .external(sharedExternalSubtitle)
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: firstEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        try await store.updateEntryPlaybackPreferences(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            preferences: sharedSubtitlePreferences
+        )
+        let relocatedExternalSubtitle = PersistentExternalSubtitleReference(
+            id: sharedExternalSubtitle.id,
+            bookmark: Data([0x21]),
+            lastKnownPath: "/tmp/new-shared.srt"
+        )
+        try await store.updateExternalSubtitleReferences([relocatedExternalSubtitle])
+        let externalSubtitleUpdated = try await store.loadLibrary()
+        #expect(externalSubtitleUpdated.playlists[0].entries.allSatisfy {
+            $0.playbackPreferences.subtitle == .external(relocatedExternalSubtitle)
+        })
+        #expect(externalSubtitleUpdated.playlists[0].entries.map(\.isCompleted) == [true, false])
+        #expect(externalSubtitleUpdated.playlists[0].playbackRate == 1.5)
+        #expect(externalSubtitleUpdated.playerVolume == 0.4)
+        #expect(externalSubtitleUpdated.isMuted)
+
+        let renamedAndReordered = Playlist(
+            id: playlist.id,
+            name: "周末电影",
+            entries: [
+                externalSubtitleUpdated.playlists[0].entries[1],
+                externalSubtitleUpdated.playlists[0].entries[0],
+            ],
+            currentEntryID: firstEntry.id
+        )
+        try await store.commit(PlaylistLibrary(
+            playlists: [renamedAndReordered],
+            activePlaylistID: playlist.id
+        ))
+
+        let edited = try await store.loadLibrary()
+        #expect(edited.playlists == [renamedAndReordered])
+        #expect(edited.activePlaylistID == playlist.id)
     }
 }
 
 @MainActor
 @Suite("命名 Playlist 应用行为")
 struct NamedPlaylistCoordinatorTests {
+    @Test("创建空 Playlist 后可重命名，重名失败不改变已提交状态")
+    func createsAndRenamesPlaylistAtomically() async throws {
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(
+            engine: PlaylistFakePlaybackEngine(),
+            playlistStore: store
+        )
+
+        let first = try await coordinator.createPlaylist(named: "电影")
+        let second = try await coordinator.createPlaylist(named: "音乐")
+        try await coordinator.renamePlaylist(id: second.id, to: "原声")
+
+        do {
+            try await coordinator.renamePlaylist(id: second.id, to: "电影")
+            Issue.record("重名重命名本应失败")
+        } catch let error as PlaylistStoreError {
+            #expect(error == .nameAlreadyExists("电影"))
+        }
+
+        #expect(first.entries.isEmpty)
+        #expect(coordinator.playlists.map(\.name) == ["电影", "原声"])
+        #expect(coordinator.browsingPlaylistID == second.id)
+        #expect(coordinator.activePlaylistID == nil)
+        #expect((await store.loadLibrary()).playlists == coordinator.playlists)
+    }
+
+    @Test("重复条目身份独立，浏览不切换来源，重排实时影响播放顺序")
+    func separatesBrowsingFromPlayingAndReordersLiveSource() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let playingPlaylist = try await coordinator.createPlaylist(named: "正在播放")
+        let sharedMedia = LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/shared.mkv"),
+            referenceID: LocalMediaReferenceID(),
+            bookmark: Data([0x21])
+        )
+        let otherMedia = LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/other.mp3"),
+            bookmark: Data([0x22])
+        )
+        let first = try await coordinator.add(sharedMedia, to: playingPlaylist.id)
+        let second = try await coordinator.add(otherMedia, to: playingPlaylist.id)
+        let duplicate = try await coordinator.duplicateEntry(first.id, in: playingPlaylist.id)
+        let browsingPlaylist = try await coordinator.createPlaylist(named: "只浏览")
+
+        try await coordinator.playEntry(first.id, in: playingPlaylist.id)
+        coordinator.browsePlaylist(browsingPlaylist.id)
+        try await coordinator.moveEntry(duplicate.id, in: playingPlaylist.id, to: 1)
+
+        #expect(first.id != duplicate.id)
+        #expect(first.media.id == duplicate.media.id)
+        #expect(duplicate.resumePosition == nil)
+        #expect(duplicate.playbackPreferences == EntryPlaybackPreferences())
+        #expect(coordinator.activePlaylistID == playingPlaylist.id)
+        #expect(coordinator.browsingPlaylistID == browsingPlaylist.id)
+        #expect(coordinator.nowPlayingList.entries.map(\.id) == [first.id, duplicate.id, second.id])
+        #expect(coordinator.nowPlayingList.currentMedia == sharedMedia)
+        #expect(await engine.commands == [.load])
+    }
+
+    @Test("重复选择同一磁盘文件会共享本地媒体引用但创建独立条目")
+    func reusesMediaReferenceForTheSameFileIdentity() async throws {
+        let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine())
+        let playlist = try await coordinator.createPlaylist(named: "重复媒体")
+        let fileIdentity = LocalFileIdentity(rawValue: Data([0xF1, 0x1E]))
+        let first = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/original-name.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x51])
+            ),
+            to: playlist.id
+        )
+        let upgradedLegacyReference = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/original-name.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x52]),
+                fileIdentity: fileIdentity
+            ),
+            to: playlist.id
+        )
+        let duplicateAfterRename = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/renamed-file.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x53]),
+                fileIdentity: fileIdentity
+            ),
+            to: playlist.id
+        )
+
+        #expect(first.id != upgradedLegacyReference.id)
+        #expect(upgradedLegacyReference.id != duplicateAfterRename.id)
+        #expect(first.media.id == upgradedLegacyReference.media.id)
+        #expect(first.media.id == duplicateAfterRename.media.id)
+        #expect(coordinator.playlists[0].entries.map(\.media.lastKnownPath) == [
+            "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv",
+        ])
+    }
+
+    @Test("移除当前条目后媒体脱离列表继续，结束后从原位置推进")
+    func detachesRemovedCurrentEntryAndAdvancesFromItsFormerPosition() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        let playlist = try await coordinator.createPlaylist(named: "连续播放")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x31), to: playlist.id)
+        let current = try await coordinator.add(bookmarkedMedia("current.mp4", 0x32), to: playlist.id)
+        let next = try await coordinator.add(bookmarkedMedia("next.mp4", 0x33), to: playlist.id)
+        let last = try await coordinator.add(bookmarkedMedia("last.mp4", 0x34), to: playlist.id)
+        try await coordinator.playEntry(current.id, in: playlist.id)
+
+        try await coordinator.removeEntry(current.id, from: playlist.id)
+        try await coordinator.removeEntry(next.id, from: playlist.id)
+
+        #expect(coordinator.detachedNowPlayingEntry?.id == current.id)
+        #expect(coordinator.nowPlayingList.entries.map(\.id) == [first.id, last.id])
+        #expect(coordinator.nowPlayingList.currentIndex == nil)
+        #expect(await engine.commands == [.load])
+
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.nowPlayingList.currentMedia?.url.lastPathComponent == "last.mp4" }
+
+        #expect(coordinator.detachedNowPlayingEntry == nil)
+        #expect(coordinator.nowPlayingList.currentIndex == 1)
+        #expect(await engine.commands == [.load, .load])
+        let persisted = await store.loadLibrary()
+        #expect(persisted.playlists[0].entries.map(\.id) == [first.id, last.id])
+        #expect(persisted.playlists[0].currentEntryID == last.id)
+    }
+
+    @Test("删除正在使用的 Playlist 需确认，当前媒体结束后停止且重启不恢复")
+    func confirmsDeletionOfPlayingPlaylistAndDoesNotRestoreIt() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let store = InMemoryPlaylistStore()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        let playlist = try await coordinator.createPlaylist(named: "待删除")
+        let current = try await coordinator.add(bookmarkedMedia("current.flac", 0x41), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("next.flac", 0x42), to: playlist.id)
+        try await coordinator.playEntry(current.id, in: playlist.id)
+
+        do {
+            try await coordinator.deletePlaylist(playlist.id, confirmed: false)
+            Issue.record("删除正在使用的 Playlist 本应要求确认")
+        } catch let error as PlaylistPersistenceError {
+            #expect(error == .deletionConfirmationRequired(playlist.id))
+        }
+        #expect(coordinator.playlists.count == 1)
+
+        try await coordinator.deletePlaylist(playlist.id, confirmed: true)
+
+        #expect(coordinator.playlists.isEmpty)
+        #expect(coordinator.activePlaylistID == nil)
+        #expect(coordinator.browsingPlaylistID == nil)
+        #expect(coordinator.detachedNowPlayingEntry?.id == current.id)
+        #expect(await engine.commands == [.load])
+
+        await engine.sendPlaybackEnded()
+        try await waitUntil { coordinator.state == .stopped }
+        #expect(await engine.commands == [.load])
+
+        let restoredEngine = PlaylistFakePlaybackEngine()
+        let restored = PlaybackCoordinator(engine: restoredEngine, playlistStore: store)
+        try await restored.restorePersistentState()
+        #expect(restored.playlists.isEmpty)
+        #expect(restored.nowPlayingList.entries.isEmpty)
+        #expect(await restoredEngine.commands.isEmpty)
+    }
+
     @Test("存储为 Playlist 会原子迁移顺序、重复项、当前条目及条目状态")
     func savesTemporaryListAsNamedPlaylist() async throws {
         let engine = PlaylistFakePlaybackEngine()
@@ -117,7 +364,9 @@ struct NamedPlaylistCoordinatorTests {
             NowPlayingEntry(
                 media: sharedMedia,
                 resumePosition: 9,
-                playbackPreferences: EntryPlaybackPreferences(audioTrackID: "commentary")
+                playbackPreferences: EntryPlaybackPreferences(
+                    audioTrack: TrackPreference(languageCode: "en", title: "Commentary", ordinal: 3)
+                )
             ),
         ])
         await coordinator.next()
@@ -130,7 +379,11 @@ struct NamedPlaylistCoordinatorTests {
             sharedMedia.referenceID, otherMedia.referenceID, sharedMedia.referenceID,
         ])
         #expect(saved.entries.map(\.resumePosition) == [31, nil, 9])
-        #expect(saved.entries.last?.playbackPreferences.audioTrackID == "commentary")
+        #expect(saved.entries.last?.playbackPreferences.audioTrack == TrackPreference(
+            languageCode: "en",
+            title: "Commentary",
+            ordinal: 3
+        ))
         #expect(saved.currentEntryID == saved.entries[2].id)
         #expect(coordinator.playlists == [saved])
         #expect(coordinator.persistenceNotice == .saved("收藏"))
@@ -236,6 +489,23 @@ struct NamedPlaylistCoordinatorTests {
     }
 }
 
+private func bookmarkedMedia(_ name: String, _ bookmarkByte: UInt8) -> LocalMedia {
+    LocalMedia(
+        url: URL(fileURLWithPath: "/tmp/\(name)"),
+        bookmark: Data([bookmarkByte])
+    )
+}
+
+@MainActor
+private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {
+    let deadline = ContinuousClock.now + .seconds(1)
+    while ContinuousClock.now < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(1))
+    }
+    Issue.record("等待协调层状态更新超时")
+}
+
 private struct RefreshingMediaAccess: PersistentMediaAccess {
     func restore(_ reference: PersistentLocalMediaReference) -> LocalMedia {
         LocalMedia(
@@ -256,12 +526,17 @@ private enum PlaylistEngineCommand: Equatable, Sendable {
 private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     private(set) var commands: [PlaylistEngineCommand] = []
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
+    private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
+    private var loadIDs: [PlaybackLoadID] = []
 
     init() {
-        events = AsyncStream { _ in }
+        (events, continuation) = AsyncStream.makeStream()
     }
 
-    func load(_ media: LocalMedia, loadID: PlaybackLoadID) { commands.append(.load) }
+    func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
+        commands.append(.load)
+        loadIDs.append(loadID)
+    }
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
     func stop() { commands.append(.stop) }
@@ -269,4 +544,9 @@ private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     func setPlaybackRate(_ rate: Double) {}
     func setPlayerVolume(_ volume: Double) {}
     func setMuted(_ isMuted: Bool) {}
+
+    func sendPlaybackEnded() {
+        guard let loadID = loadIDs.last else { return }
+        continuation.yield(.playbackEnded(loadID: loadID))
+    }
 }

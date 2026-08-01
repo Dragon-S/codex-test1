@@ -8,9 +8,18 @@ public enum PlaylistStoreError: Error, Equatable, Sendable {
 
 public protocol PlaylistStore: Sendable {
     func create(_ playlist: Playlist) async throws
+    func commit(_ library: PlaylistLibrary) async throws
     func loadLibrary() async throws -> PlaylistLibrary
     func updateMediaReferences(_ references: [PersistentLocalMediaReference]) async throws
     func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) async throws
+    func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) async throws
+    func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) async throws
 }
 
 public actor UnavailablePlaylistStore: PlaylistStore {
@@ -24,6 +33,10 @@ public actor UnavailablePlaylistStore: PlaylistStore {
         throw PlaylistStoreError.unavailable(message)
     }
 
+    public func commit(_ library: PlaylistLibrary) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
     public func loadLibrary() throws -> PlaylistLibrary {
         throw PlaylistStoreError.unavailable(message)
     }
@@ -33,6 +46,20 @@ public actor UnavailablePlaylistStore: PlaylistStore {
     }
 
     public func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
+        throw PlaylistStoreError.unavailable(message)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
         throw PlaylistStoreError.unavailable(message)
     }
 }
@@ -48,6 +75,11 @@ public actor InMemoryPlaylistStore: PlaylistStore {
         library = try library.adding(playlist)
     }
 
+    public func commit(_ library: PlaylistLibrary) throws {
+        try library.validateUniqueNames()
+        self.library = library
+    }
+
     public func loadLibrary() -> PlaylistLibrary {
         library
     }
@@ -58,6 +90,24 @@ public actor InMemoryPlaylistStore: PlaylistStore {
 
     public func savePlaybackSnapshot(_ snapshot: PlaybackPersistenceSnapshot) {
         library = library.applying(snapshot)
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) {
+        library = library.replacingExternalSubtitleReferences(references)
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        library = try library.replacingPlaybackPreferences(
+            playlistID: playlistID,
+            entryID: entryID,
+            preferences: preferences
+        )
     }
 }
 
@@ -101,6 +151,18 @@ public actor SQLitePlaylistStore: PlaylistStore {
         }
     }
 
+    public func commit(_ library: PlaylistLibrary) throws {
+        try library.validateUniqueNames()
+        try execute("BEGIN IMMEDIATE")
+        do {
+            try writeLibrary(library)
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
     public func loadLibrary() throws -> PlaylistLibrary {
         try readLibrary()
     }
@@ -122,6 +184,42 @@ public actor SQLitePlaylistStore: PlaylistStore {
         try execute("BEGIN IMMEDIATE")
         do {
             try writeLibrary(try readLibrary().applying(snapshot))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) throws {
+        guard !references.isEmpty else { return }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            try writeLibrary(current.replacingExternalSubtitleReferences(references))
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    public func updateEntryPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws {
+        try execute("BEGIN IMMEDIATE")
+        do {
+            let current = try readLibrary()
+            let updated = try current.replacingPlaybackPreferences(
+                playlistID: playlistID,
+                entryID: entryID,
+                preferences: preferences
+            )
+            try writeLibrary(updated)
             try execute("COMMIT")
         } catch {
             try? execute("ROLLBACK")
@@ -215,6 +313,14 @@ private func namesConflict(_ lhs: String, _ rhs: String) -> Bool {
 }
 
 private extension PlaylistLibrary {
+    func validateUniqueNames() throws {
+        for (index, playlist) in playlists.enumerated() {
+            guard !playlists[..<index].contains(where: { namesConflict($0.name, playlist.name) }) else {
+                throw PlaylistStoreError.nameAlreadyExists(playlist.name)
+            }
+        }
+    }
+
     func adding(_ playlist: Playlist) throws -> PlaylistLibrary {
         guard !playlists.contains(where: { namesConflict($0.name, playlist.name) }) else {
             throw PlaylistStoreError.nameAlreadyExists(playlist.name)
@@ -262,4 +368,86 @@ private extension PlaylistLibrary {
         )
     }
 
+    func replacingExternalSubtitleReferences(
+        _ references: [PersistentExternalSubtitleReference]
+    ) -> PlaylistLibrary {
+        let referencesByID = Dictionary(
+            references.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let updatedPlaylists = playlists.map { playlist in
+            let updatedEntries = playlist.entries.map { entry in
+                let updatedPreferences: EntryPlaybackPreferences
+                if case let .external(reference) = entry.playbackPreferences.subtitle,
+                   let replacement = referencesByID[reference.id] {
+                    updatedPreferences = EntryPlaybackPreferences(
+                        audioTrack: entry.playbackPreferences.audioTrack,
+                        subtitle: .external(replacement)
+                    )
+                } else {
+                    updatedPreferences = entry.playbackPreferences
+                }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: entry.media,
+                    resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
+                    playbackPreferences: updatedPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: updatedEntries,
+                currentEntryID: playlist.currentEntryID,
+                playbackRate: playlist.playbackRate
+            )
+        }
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        )
+    }
+
+
+    func replacingPlaybackPreferences(
+        playlistID: PlaylistID,
+        entryID: PlaylistEntryID,
+        preferences: EntryPlaybackPreferences
+    ) throws -> PlaylistLibrary {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }),
+              let entryIndex = playlists[playlistIndex].entries.firstIndex(where: {
+                  $0.id == entryID
+              }) else {
+            throw PlaylistStoreError.unavailable("找不到要更新的播放列表条目")
+        }
+        var updatedPlaylists = playlists
+        let playlist = updatedPlaylists[playlistIndex]
+        var updatedEntries = playlist.entries
+        let entry = updatedEntries[entryIndex]
+        updatedEntries[entryIndex] = PlaylistEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: entry.resumePosition,
+            isCompleted: entry.isCompleted,
+            playbackPreferences: preferences
+        )
+        updatedPlaylists[playlistIndex] = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: updatedEntries,
+            currentEntryID: playlist.currentEntryID,
+            playbackRate: playlist.playbackRate
+        )
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: playerVolume,
+            isMuted: isMuted,
+            seekStep: seekStep
+        )
+    }
 }

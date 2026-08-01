@@ -24,19 +24,80 @@ public struct LocalMediaReferenceID: Hashable, Codable, Sendable {
     }
 }
 
-public struct EntryPlaybackPreferences: Equatable, Codable, Sendable {
-    public let audioTrackID: String?
-    public let embeddedSubtitleTrackID: String?
-    public let externalSubtitleReferenceID: LocalMediaReferenceID?
+public struct ExternalSubtitleReferenceID: Hashable, Codable, Sendable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID = UUID()) {
+        self.rawValue = rawValue
+    }
+}
+
+public struct LocalFileIdentity: Hashable, Codable, Sendable {
+    public let rawValue: Data
+
+    public init(rawValue: Data) {
+        self.rawValue = rawValue
+    }
+}
+
+public struct PersistentExternalSubtitleReference: Equatable, Codable, Sendable {
+    public let id: ExternalSubtitleReferenceID
+    public let bookmark: Data
+    public let lastKnownPath: String
 
     public init(
-        audioTrackID: String? = nil,
-        embeddedSubtitleTrackID: String? = nil,
-        externalSubtitleReferenceID: LocalMediaReferenceID? = nil
+        id: ExternalSubtitleReferenceID,
+        bookmark: Data,
+        lastKnownPath: String
     ) {
-        self.audioTrackID = audioTrackID
-        self.embeddedSubtitleTrackID = embeddedSubtitleTrackID
-        self.externalSubtitleReferenceID = externalSubtitleReferenceID
+        self.id = id
+        self.bookmark = bookmark
+        self.lastKnownPath = lastKnownPath
+    }
+}
+
+public struct LocalExternalSubtitle: Equatable, Sendable {
+    public let url: URL
+    public let bookmark: Data?
+
+    public init(
+        url: URL,
+        bookmark: Data? = nil
+    ) {
+        self.url = url
+        self.bookmark = bookmark
+    }
+}
+
+public enum SubtitlePreference: Equatable, Codable, Sendable {
+    case automatic
+    case off
+    case embedded(TrackPreference)
+    case external(PersistentExternalSubtitleReference)
+}
+
+public struct EntryPlaybackPreferences: Equatable, Codable, Sendable {
+    public let audioTrack: TrackPreference?
+    public let subtitle: SubtitlePreference
+
+    public init(
+        audioTrack: TrackPreference? = nil,
+        subtitle: SubtitlePreference = .automatic
+    ) {
+        self.audioTrack = audioTrack
+        self.subtitle = subtitle
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case audioTrack
+        case subtitle
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        audioTrack = try container.decodeIfPresent(TrackPreference.self, forKey: .audioTrack)
+        subtitle = try container.decodeIfPresent(SubtitlePreference.self, forKey: .subtitle)
+            ?? .automatic
     }
 }
 
@@ -44,11 +105,18 @@ public struct PersistentLocalMediaReference: Equatable, Codable, Sendable {
     public let id: LocalMediaReferenceID
     public let bookmark: Data
     public let lastKnownPath: String
+    public let fileIdentity: LocalFileIdentity?
 
-    public init(id: LocalMediaReferenceID, bookmark: Data, lastKnownPath: String) {
+    public init(
+        id: LocalMediaReferenceID,
+        bookmark: Data,
+        lastKnownPath: String,
+        fileIdentity: LocalFileIdentity? = nil
+    ) {
         self.id = id
         self.bookmark = bookmark
         self.lastKnownPath = lastKnownPath
+        self.fileIdentity = fileIdentity
     }
 }
 
@@ -93,6 +161,29 @@ public struct Playlist: Equatable, Codable, Sendable, Identifiable {
         self.entries = entries
         self.currentEntryID = currentEntryID
         self.playbackRate = playbackRate
+    }
+
+    func renamed(to name: String) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate
+        )
+    }
+
+    func replacingEntries(
+        _ entries: [PlaylistEntry],
+        currentEntryID: PlaylistEntryID?
+    ) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate
+        )
     }
 }
 
@@ -265,10 +356,20 @@ public enum PlaylistPersistenceError: Error, Equatable, Sendable {
     case emptyName
     case emptyNowPlayingList
     case missingBookmark(String)
+    case playlistNotFound(PlaylistID)
+    case entryNotFound(PlaylistEntryID)
+    case deletionConfirmationRequired(PlaylistID)
+    case invalidDestination(Int)
 }
 
 public protocol PersistentMediaAccess: Sendable {
     func restore(_ reference: PersistentLocalMediaReference) async throws -> LocalMedia
+}
+
+public protocol PersistentExternalSubtitleAccess: Sendable {
+    func restore(
+        _ reference: PersistentExternalSubtitleReference
+    ) async throws -> LocalExternalSubtitle
 }
 
 public struct LastKnownPathMediaAccess: PersistentMediaAccess {
@@ -278,6 +379,27 @@ public struct LastKnownPathMediaAccess: PersistentMediaAccess {
         LocalMedia(
             url: URL(fileURLWithPath: reference.lastKnownPath),
             referenceID: reference.id,
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity
+        )
+    }
+}
+
+public enum ExternalSubtitleAccessError: Error, Equatable, Sendable {
+    case missing(String)
+}
+
+public struct LastKnownPathExternalSubtitleAccess: PersistentExternalSubtitleAccess {
+    public init() {}
+
+    public func restore(
+        _ reference: PersistentExternalSubtitleReference
+    ) throws -> LocalExternalSubtitle {
+        guard FileManager.default.isReadableFile(atPath: reference.lastKnownPath) else {
+            throw ExternalSubtitleAccessError.missing(reference.lastKnownPath)
+        }
+        return LocalExternalSubtitle(
+            url: URL(fileURLWithPath: reference.lastKnownPath),
             bookmark: reference.bookmark
         )
     }
