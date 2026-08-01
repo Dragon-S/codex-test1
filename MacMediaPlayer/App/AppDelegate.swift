@@ -10,7 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let videoView = PlaybackCanvasView(frame: .zero)
         let engine = LibMPVPlaybackEngine(videoView: videoView)
-        let coordinator = PlaybackCoordinator(engine: engine)
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: makePlaylistStore(),
+            persistentMediaAccess: SecurityScopedMediaAccess()
+        )
         self.coordinator = coordinator
 
         let viewController = PlaybackViewController(
@@ -27,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.delegate = self
         window.makeKeyAndOrderFront(nil)
         self.window = window
+
+        Task {
+            try? await coordinator.restorePersistentState()
+        }
 
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -57,10 +65,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func play(_ urls: [URL]) {
         let newSecurityScopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+        let media = urls.map { url in
+            let bookmark = try? url.bookmarkData(
+                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            return LocalMedia(url: url, bookmark: bookmark)
+        }
         releaseSecurityScope()
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
-        Task { await coordinator.open(urls.map(LocalMedia.init(url:))) }
+        Task { await coordinator.open(media) }
+    }
+
+    private func makePlaylistStore() -> any PlaylistStore {
+        do {
+            let applicationSupport = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            let directory = applicationSupport.appending(
+                path: Bundle.main.bundleIdentifier ?? "MacMediaPlayer",
+                directoryHint: .isDirectory
+            )
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            return try SQLitePlaylistStore(databaseURL: directory.appending(path: "playlists.sqlite"))
+        } catch {
+            return UnavailablePlaylistStore(message: "无法打开 Playlist 存储：\(error.localizedDescription)")
+        }
     }
 
     private func releaseSecurityScope() {

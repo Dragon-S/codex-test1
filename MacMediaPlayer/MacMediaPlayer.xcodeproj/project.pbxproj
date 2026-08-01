@@ -18,6 +18,9 @@
 		A10000000000000000000009 /* MPVClient.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000109 /* MPVClient.m */; };
 		A1000000000000000000000A /* PlaybackEngineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000010A /* PlaybackEngineContractTests.swift */; };
 		A1000000000000000000000B /* PlaybackEngineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000111 /* PlaybackEngineContract.swift */; };
+		A1000000000000000000000C /* PlaylistModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000112 /* PlaylistModels.swift */; };
+		A1000000000000000000000D /* PlaylistStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000113 /* PlaylistStore.swift */; };
+		A1000000000000000000000E /* SecurityScopedMediaAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000114 /* SecurityScopedMediaAccess.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +52,9 @@
 		A1000000000000000000010A /* PlaybackEngineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackEngineContractTests.swift; path = ../MacMediaPlayerTests/PlaybackEngineContractTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000110 /* MacMediaPlayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacMediaPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000111 /* PlaybackEngineContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackEngineContract.swift; path = ../Tests/MediaPlayerCoreTests/PlaybackEngineContract.swift; sourceTree = "<group>"; };
+		A10000000000000000000112 /* PlaylistModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaylistModels.swift; path = ../Sources/MediaPlayerCore/PlaylistModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000113 /* PlaylistStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaylistStore.swift; path = ../Sources/MediaPlayerCore/PlaylistStore.swift; sourceTree = "<group>"; };
+		A10000000000000000000114 /* SecurityScopedMediaAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedMediaAccess.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +83,7 @@
 				A10000000000000000000106 /* PlaybackControlsView.swift */,
 				A10000000000000000000107 /* PlaybackViewController.swift */,
 				A10000000000000000000108 /* LibMPVPlaybackEngine.swift */,
+				A10000000000000000000114 /* SecurityScopedMediaAccess.swift */,
 				A10000000000000000000109 /* MPVClient.m */,
 				A1000000000000000000010B /* MPVClient.h */,
 				A1000000000000000000010C /* MacMediaPlayer-Bridging-Header.h */,
@@ -86,7 +93,7 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */); name = Core; sourceTree = "<group>"; };
+		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */, A10000000000000000000112 /* PlaylistModels.swift */, A10000000000000000000113 /* PlaylistStore.swift */); name = Core; sourceTree = "<group>"; };
 		A10000000000000000000303 /* Tests */ = {isa = PBXGroup; children = (A1000000000000000000010A /* PlaybackEngineContractTests.swift */, A10000000000000000000111 /* PlaybackEngineContract.swift */); name = Tests; sourceTree = "<group>"; };
 		A10000000000000000000304 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000100 /* MacMediaPlayer.app */, A10000000000000000000110 /* MacMediaPlayerTests.xctest */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -155,7 +162,7 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E); runOnlyForDeploymentPostprocessing = 0; };
 		A10000000000000000000222 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A1000000000000000000000B); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

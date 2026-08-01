@@ -16,7 +16,7 @@ struct PlaybackCoordinatorTests {
 
         await coordinator.open(media)
 
-        #expect(coordinator.nowPlayingList.entries == media)
+        #expect(coordinator.nowPlayingList.entries.map(\.media) == media)
         #expect(coordinator.nowPlayingList.currentIndex == 0)
         #expect(coordinator.nowPlayingList.currentMedia == media[0])
         #expect(await engine.commands == [.load(media[0])])
@@ -32,7 +32,8 @@ struct PlaybackCoordinatorTests {
         await coordinator.open(oldMedia)
         await coordinator.open(newMedia)
 
-        #expect(coordinator.nowPlayingList == NowPlayingList(entries: newMedia, currentIndex: 0))
+        #expect(coordinator.nowPlayingList.entries.map(\.media) == newMedia)
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
         #expect(await engine.commands == [.load(oldMedia[0]), .load(newMedia[0])])
     }
 
@@ -52,7 +53,8 @@ struct PlaybackCoordinatorTests {
         engine.send(.playbackStateChanged(.playing, loadID: newLoadID))
         try await wait(for: .playing, coordinator: coordinator)
 
-        #expect(coordinator.nowPlayingList == NowPlayingList(entries: newMedia, currentIndex: 0))
+        #expect(coordinator.nowPlayingList.entries.map(\.media) == newMedia)
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
         #expect(await engine.commands == [.load(oldMedia[0]), .load(newMedia[0])])
     }
 

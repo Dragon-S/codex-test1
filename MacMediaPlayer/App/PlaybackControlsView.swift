@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct PlaybackControlsView: View {
@@ -58,6 +59,7 @@ struct PlaybackControlsView: View {
 
 struct NowPlayingListView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
+    @State private var playlistName = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -65,17 +67,50 @@ struct NowPlayingListView: View {
                 .font(.headline)
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
-            List(Array(coordinator.nowPlayingList.entries.enumerated()), id: \.offset) { index, media in
+            HStack {
+                TextField("Playlist 名称", text: $playlistName)
+                    .textFieldStyle(.roundedBorder)
+                Button("存储") {
+                    Task {
+                        if (try? await coordinator.saveNowPlayingList(as: playlistName)) != nil {
+                            playlistName = ""
+                        }
+                    }
+                }
+                .disabled(playlistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || coordinator.nowPlayingList.entries.isEmpty)
+            }
+            .padding(.horizontal, 12)
+            persistenceNotice
+                .padding(.horizontal, 12)
+            List(Array(coordinator.nowPlayingList.entries.enumerated()), id: \.element.id) { index, entry in
                 HStack {
                     Image(systemName: index == coordinator.nowPlayingList.currentIndex ? "play.fill" : "circle")
                         .accessibilityHidden(true)
-                    Text(media.url.lastPathComponent)
+                    Text(entry.media.url.lastPathComponent)
                         .lineLimit(1)
                 }
-                .accessibilityLabel(media.url.lastPathComponent)
+                .accessibilityLabel(entry.media.url.lastPathComponent)
                 .accessibilityValue(index == coordinator.nowPlayingList.currentIndex ? "当前播放" : "")
             }
         }
         .frame(minWidth: 220, idealWidth: 260)
+    }
+
+    @ViewBuilder
+    private var persistenceNotice: some View {
+        switch coordinator.persistenceNotice {
+        case .none:
+            EmptyView()
+        case let .saved(name):
+            Label("已存储为 \(name)", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case let .nameAlreadyExists(name):
+            Label("名称“\(name)”已存在，原数据未更改", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        case let .failed(message):
+            Label(message, systemImage: "xmark.octagon.fill")
+                .foregroundStyle(.red)
+        }
     }
 }
