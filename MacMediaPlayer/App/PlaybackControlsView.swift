@@ -5,6 +5,7 @@ struct PlaybackControlsView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let openMedia: () -> Void
     let openExternalSubtitle: () -> Void
+    let relocateExternalSubtitle: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -101,7 +102,10 @@ struct PlaybackControlsView: View {
                 )
             }
             Divider()
-            Button("选择或重新定位外部字幕…", action: openExternalSubtitle)
+            Button("选择外部字幕…", action: openExternalSubtitle)
+            if coordinator.currentExternalSubtitleReferenceID != nil {
+                Button("重新定位外部字幕…", action: relocateExternalSubtitle)
+            }
         }
         .disabled(coordinator.nowPlayingList.currentMedia == nil)
         .accessibilityLabel("选择字幕")

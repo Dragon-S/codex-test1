@@ -73,6 +73,7 @@ public struct LocalExternalSubtitle: Equatable, Sendable {
 }
 
 public enum SubtitlePreference: Equatable, Codable, Sendable {
+    case automatic
     case off
     case embedded(TrackPreference)
     case external(PersistentExternalSubtitleReference)
@@ -84,7 +85,7 @@ public struct EntryPlaybackPreferences: Equatable, Codable, Sendable {
 
     public init(
         audioTrack: TrackPreference? = nil,
-        subtitle: SubtitlePreference = .off
+        subtitle: SubtitlePreference = .automatic
     ) {
         self.audioTrack = audioTrack
         self.subtitle = subtitle
@@ -98,7 +99,8 @@ public struct EntryPlaybackPreferences: Equatable, Codable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         audioTrack = try container.decodeIfPresent(TrackPreference.self, forKey: .audioTrack)
-        subtitle = try container.decodeIfPresent(SubtitlePreference.self, forKey: .subtitle) ?? .off
+        subtitle = try container.decodeIfPresent(SubtitlePreference.self, forKey: .subtitle)
+            ?? .automatic
     }
 }
 

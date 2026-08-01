@@ -588,7 +588,30 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     public func selectExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
-        let existingReferenceID = currentExternalSubtitleReferenceID
+        await applyExternalSubtitle(
+            subtitle,
+            referenceID: ExternalSubtitleReferenceID(),
+            relocatingSharedReference: false
+        )
+    }
+
+    public func relocateExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
+        guard let referenceID = currentExternalSubtitleReferenceID else {
+            trackNotice = .selectionFailed("没有可重新定位的外部字幕")
+            return
+        }
+        await applyExternalSubtitle(
+            subtitle,
+            referenceID: referenceID,
+            relocatingSharedReference: true
+        )
+    }
+
+    private func applyExternalSubtitle(
+        _ subtitle: LocalExternalSubtitle,
+        referenceID: ExternalSubtitleReferenceID,
+        relocatingSharedReference: Bool
+    ) async {
         switch await engine.loadExternalSubtitle(subtitle) {
         case .loaded:
             guard let bookmark = subtitle.bookmark else {
@@ -596,16 +619,16 @@ public final class PlaybackCoordinator: ObservableObject {
                 return
             }
             let reference = PersistentExternalSubtitleReference(
-                id: subtitle.referenceID,
+                id: referenceID,
                 bookmark: bookmark,
                 lastKnownPath: subtitle.url.path
             )
             trackSelection = TrackSelectionState(
                 audioTrackID: trackSelection.audioTrackID,
-                subtitle: .external(subtitle.referenceID)
+                subtitle: .external(referenceID)
             )
-            let saved = if existingReferenceID == reference.id {
-                await relocateExternalSubtitle(reference)
+            let saved = if relocatingSharedReference {
+                await updateExternalSubtitleReference(reference)
             } else {
                 await updateCurrentPreferences { current in
                     EntryPlaybackPreferences(
@@ -748,17 +771,27 @@ public final class PlaybackCoordinator: ObservableObject {
         let preferredAudio = preferences.audioTrack.flatMap { preference in
             catalog.audioTracks.first(where: { $0.preference == preference })
         }
-        let selectedAudio = preferredAudio ?? defaultAudioTrack(in: catalog.audioTracks)
-        if let selectedAudio, await engine.selectAudioTrack(selectedAudio.id) {
+        let defaultAudio = defaultAudioTrack(in: catalog.audioTracks)
+        var selectedAudio: AudioTrackOption?
+        if let preferredAudio, await engine.selectAudioTrack(preferredAudio.id) {
+            selectedAudio = preferredAudio
+        } else if let defaultAudio,
+                  defaultAudio.id != preferredAudio?.id,
+                  await engine.selectAudioTrack(defaultAudio.id) {
+            selectedAudio = defaultAudio
+            if preferences.audioTrack != nil {
+                trackNotice = .preferenceUnavailable(
+                    "原音轨不可用，已改用 \(defaultAudio.displayName)"
+                )
+            }
+        } else if preferences.audioTrack != nil {
+            trackNotice = .preferenceUnavailable("原音轨不可用，且没有可用回退音轨")
+        }
+        if let selectedAudio {
             trackSelection = TrackSelectionState(
                 audioTrackID: selectedAudio.id,
                 subtitle: trackSelection.subtitle
             )
-            if preferences.audioTrack != nil, preferredAudio == nil {
-                trackNotice = .preferenceUnavailable(
-                    "原音轨不可用，已改用 \(selectedAudio.displayName)"
-                )
-            }
         }
 
         switch preferences.subtitle {
@@ -801,8 +834,14 @@ public final class PlaybackCoordinator: ObservableObject {
                     damaged: false
                 )
             }
-        case .off:
+        case .automatic:
             await applyDefaultSubtitle(catalog, selectedAudio: selectedAudio)
+        case .off:
+            if await engine.selectSubtitle(.off) {
+                setSelectedSubtitle(.off)
+            } else {
+                trackNotice = .selectionFailed("无法恢复关闭字幕偏好")
+            }
         }
     }
 
@@ -950,7 +989,7 @@ public final class PlaybackCoordinator: ObservableObject {
         return true
     }
 
-    private func relocateExternalSubtitle(
+    private func updateExternalSubtitleReference(
         _ reference: PersistentExternalSubtitleReference
     ) async -> Bool {
         if activePlaylistID != nil {

@@ -27,7 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
-            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle() },
+            openExternalSubtitle: { [weak self] in self?.openExternalSubtitle(relocating: false) },
+            relocateExternalSubtitle: { [weak self] in
+                self?.openExternalSubtitle(relocating: true)
+            },
             addMediaToPlaylist: { [weak self] playlistID in
                 self?.addMedia(to: playlistID)
             },
@@ -94,10 +97,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task { await coordinator.open(media) }
     }
 
-    private func openExternalSubtitle() {
+    private func openExternalSubtitle(relocating: Bool) {
         guard let window, let coordinator else { return }
+        let referenceID: ExternalSubtitleReferenceID
+        if relocating {
+            guard let currentReferenceID = coordinator.currentExternalSubtitleReferenceID else {
+                return
+            }
+            referenceID = currentReferenceID
+        } else {
+            referenceID = ExternalSubtitleReferenceID()
+        }
         let panel = NSOpenPanel()
-        panel.title = "选择外部字幕"
+        panel.title = relocating ? "重新定位外部字幕" : "选择外部字幕"
         panel.prompt = "选择"
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -116,11 +128,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 )
                 let subtitle = LocalExternalSubtitle(
                     url: url,
-                    referenceID: coordinator.currentExternalSubtitleReferenceID
-                        ?? ExternalSubtitleReferenceID(),
+                    referenceID: referenceID,
                     bookmark: bookmark
                 )
-                await coordinator.selectExternalSubtitle(subtitle)
+                if relocating {
+                    await coordinator.relocateExternalSubtitle(subtitle)
+                } else {
+                    await coordinator.selectExternalSubtitle(subtitle)
+                }
             }
         }
     }

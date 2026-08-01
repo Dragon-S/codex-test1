@@ -11,6 +11,7 @@ final class PlaybackViewController: NSViewController {
         coordinator: PlaybackCoordinator,
         openMedia: @escaping () -> Void,
         openExternalSubtitle: @escaping () -> Void,
+        relocateExternalSubtitle: @escaping () -> Void,
         addMediaToPlaylist: @escaping (PlaylistID) -> Void,
         videoView: PlaybackCanvasView
     ) {
@@ -19,7 +20,8 @@ final class PlaybackViewController: NSViewController {
             rootView: PlaybackControlsView(
                 coordinator: coordinator,
                 openMedia: openMedia,
-                openExternalSubtitle: openExternalSubtitle
+                openExternalSubtitle: openExternalSubtitle,
+                relocateExternalSubtitle: relocateExternalSubtitle
             )
         )
         nowPlayingListView = NSHostingView(
