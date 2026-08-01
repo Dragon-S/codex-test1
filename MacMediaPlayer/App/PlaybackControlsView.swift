@@ -53,6 +53,15 @@ struct PlaybackControlsView: View {
                     Text("2×").tag(2.0)
                 }
                 .frame(width: 105)
+                Picker("跳转", selection: Binding(
+                    get: { coordinator.seekStep },
+                    set: { step in Task { await coordinator.setSeekStep(step) } }
+                )) {
+                    Text("5 秒").tag(5.0)
+                    Text("10 秒").tag(10.0)
+                    Text("30 秒").tag(30.0)
+                }
+                .frame(width: 100)
                 Button(coordinator.isMuted ? "取消静音" : "静音") {
                     Task { await coordinator.setMuted(!coordinator.isMuted) }
                 }

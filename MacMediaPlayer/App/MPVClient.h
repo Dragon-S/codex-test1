@@ -23,6 +23,7 @@ typedef NS_ENUM(NSInteger, MPVClientFailure) {
 @property (nonatomic, copy, nullable) void (^failureHandler)(MPVClientFailure failure, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^playbackEndedHandler)(uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^timelineHandler)(double position, double duration, uint64_t loadID);
+@property (nonatomic, copy, nullable) void (^settingsHandler)(double rate, double volume, BOOL muted, uint64_t loadID);
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID;

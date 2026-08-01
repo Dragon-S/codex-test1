@@ -27,6 +27,9 @@ static void MPVRenderUpdate(void *context);
     double _duration;
     CFAbsoluteTime _lastTimelineReportTime;
     BOOL _forceNextPositionReport;
+    double _playbackRate;
+    double _playerVolume;
+    BOOL _muted;
 }
 @end
 
@@ -72,6 +75,12 @@ static void MPVRenderUpdate(void *context);
     mpv_observe_property(_handle, 1, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(_handle, 2, "time-pos", MPV_FORMAT_DOUBLE);
     mpv_observe_property(_handle, 3, "duration", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 4, "speed", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 5, "volume", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(_handle, 6, "mute", MPV_FORMAT_FLAG);
+    _playbackRate = 1;
+    _playerVolume = 1;
+    _muted = NO;
     [self startEventTimer];
     _videoView.postsFrameChangedNotifications = YES;
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -330,6 +339,21 @@ static void MPVRenderUpdate(void *context);
     } else if (strcmp(property->name, "duration") == 0 && property->format == MPV_FORMAT_DOUBLE) {
         _duration = *(double *)property->data;
         [self reportTimelineIfNeeded:YES];
+    } else if (strcmp(property->name, "speed") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _playbackRate = *(double *)property->data;
+        [self reportSettings];
+    } else if (strcmp(property->name, "volume") == 0 && property->format == MPV_FORMAT_DOUBLE) {
+        _playerVolume = *(double *)property->data / 100;
+        [self reportSettings];
+    } else if (strcmp(property->name, "mute") == 0 && property->format == MPV_FORMAT_FLAG) {
+        _muted = *(int *)property->data != 0;
+        [self reportSettings];
+    }
+}
+
+- (void)reportSettings {
+    if (self.settingsHandler != nil) {
+        self.settingsHandler(_playbackRate, _playerVolume, _muted, _eventLoadID);
     }
 }
 

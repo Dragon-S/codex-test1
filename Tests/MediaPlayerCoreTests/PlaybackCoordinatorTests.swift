@@ -259,6 +259,11 @@ private actor FakePlaybackEngine: PlaybackEngine {
         commands.append(.stop)
     }
 
+    func seek(to position: TimeInterval) {}
+    func setPlaybackRate(_ rate: Double) {}
+    func setPlayerVolume(_ volume: Double) {}
+    func setMuted(_ isMuted: Bool) {}
+
     func sendState(_ state: PlaybackState) {
         guard let loadID = loadIDs.last else { return }
         continuation.yield(.playbackStateChanged(state, loadID: loadID))

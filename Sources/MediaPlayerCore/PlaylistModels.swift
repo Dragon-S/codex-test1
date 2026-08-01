@@ -101,17 +101,20 @@ public struct PlaylistLibrary: Equatable, Codable, Sendable {
     public let activePlaylistID: PlaylistID?
     public let playerVolume: Double
     public let isMuted: Bool
+    public let seekStep: TimeInterval
 
     public init(
         playlists: [Playlist] = [],
         activePlaylistID: PlaylistID? = nil,
         playerVolume: Double = 1,
-        isMuted: Bool = false
+        isMuted: Bool = false,
+        seekStep: TimeInterval = 10
     ) {
         self.playlists = playlists
         self.activePlaylistID = activePlaylistID
         self.playerVolume = playerVolume
         self.isMuted = isMuted
+        self.seekStep = seekStep
     }
 }
 
@@ -145,6 +148,7 @@ public struct PlaybackPersistenceSnapshot: Equatable, Sendable {
     public let playbackRate: Double
     public let playerVolume: Double
     public let isMuted: Bool
+    public let seekStep: TimeInterval
 
     public init(
         playlistID: PlaylistID?,
@@ -153,7 +157,8 @@ public struct PlaybackPersistenceSnapshot: Equatable, Sendable {
         isCompleted: Bool,
         playbackRate: Double,
         playerVolume: Double,
-        isMuted: Bool
+        isMuted: Bool,
+        seekStep: TimeInterval = 10
     ) {
         self.playlistID = playlistID
         self.entryID = entryID
@@ -162,6 +167,39 @@ public struct PlaybackPersistenceSnapshot: Equatable, Sendable {
         self.playbackRate = playbackRate
         self.playerVolume = playerVolume
         self.isMuted = isMuted
+        self.seekStep = seekStep
+    }
+}
+
+extension PlaylistLibrary {
+    func applying(_ snapshot: PlaybackPersistenceSnapshot) -> PlaylistLibrary {
+        let updatedPlaylists = playlists.map { playlist in
+            guard playlist.id == snapshot.playlistID else { return playlist }
+            let updatedEntries = playlist.entries.map { entry in
+                guard entry.id == snapshot.entryID else { return entry }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: entry.media,
+                    resumePosition: snapshot.resumePosition,
+                    isCompleted: snapshot.isCompleted,
+                    playbackPreferences: entry.playbackPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: updatedEntries,
+                currentEntryID: snapshot.entryID ?? playlist.currentEntryID,
+                playbackRate: snapshot.playbackRate
+            )
+        }
+        return PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID,
+            playerVolume: snapshot.playerVolume,
+            isMuted: snapshot.isMuted,
+            seekStep: snapshot.seekStep
+        )
     }
 }
 
@@ -201,7 +239,7 @@ extension Playlist {
 
 extension PlaylistLibrary {
     enum CodingKeys: String, CodingKey {
-        case playlists, activePlaylistID, playerVolume, isMuted
+        case playlists, activePlaylistID, playerVolume, isMuted, seekStep
     }
 
     public init(from decoder: any Decoder) throws {
@@ -210,7 +248,8 @@ extension PlaylistLibrary {
             playlists: try values.decode([Playlist].self, forKey: .playlists),
             activePlaylistID: try values.decodeIfPresent(PlaylistID.self, forKey: .activePlaylistID),
             playerVolume: try values.decodeIfPresent(Double.self, forKey: .playerVolume) ?? 1,
-            isMuted: try values.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
+            isMuted: try values.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false,
+            seekStep: try values.decodeIfPresent(TimeInterval.self, forKey: .seekStep) ?? 10
         )
     }
 }

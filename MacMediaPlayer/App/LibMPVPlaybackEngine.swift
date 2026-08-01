@@ -27,6 +27,12 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
                 loadID: PlaybackLoadID(rawValue: rawLoadID)
             ))
         }
+        client.settingsHandler = { [continuation] rate, volume, isMuted, rawLoadID in
+            continuation.yield(.settingsChanged(
+                PlaybackSettings(rate: rate, volume: volume, isMuted: isMuted),
+                loadID: PlaybackLoadID(rawValue: rawLoadID)
+            ))
+        }
     }
 
     deinit {

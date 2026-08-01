@@ -223,7 +223,8 @@ private extension PlaylistLibrary {
             playlists: playlists + [playlist],
             activePlaylistID: playlist.id,
             playerVolume: playerVolume,
-            isMuted: isMuted
+            isMuted: isMuted,
+            seekStep: seekStep
         )
     }
 
@@ -256,36 +257,9 @@ private extension PlaylistLibrary {
             playlists: updatedPlaylists,
             activePlaylistID: activePlaylistID,
             playerVolume: playerVolume,
-            isMuted: isMuted
+            isMuted: isMuted,
+            seekStep: seekStep
         )
     }
 
-    func applying(_ snapshot: PlaybackPersistenceSnapshot) -> PlaylistLibrary {
-        let updatedPlaylists = playlists.map { playlist in
-            guard playlist.id == snapshot.playlistID else { return playlist }
-            let updatedEntries = playlist.entries.map { entry in
-                guard entry.id == snapshot.entryID else { return entry }
-                return PlaylistEntry(
-                    id: entry.id,
-                    media: entry.media,
-                    resumePosition: snapshot.resumePosition,
-                    isCompleted: snapshot.isCompleted,
-                    playbackPreferences: entry.playbackPreferences
-                )
-            }
-            return Playlist(
-                id: playlist.id,
-                name: playlist.name,
-                entries: updatedEntries,
-                currentEntryID: snapshot.entryID ?? playlist.currentEntryID,
-                playbackRate: snapshot.playbackRate
-            )
-        }
-        return PlaylistLibrary(
-            playlists: updatedPlaylists,
-            activePlaylistID: activePlaylistID,
-            playerVolume: snapshot.playerVolume,
-            isMuted: snapshot.isMuted
-        )
-    }
 }

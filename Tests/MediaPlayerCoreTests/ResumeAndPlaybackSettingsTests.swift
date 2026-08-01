@@ -21,12 +21,15 @@ struct ResumeAndPlaybackSettingsTests {
         try await Task.sleep(for: .milliseconds(10))
         #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 11)
 
+        fixture.timeSource.advance(by: 4)
         await fixture.engine.sendTimeline(position: 17, duration: 120)
-        try await waitUntil {
-            try await storedEntry(in: fixture.store, at: 0).resumePosition == 17
-        }
+        try await Task.sleep(for: .milliseconds(10))
+        #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 11)
+        fixture.timeSource.advance(by: 1)
         await fixture.engine.sendTimeline(position: 19, duration: 120)
-        try await waitUntil { fixture.coordinator.position == 19 }
+        try await waitUntil {
+            try await storedEntry(in: fixture.store, at: 0).resumePosition == 19
+        }
         await fixture.coordinator.pause()
 
         #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 19)
@@ -57,11 +60,24 @@ struct ResumeAndPlaybackSettingsTests {
         let fixture = try await makePersistentFixture(entryCount: 1, resumePositions: [48])
 
         await fixture.coordinator.seek(to: 0)
+        await fixture.engine.sendTimeline(position: 0, duration: 120)
         await fixture.coordinator.prepareToTerminate()
 
         let entry = try await storedEntry(in: fixture.store, at: 0)
         #expect(entry.resumePosition == nil)
         #expect(!entry.isCompleted)
+    }
+
+    @Test("定位失败不会清除已保存的续播状态")
+    func failedSeekKeepsPersistedProgress() async throws {
+        let fixture = try await makePersistentFixture(entryCount: 1, resumePositions: [48])
+
+        await fixture.coordinator.seek(to: 0)
+        await fixture.engine.sendState(.failed(.engineUnavailable))
+        try await waitUntil { fixture.coordinator.state == .failed(.engineUnavailable) }
+
+        #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 48)
+        #expect(fixture.coordinator.position == 48)
     }
 
     @Test("同一本地媒体的不同条目保存互不影响")
@@ -95,6 +111,7 @@ struct ResumeAndPlaybackSettingsTests {
         await fixture.engine.sendTimeline(position: 40, duration: 100)
         try await waitUntil { fixture.coordinator.position == 40 }
 
+        await fixture.coordinator.setSeekStep(30)
         await fixture.coordinator.skipForward()
         await fixture.coordinator.skipBackward()
         await fixture.coordinator.setPlaybackRate(1.5)
@@ -102,12 +119,13 @@ struct ResumeAndPlaybackSettingsTests {
         await fixture.coordinator.setMuted(true)
 
         #expect(await fixture.engine.commands.suffix(5) == [
-            .seek(to: 50), .seek(to: 40), .setRate(1.5), .setVolume(0.35), .setMuted(true),
+            .seek(to: 70), .seek(to: 40), .setRate(1.5), .setVolume(0.35), .setMuted(true),
         ])
         let library = await fixture.store.loadLibrary()
         #expect(library.playlists[0].playbackRate == 1.5)
         #expect(library.playerVolume == 0.35)
         #expect(library.isMuted)
+        #expect(library.seekStep == 30)
 
         let restoredEngine = ProgressFakePlaybackEngine()
         let restored = PlaybackCoordinator(engine: restoredEngine, playlistStore: fixture.store)
@@ -115,6 +133,7 @@ struct ResumeAndPlaybackSettingsTests {
         #expect(restored.playbackRate == 1.5)
         #expect(restored.playerVolume == 0.35)
         #expect(restored.isMuted)
+        #expect(restored.seekStep == 30)
         #expect(restored.state == .paused)
         await restored.play()
         #expect(await restoredEngine.commands == [
@@ -132,9 +151,11 @@ struct ResumeAndPlaybackSettingsTests {
 
         await coordinator.setPlayerVolume(0.25)
         await coordinator.setMuted(true)
+        await coordinator.setSeekStep(30)
 
         #expect(coordinator.playerVolume == 1)
         #expect(!coordinator.isMuted)
+        #expect(coordinator.seekStep == 10)
         #expect(coordinator.persistenceNotice == .failed("磁盘不可用"))
         #expect(await engine.commands == [
             .setVolume(0.25), .setVolume(1), .setMuted(true), .setMuted(false),
@@ -164,10 +185,20 @@ struct ResumeAndPlaybackSettingsTests {
         let store = InMemoryPlaylistStore()
         try await store.create(playlist)
         let engine = ProgressFakePlaybackEngine()
-        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
+        let timeSource = MutablePlaybackTimeSource()
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            timeSource: timeSource
+        )
         try await coordinator.restorePersistentState()
         await coordinator.play()
-        return PersistentFixture(coordinator: coordinator, engine: engine, store: store)
+        return PersistentFixture(
+            coordinator: coordinator,
+            engine: engine,
+            store: store,
+            timeSource: timeSource
+        )
     }
 
     private func storedEntry(
@@ -194,6 +225,15 @@ private struct PersistentFixture {
     let coordinator: PlaybackCoordinator
     let engine: ProgressFakePlaybackEngine
     let store: InMemoryPlaylistStore
+    let timeSource: MutablePlaybackTimeSource
+}
+
+private final class MutablePlaybackTimeSource: PlaybackTimeSource, @unchecked Sendable {
+    private(set) var now: TimeInterval = 0
+
+    func advance(by interval: TimeInterval) {
+        now += interval
+    }
 }
 
 private enum ProgressEngineCommand: Equatable, Sendable {
@@ -233,5 +273,10 @@ private actor ProgressFakePlaybackEngine: PlaybackEngine {
     func sendTimeline(position: TimeInterval, duration: TimeInterval) {
         guard let loadID else { return }
         continuation.yield(.timelineChanged(position: position, duration: duration, loadID: loadID))
+    }
+
+    func sendState(_ state: PlaybackState) {
+        guard let loadID else { return }
+        continuation.yield(.playbackStateChanged(state, loadID: loadID))
     }
 }

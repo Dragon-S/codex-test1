@@ -265,4 +265,8 @@ private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
     func stop() { commands.append(.stop) }
+    func seek(to position: TimeInterval) {}
+    func setPlaybackRate(_ rate: Double) {}
+    func setPlayerVolume(_ volume: Double) {}
+    func setMuted(_ isMuted: Bool) {}
 }
