@@ -130,6 +130,10 @@ public enum PlaylistPersistenceError: Error, Equatable, Sendable {
     case emptyName
     case emptyNowPlayingList
     case missingBookmark(String)
+    case playlistNotFound(PlaylistID)
+    case entryNotFound(PlaylistEntryID)
+    case deletionConfirmationRequired(PlaylistID)
+    case invalidDestination(Int)
 }
 
 public protocol PersistentMediaAccess: Sendable {

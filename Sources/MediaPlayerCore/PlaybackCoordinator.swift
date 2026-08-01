@@ -33,6 +33,8 @@ public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var nowPlayingList = NowPlayingList()
     @Published public private(set) var playlists: [Playlist] = []
     @Published public private(set) var activePlaylistID: PlaylistID?
+    @Published public private(set) var browsingPlaylistID: PlaylistID?
+    @Published public private(set) var detachedNowPlayingEntry: NowPlayingEntry?
     @Published public private(set) var persistenceNotice: PlaylistPersistenceNotice = .none
 
     private let engine: any PlaybackEngine
@@ -43,6 +45,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private var isRestoredMediaPendingLoad = false
     private var activeLoadID: PlaybackLoadID?
     private var nextLoadID: UInt64 = 0
+    private var detachedSuccessorEntryID: PlaylistEntryID?
 
     public init(
         engine: any PlaybackEngine,
@@ -72,10 +75,289 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let first = entries.first else { return }
         nowPlayingList = NowPlayingList(entries: entries, currentIndex: 0)
         activePlaylistID = nil
+        detachedNowPlayingEntry = nil
+        detachedSuccessorEntryID = nil
         persistenceNotice = .none
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = true
         await load(first.media)
+    }
+
+    @discardableResult
+    public func createPlaylist(named requestedName: String) async throws -> Playlist {
+        let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            persistenceNotice = .failed("Playlist 名称不能为空")
+            throw PlaylistPersistenceError.emptyName
+        }
+        let playlist = Playlist(name: name, entries: [])
+        let library = PlaylistLibrary(
+            playlists: playlists + [playlist],
+            activePlaylistID: activePlaylistID
+        )
+        do {
+            try await playlistStore.commit(library)
+            playlists = library.playlists
+            browsingPlaylistID = playlist.id
+            persistenceNotice = .saved(name)
+            return playlist
+        } catch let error as PlaylistStoreError {
+            record(error)
+            throw error
+        }
+    }
+
+    public func renamePlaylist(id: PlaylistID, to requestedName: String) async throws {
+        let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            persistenceNotice = .failed("Playlist 名称不能为空")
+            throw PlaylistPersistenceError.emptyName
+        }
+        guard let index = playlists.firstIndex(where: { $0.id == id }) else {
+            throw PlaylistPersistenceError.playlistNotFound(id)
+        }
+        let existing = playlists[index]
+        let renamed = Playlist(
+            id: existing.id,
+            name: name,
+            entries: existing.entries,
+            currentEntryID: existing.currentEntryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[index] = renamed
+        let library = PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID
+        )
+        do {
+            try await playlistStore.commit(library)
+            playlists = updatedPlaylists
+            browsingPlaylistID = id
+            persistenceNotice = .saved(name)
+        } catch let error as PlaylistStoreError {
+            record(error)
+            throw error
+        }
+    }
+
+    public func browsePlaylist(_ id: PlaylistID) {
+        guard playlists.contains(where: { $0.id == id }) else { return }
+        browsingPlaylistID = id
+    }
+
+    @discardableResult
+    public func add(_ media: LocalMedia, to playlistID: PlaylistID) async throws -> PlaylistEntry {
+        guard let bookmark = media.bookmark else {
+            persistenceNotice = .failed("无法持久保存 \(media.url.lastPathComponent) 的只读访问权限")
+            throw PlaylistPersistenceError.missingBookmark(media.url.path)
+        }
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let entry = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: media.referenceID,
+            bookmark: bookmark,
+            lastKnownPath: media.url.path
+        ))
+        let playlist = playlists[playlistIndex]
+        let updatedPlaylist = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: playlist.entries + [entry],
+            currentEntryID: playlist.currentEntryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = updatedPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        if activePlaylistID == playlistID {
+            nowPlayingList = NowPlayingList(
+                entries: nowPlayingList.entries + [NowPlayingEntry(id: entry.id, media: media)],
+                currentIndex: nowPlayingList.currentIndex
+            )
+        }
+        browsingPlaylistID = playlistID
+        return entry
+    }
+
+    @discardableResult
+    public func duplicateEntry(
+        _ entryID: PlaylistEntryID,
+        in playlistID: PlaylistID
+    ) async throws -> PlaylistEntry {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        guard let sourceIndex = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
+            throw PlaylistPersistenceError.entryNotFound(entryID)
+        }
+        let source = playlist.entries[sourceIndex]
+        let duplicate = PlaylistEntry(media: source.media)
+        var entries = playlist.entries
+        entries.insert(duplicate, at: sourceIndex + 1)
+        let updatedPlaylist = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: entries,
+            currentEntryID: playlist.currentEntryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = updatedPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        if activePlaylistID == playlistID,
+           let sourceNowPlaying = nowPlayingList.entries.first(where: { $0.id == entryID }) {
+            var nowPlayingEntries = nowPlayingList.entries
+            nowPlayingEntries.insert(
+                NowPlayingEntry(id: duplicate.id, media: sourceNowPlaying.media),
+                at: sourceIndex + 1
+            )
+            let currentID = nowPlayingList.currentIndex.flatMap { index in
+                nowPlayingList.entries.indices.contains(index) ? nowPlayingList.entries[index].id : nil
+            }
+            nowPlayingList = NowPlayingList(
+                entries: nowPlayingEntries,
+                currentIndex: currentID.flatMap { id in
+                    nowPlayingEntries.firstIndex(where: { $0.id == id })
+                }
+            )
+        }
+        browsingPlaylistID = playlistID
+        return duplicate
+    }
+
+    public func moveEntry(
+        _ entryID: PlaylistEntryID,
+        in playlistID: PlaylistID,
+        to destination: Int
+    ) async throws {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        guard playlist.entries.indices.contains(destination) else {
+            throw PlaylistPersistenceError.invalidDestination(destination)
+        }
+        guard let source = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
+            throw PlaylistPersistenceError.entryNotFound(entryID)
+        }
+        var entries = playlist.entries
+        let moved = entries.remove(at: source)
+        entries.insert(moved, at: destination)
+        let updatedPlaylist = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: entries,
+            currentEntryID: playlist.currentEntryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = updatedPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        if activePlaylistID == playlistID {
+            reorderNowPlayingEntries(toMatch: entries)
+        }
+    }
+
+    public func removeEntry(_ entryID: PlaylistEntryID, from playlistID: PlaylistID) async throws {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        guard let removedIndex = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
+            throw PlaylistPersistenceError.entryNotFound(entryID)
+        }
+        let currentNowPlayingEntry = nowPlayingList.currentIndex.flatMap { index in
+            nowPlayingList.entries.indices.contains(index) ? nowPlayingList.entries[index] : nil
+        }
+        var entries = playlist.entries
+        entries.remove(at: removedIndex)
+        let removedCurrentEntry = activePlaylistID == playlistID
+            && currentNowPlayingEntry?.id == entryID
+        let successorID = removedCurrentEntry && entries.indices.contains(removedIndex)
+            ? entries[removedIndex].id
+            : nil
+        let updatedPlaylist = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: entries,
+            currentEntryID: removedCurrentEntry ? successorID : playlist.currentEntryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = updatedPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+
+        guard activePlaylistID == playlistID else { return }
+        if removedCurrentEntry {
+            detachedNowPlayingEntry = currentNowPlayingEntry
+            detachedSuccessorEntryID = successorID
+        }
+        reorderNowPlayingEntries(toMatch: entries)
+    }
+
+    public func deletePlaylist(_ playlistID: PlaylistID, confirmed: Bool) async throws {
+        guard playlists.contains(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let deletesPlayingSource = activePlaylistID == playlistID
+        guard !deletesPlayingSource || confirmed else {
+            throw PlaylistPersistenceError.deletionConfirmationRequired(playlistID)
+        }
+        let currentEntry = deletesPlayingSource
+            ? (nowPlayingList.currentIndex.flatMap { index in
+                nowPlayingList.entries.indices.contains(index) ? nowPlayingList.entries[index] : nil
+            } ?? detachedNowPlayingEntry)
+            : nil
+        let remainingPlaylists = playlists.filter { $0.id != playlistID }
+        try await commit(
+            remainingPlaylists,
+            activePlaylistID: deletesPlayingSource ? nil : activePlaylistID
+        )
+
+        if browsingPlaylistID == playlistID {
+            browsingPlaylistID = remainingPlaylists.first?.id
+        }
+        guard deletesPlayingSource else { return }
+        activePlaylistID = nil
+        detachedNowPlayingEntry = currentEntry
+        detachedSuccessorEntryID = nil
+        nowPlayingList = NowPlayingList()
+        isRestoredMediaPendingLoad = false
+    }
+
+    public func playEntry(_ entryID: PlaylistEntryID, in playlistID: PlaylistID) async throws {
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        let playlist = playlists[playlistIndex]
+        guard let currentIndex = playlist.entries.firstIndex(where: { $0.id == entryID }) else {
+            throw PlaylistPersistenceError.entryNotFound(entryID)
+        }
+        var restoredEntries: [NowPlayingEntry] = []
+        for entry in playlist.entries {
+            let media = try await persistentMediaAccess.restore(entry.media)
+            restoredEntries.append(NowPlayingEntry(
+                id: entry.id,
+                media: media,
+                resumePosition: entry.resumePosition,
+                playbackPreferences: entry.playbackPreferences
+            ))
+        }
+        let playingPlaylist = Playlist(
+            id: playlist.id,
+            name: playlist.name,
+            entries: playlist.entries,
+            currentEntryID: entryID
+        )
+        var updatedPlaylists = playlists
+        updatedPlaylists[playlistIndex] = playingPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: playlistID)
+        activePlaylistID = playlistID
+        browsingPlaylistID = playlistID
+        detachedNowPlayingEntry = nil
+        detachedSuccessorEntryID = nil
+        nowPlayingList = NowPlayingList(entries: restoredEntries, currentIndex: currentIndex)
+        isRestoredMediaPendingLoad = false
+        isFindingFirstPlayableMedia = false
+        await load(restoredEntries[currentIndex].media)
     }
 
     @discardableResult
@@ -115,6 +397,7 @@ public final class PlaybackCoordinator: ObservableObject {
             try await playlistStore.create(playlist)
             playlists.append(playlist)
             activePlaylistID = playlist.id
+            browsingPlaylistID = playlist.id
             persistenceNotice = .saved(name)
             return playlist
         } catch let error as PlaylistStoreError {
@@ -136,6 +419,7 @@ public final class PlaybackCoordinator: ObservableObject {
             let library = try await playlistStore.loadLibrary()
             playlists = library.playlists
             activePlaylistID = library.activePlaylistID
+            browsingPlaylistID = library.activePlaylistID ?? library.playlists.first?.id
             guard let activeID = library.activePlaylistID,
                   let activePlaylist = library.playlists.first(where: { $0.id == activeID }) else {
                 return
@@ -228,6 +512,10 @@ public final class PlaybackCoordinator: ObservableObject {
         case let .playbackStateChanged(state, loadID):
             guard loadID == activeLoadID else { return }
             self.state = state
+            if state == .stopped {
+                detachedNowPlayingEntry = nil
+                detachedSuccessorEntryID = nil
+            }
             switch state {
             case .playing, .paused:
                 isFindingFirstPlayableMedia = false
@@ -244,6 +532,22 @@ public final class PlaybackCoordinator: ObservableObject {
         case let .playbackEnded(loadID):
             guard loadID == activeLoadID else { return }
             isFindingFirstPlayableMedia = false
+            if detachedNowPlayingEntry != nil {
+                let successorID = detachedSuccessorEntryID
+                detachedNowPlayingEntry = nil
+                detachedSuccessorEntryID = nil
+                if let successorID,
+                   let successorIndex = nowPlayingList.entries.firstIndex(where: { $0.id == successorID }) {
+                    nowPlayingList = NowPlayingList(
+                        entries: nowPlayingList.entries,
+                        currentIndex: successorIndex
+                    )
+                    await load(nowPlayingList.entries[successorIndex].media)
+                } else {
+                    state = .stopped
+                }
+                return
+            }
             guard let currentIndex = nowPlayingList.currentIndex else {
                 state = .stopped
                 return
@@ -254,5 +558,46 @@ public final class PlaybackCoordinator: ObservableObject {
                 state = .stopped
             }
         }
+    }
+
+    private func record(_ error: PlaylistStoreError) {
+        switch error {
+        case let .nameAlreadyExists(name):
+            persistenceNotice = .nameAlreadyExists(name)
+        case let .unavailable(message):
+            persistenceNotice = .failed(message)
+        }
+    }
+
+    private func commit(
+        _ updatedPlaylists: [Playlist],
+        activePlaylistID: PlaylistID?
+    ) async throws {
+        let library = PlaylistLibrary(
+            playlists: updatedPlaylists,
+            activePlaylistID: activePlaylistID
+        )
+        do {
+            try await playlistStore.commit(library)
+            playlists = updatedPlaylists
+            persistenceNotice = .none
+        } catch let error as PlaylistStoreError {
+            record(error)
+            throw error
+        }
+    }
+
+    private func reorderNowPlayingEntries(toMatch entries: [PlaylistEntry]) {
+        let currentID = nowPlayingList.currentIndex.flatMap { index in
+            nowPlayingList.entries.indices.contains(index) ? nowPlayingList.entries[index].id : nil
+        }
+        let byID = Dictionary(uniqueKeysWithValues: nowPlayingList.entries.map { ($0.id, $0) })
+        let reordered = entries.compactMap { byID[$0.id] }
+        nowPlayingList = NowPlayingList(
+            entries: reordered,
+            currentIndex: currentID.flatMap { id in
+                reordered.firstIndex(where: { $0.id == id })
+            }
+        )
     }
 }

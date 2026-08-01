@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let viewController = PlaybackViewController(
             coordinator: coordinator,
             openMedia: { [weak self] in self?.openMedia() },
+            addMediaToPlaylist: { [weak self] playlistID in
+                self?.addMedia(to: playlistID)
+            },
             videoView: videoView
         )
         let window = NSWindow(contentViewController: viewController)
@@ -77,6 +80,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
         Task { await coordinator.open(media) }
+    }
+
+    private func addMedia(to playlistID: PlaylistID) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.title = "向 Playlist 添加本地媒体"
+        panel.prompt = "添加"
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = Self.supportedMediaTypes
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, !panel.urls.isEmpty else { return }
+            Task { @MainActor [weak self] in
+                guard let self, let coordinator else { return }
+                for url in panel.urls {
+                    if url.startAccessingSecurityScopedResource() {
+                        securityScopedURLs.append(url)
+                    }
+                    guard let bookmark = try? url.bookmarkData(
+                        options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                        includingResourceValuesForKeys: nil,
+                        relativeTo: nil
+                    ) else { continue }
+                    _ = try? await coordinator.add(
+                        LocalMedia(url: url, bookmark: bookmark),
+                        to: playlistID
+                    )
+                }
+            }
+        }
     }
 
     private func makePlaylistStore() -> any PlaylistStore {
