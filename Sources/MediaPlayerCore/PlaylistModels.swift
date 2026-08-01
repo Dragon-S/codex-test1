@@ -44,11 +44,18 @@ public struct PersistentLocalMediaReference: Equatable, Codable, Sendable {
     public let id: LocalMediaReferenceID
     public let bookmark: Data
     public let lastKnownPath: String
+    public let fileIdentity: Data?
 
-    public init(id: LocalMediaReferenceID, bookmark: Data, lastKnownPath: String) {
+    public init(
+        id: LocalMediaReferenceID,
+        bookmark: Data,
+        lastKnownPath: String,
+        fileIdentity: Data? = nil
+    ) {
         self.id = id
         self.bookmark = bookmark
         self.lastKnownPath = lastKnownPath
+        self.fileIdentity = fileIdentity
     }
 }
 
@@ -87,6 +94,27 @@ public struct Playlist: Equatable, Codable, Sendable, Identifiable {
         self.name = name
         self.entries = entries
         self.currentEntryID = currentEntryID
+    }
+
+    func renamed(to name: String) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID
+        )
+    }
+
+    func replacingEntries(
+        _ entries: [PlaylistEntry],
+        currentEntryID: PlaylistEntryID?
+    ) -> Playlist {
+        Playlist(
+            id: id,
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID
+        )
     }
 }
 
@@ -147,7 +175,8 @@ public struct LastKnownPathMediaAccess: PersistentMediaAccess {
         LocalMedia(
             url: URL(fileURLWithPath: reference.lastKnownPath),
             referenceID: reference.id,
-            bookmark: reference.bookmark
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity
         )
     }
 }

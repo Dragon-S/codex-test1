@@ -158,6 +158,37 @@ struct NamedPlaylistCoordinatorTests {
         #expect(await engine.commands == [.load])
     }
 
+    @Test("重复选择同一磁盘文件会共享本地媒体引用但创建独立条目")
+    func reusesMediaReferenceForTheSameFileIdentity() async throws {
+        let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine())
+        let playlist = try await coordinator.createPlaylist(named: "重复媒体")
+        let fileIdentity = Data([0xF1, 0x1E])
+        let first = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/original-name.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x51]),
+                fileIdentity: fileIdentity
+            ),
+            to: playlist.id
+        )
+        let duplicate = try await coordinator.add(
+            LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/renamed-file.mkv"),
+                referenceID: LocalMediaReferenceID(),
+                bookmark: Data([0x52]),
+                fileIdentity: fileIdentity
+            ),
+            to: playlist.id
+        )
+
+        #expect(first.id != duplicate.id)
+        #expect(first.media.id == duplicate.media.id)
+        #expect(coordinator.playlists[0].entries.map(\.media.lastKnownPath) == [
+            "/tmp/renamed-file.mkv", "/tmp/renamed-file.mkv",
+        ])
+    }
+
     @Test("移除当前条目后媒体脱离列表继续，结束后从原位置推进")
     func detachesRemovedCurrentEntryAndAdvancesFromItsFormerPosition() async throws {
         let engine = PlaylistFakePlaybackEngine()
@@ -167,24 +198,26 @@ struct NamedPlaylistCoordinatorTests {
         let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0x31), to: playlist.id)
         let current = try await coordinator.add(bookmarkedMedia("current.mp4", 0x32), to: playlist.id)
         let next = try await coordinator.add(bookmarkedMedia("next.mp4", 0x33), to: playlist.id)
+        let last = try await coordinator.add(bookmarkedMedia("last.mp4", 0x34), to: playlist.id)
         try await coordinator.playEntry(current.id, in: playlist.id)
 
         try await coordinator.removeEntry(current.id, from: playlist.id)
+        try await coordinator.removeEntry(next.id, from: playlist.id)
 
         #expect(coordinator.detachedNowPlayingEntry?.id == current.id)
-        #expect(coordinator.nowPlayingList.entries.map(\.id) == [first.id, next.id])
+        #expect(coordinator.nowPlayingList.entries.map(\.id) == [first.id, last.id])
         #expect(coordinator.nowPlayingList.currentIndex == nil)
         #expect(await engine.commands == [.load])
 
         await engine.sendPlaybackEnded()
-        try await waitUntil { coordinator.nowPlayingList.currentMedia?.url.lastPathComponent == "next.mp4" }
+        try await waitUntil { coordinator.nowPlayingList.currentMedia?.url.lastPathComponent == "last.mp4" }
 
         #expect(coordinator.detachedNowPlayingEntry == nil)
         #expect(coordinator.nowPlayingList.currentIndex == 1)
         #expect(await engine.commands == [.load, .load])
         let persisted = await store.loadLibrary()
-        #expect(persisted.playlists[0].entries.map(\.id) == [first.id, next.id])
-        #expect(persisted.playlists[0].currentEntryID == next.id)
+        #expect(persisted.playlists[0].entries.map(\.id) == [first.id, last.id])
+        #expect(persisted.playlists[0].currentEntryID == last.id)
     }
 
     @Test("删除正在使用的 Playlist 需确认，当前媒体结束后停止且重启不恢复")

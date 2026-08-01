@@ -100,7 +100,7 @@ struct NowPlayingListView: View {
             renameName = browsedPlaylist?.name ?? ""
         }
         .alert(
-            "删除正在使用的 Playlist？",
+            "删除正在播放的 Playlist？",
             isPresented: Binding(
                 get: { playlistAwaitingDeletion != nil },
                 set: { if !$0 { playlistAwaitingDeletion = nil } }
@@ -181,7 +181,7 @@ struct NowPlayingListView: View {
             }
             .padding(.horizontal, 12)
             if coordinator.detachedNowPlayingEntry != nil {
-                Label("当前媒体已脱离 Playlist", systemImage: "link.badge.plus")
+                Label("当前媒体是脱离列表的播放项", systemImage: "link.badge.plus")
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .accessibilityLabel("当前媒体是脱离列表的播放项")

@@ -45,7 +45,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private var isRestoredMediaPendingLoad = false
     private var activeLoadID: PlaybackLoadID?
     private var nextLoadID: UInt64 = 0
-    private var detachedSuccessorEntryID: PlaylistEntryID?
+    private var detachedSuccessorEntryIDs: [PlaylistEntryID] = []
 
     public init(
         engine: any PlaybackEngine,
@@ -76,7 +76,7 @@ public final class PlaybackCoordinator: ObservableObject {
         nowPlayingList = NowPlayingList(entries: entries, currentIndex: 0)
         activePlaylistID = nil
         detachedNowPlayingEntry = nil
-        detachedSuccessorEntryID = nil
+        detachedSuccessorEntryIDs = []
         persistenceNotice = .none
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = true
@@ -91,20 +91,10 @@ public final class PlaybackCoordinator: ObservableObject {
             throw PlaylistPersistenceError.emptyName
         }
         let playlist = Playlist(name: name, entries: [])
-        let library = PlaylistLibrary(
-            playlists: playlists + [playlist],
-            activePlaylistID: activePlaylistID
-        )
-        do {
-            try await playlistStore.commit(library)
-            playlists = library.playlists
-            browsingPlaylistID = playlist.id
-            persistenceNotice = .saved(name)
-            return playlist
-        } catch let error as PlaylistStoreError {
-            record(error)
-            throw error
-        }
+        try await commit(playlists + [playlist], activePlaylistID: activePlaylistID)
+        browsingPlaylistID = playlist.id
+        persistenceNotice = .saved(name)
+        return playlist
     }
 
     public func renamePlaylist(id: PlaylistID, to requestedName: String) async throws {
@@ -117,27 +107,12 @@ public final class PlaybackCoordinator: ObservableObject {
             throw PlaylistPersistenceError.playlistNotFound(id)
         }
         let existing = playlists[index]
-        let renamed = Playlist(
-            id: existing.id,
-            name: name,
-            entries: existing.entries,
-            currentEntryID: existing.currentEntryID
-        )
+        let renamed = existing.renamed(to: name)
         var updatedPlaylists = playlists
         updatedPlaylists[index] = renamed
-        let library = PlaylistLibrary(
-            playlists: updatedPlaylists,
-            activePlaylistID: activePlaylistID
-        )
-        do {
-            try await playlistStore.commit(library)
-            playlists = updatedPlaylists
-            browsingPlaylistID = id
-            persistenceNotice = .saved(name)
-        } catch let error as PlaylistStoreError {
-            record(error)
-            throw error
-        }
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        browsingPlaylistID = id
+        persistenceNotice = .saved(name)
     }
 
     public func browsePlaylist(_ id: PlaylistID) {
@@ -154,24 +129,64 @@ public final class PlaybackCoordinator: ObservableObject {
         guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
             throw PlaylistPersistenceError.playlistNotFound(playlistID)
         }
-        let entry = PlaylistEntry(media: PersistentLocalMediaReference(
-            id: media.referenceID,
+        let sharedReference = playlists.lazy
+            .flatMap(\.entries)
+            .map(\.media)
+            .first { reference in
+                if let fileIdentity = media.fileIdentity {
+                    return reference.fileIdentity == fileIdentity
+                }
+                return URL(fileURLWithPath: reference.lastKnownPath).standardizedFileURL
+                    == media.url.standardizedFileURL
+            }
+        let persistentReference = PersistentLocalMediaReference(
+            id: sharedReference?.id ?? media.referenceID,
             bookmark: bookmark,
-            lastKnownPath: media.url.path
-        ))
-        let playlist = playlists[playlistIndex]
-        let updatedPlaylist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: playlist.entries + [entry],
+            lastKnownPath: media.url.path,
+            fileIdentity: media.fileIdentity ?? sharedReference?.fileIdentity
+        )
+        let entry = PlaylistEntry(media: persistentReference)
+        var updatedPlaylists = playlists.map { playlist in
+            playlist.replacingEntries(
+                playlist.entries.map { existingEntry in
+                    guard existingEntry.media.id == persistentReference.id else { return existingEntry }
+                    return PlaylistEntry(
+                        id: existingEntry.id,
+                        media: persistentReference,
+                        resumePosition: existingEntry.resumePosition,
+                        playbackPreferences: existingEntry.playbackPreferences
+                    )
+                },
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        let playlist = updatedPlaylists[playlistIndex]
+        let updatedPlaylist = playlist.replacingEntries(
+            playlist.entries + [entry],
             currentEntryID: playlist.currentEntryID
         )
-        var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
         try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
         if activePlaylistID == playlistID {
+            let normalizedMedia = LocalMedia(
+                url: media.url,
+                referenceID: persistentReference.id,
+                bookmark: persistentReference.bookmark,
+                fileIdentity: persistentReference.fileIdentity
+            )
+            let refreshedEntries = nowPlayingList.entries.map { nowPlayingEntry in
+                guard nowPlayingEntry.media.referenceID == persistentReference.id else {
+                    return nowPlayingEntry
+                }
+                return NowPlayingEntry(
+                    id: nowPlayingEntry.id,
+                    media: normalizedMedia,
+                    resumePosition: nowPlayingEntry.resumePosition,
+                    playbackPreferences: nowPlayingEntry.playbackPreferences
+                )
+            }
             nowPlayingList = NowPlayingList(
-                entries: nowPlayingList.entries + [NowPlayingEntry(id: entry.id, media: media)],
+                entries: refreshedEntries + [NowPlayingEntry(id: entry.id, media: normalizedMedia)],
                 currentIndex: nowPlayingList.currentIndex
             )
         }
@@ -195,10 +210,8 @@ public final class PlaybackCoordinator: ObservableObject {
         let duplicate = PlaylistEntry(media: source.media)
         var entries = playlist.entries
         entries.insert(duplicate, at: sourceIndex + 1)
-        let updatedPlaylist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: entries,
+        let updatedPlaylist = playlist.replacingEntries(
+            entries,
             currentEntryID: playlist.currentEntryID
         )
         var updatedPlaylists = playlists
@@ -243,10 +256,8 @@ public final class PlaybackCoordinator: ObservableObject {
         var entries = playlist.entries
         let moved = entries.remove(at: source)
         entries.insert(moved, at: destination)
-        let updatedPlaylist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: entries,
+        let updatedPlaylist = playlist.replacingEntries(
+            entries,
             currentEntryID: playlist.currentEntryID
         )
         var updatedPlaylists = playlists
@@ -272,14 +283,17 @@ public final class PlaybackCoordinator: ObservableObject {
         entries.remove(at: removedIndex)
         let removedCurrentEntry = activePlaylistID == playlistID
             && currentNowPlayingEntry?.id == entryID
-        let successorID = removedCurrentEntry && entries.indices.contains(removedIndex)
-            ? entries[removedIndex].id
-            : nil
-        let updatedPlaylist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: entries,
-            currentEntryID: removedCurrentEntry ? successorID : playlist.currentEntryID
+        let detachedCandidates = removedCurrentEntry
+            ? Array(entries.dropFirst(removedIndex)).map(\.id)
+            : detachedSuccessorEntryIDs.filter { candidate in
+                entries.contains(where: { $0.id == candidate })
+            }
+        let successorID = entries.first(where: { detachedCandidates.contains($0.id) })?.id
+        let updatedPlaylist = playlist.replacingEntries(
+            entries,
+            currentEntryID: removedCurrentEntry || detachedNowPlayingEntry != nil
+                ? successorID
+                : playlist.currentEntryID
         )
         var updatedPlaylists = playlists
         updatedPlaylists[playlistIndex] = updatedPlaylist
@@ -288,7 +302,9 @@ public final class PlaybackCoordinator: ObservableObject {
         guard activePlaylistID == playlistID else { return }
         if removedCurrentEntry {
             detachedNowPlayingEntry = currentNowPlayingEntry
-            detachedSuccessorEntryID = successorID
+            detachedSuccessorEntryIDs = detachedCandidates
+        } else if detachedNowPlayingEntry != nil {
+            detachedSuccessorEntryIDs = detachedCandidates
         }
         reorderNowPlayingEntries(toMatch: entries)
     }
@@ -318,7 +334,7 @@ public final class PlaybackCoordinator: ObservableObject {
         guard deletesPlayingSource else { return }
         activePlaylistID = nil
         detachedNowPlayingEntry = currentEntry
-        detachedSuccessorEntryID = nil
+        detachedSuccessorEntryIDs = []
         nowPlayingList = NowPlayingList()
         isRestoredMediaPendingLoad = false
     }
@@ -341,10 +357,8 @@ public final class PlaybackCoordinator: ObservableObject {
                 playbackPreferences: entry.playbackPreferences
             ))
         }
-        let playingPlaylist = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            entries: playlist.entries,
+        let playingPlaylist = playlist.replacingEntries(
+            playlist.entries,
             currentEntryID: entryID
         )
         var updatedPlaylists = playlists
@@ -353,7 +367,7 @@ public final class PlaybackCoordinator: ObservableObject {
         activePlaylistID = playlistID
         browsingPlaylistID = playlistID
         detachedNowPlayingEntry = nil
-        detachedSuccessorEntryID = nil
+        detachedSuccessorEntryIDs = []
         nowPlayingList = NowPlayingList(entries: restoredEntries, currentIndex: currentIndex)
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = false
@@ -382,7 +396,8 @@ public final class PlaybackCoordinator: ObservableObject {
                 media: PersistentLocalMediaReference(
                     id: entry.media.referenceID,
                     bookmark: bookmark,
-                    lastKnownPath: entry.media.url.path
+                    lastKnownPath: entry.media.url.path,
+                    fileIdentity: entry.media.fileIdentity
                 ),
                 resumePosition: entry.resumePosition,
                 playbackPreferences: entry.playbackPreferences
@@ -432,7 +447,8 @@ public final class PlaybackCoordinator: ObservableObject {
                     refreshedReferences.append(PersistentLocalMediaReference(
                         id: entry.media.id,
                         bookmark: bookmark,
-                        lastKnownPath: media.url.path
+                        lastKnownPath: media.url.path,
+                        fileIdentity: media.fileIdentity ?? entry.media.fileIdentity
                     ))
                 }
                 restoredEntries.append(NowPlayingEntry(
@@ -514,7 +530,7 @@ public final class PlaybackCoordinator: ObservableObject {
             self.state = state
             if state == .stopped {
                 detachedNowPlayingEntry = nil
-                detachedSuccessorEntryID = nil
+                detachedSuccessorEntryIDs = []
             }
             switch state {
             case .playing, .paused:
@@ -533,11 +549,12 @@ public final class PlaybackCoordinator: ObservableObject {
             guard loadID == activeLoadID else { return }
             isFindingFirstPlayableMedia = false
             if detachedNowPlayingEntry != nil {
-                let successorID = detachedSuccessorEntryID
+                let successorIndex = nowPlayingList.entries.firstIndex { entry in
+                    detachedSuccessorEntryIDs.contains(entry.id)
+                }
                 detachedNowPlayingEntry = nil
-                detachedSuccessorEntryID = nil
-                if let successorID,
-                   let successorIndex = nowPlayingList.entries.firstIndex(where: { $0.id == successorID }) {
+                detachedSuccessorEntryIDs = []
+                if let successorIndex {
                     nowPlayingList = NowPlayingList(
                         entries: nowPlayingList.entries,
                         currentIndex: successorIndex
