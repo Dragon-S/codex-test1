@@ -34,6 +34,12 @@ public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var playlists: [Playlist] = []
     @Published public private(set) var activePlaylistID: PlaylistID?
     @Published public private(set) var persistenceNotice: PlaylistPersistenceNotice = .none
+    @Published public private(set) var position: TimeInterval = 0
+    @Published public private(set) var duration: TimeInterval = 0
+    @Published public private(set) var playbackRate: Double = 1
+    @Published public private(set) var playerVolume: Double = 1
+    @Published public private(set) var isMuted = false
+    public let seekStep: TimeInterval
 
     private let engine: any PlaybackEngine
     private let playlistStore: any PlaylistStore
@@ -43,15 +49,18 @@ public final class PlaybackCoordinator: ObservableObject {
     private var isRestoredMediaPendingLoad = false
     private var activeLoadID: PlaybackLoadID?
     private var nextLoadID: UInt64 = 0
+    private var lastPersistedPosition: TimeInterval?
 
     public init(
         engine: any PlaybackEngine,
         playlistStore: any PlaylistStore = InMemoryPlaylistStore(),
-        persistentMediaAccess: any PersistentMediaAccess = LastKnownPathMediaAccess()
+        persistentMediaAccess: any PersistentMediaAccess = LastKnownPathMediaAccess(),
+        seekStep: TimeInterval = 10
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
         self.persistentMediaAccess = persistentMediaAccess
+        self.seekStep = max(1, seekStep)
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -70,11 +79,15 @@ public final class PlaybackCoordinator: ObservableObject {
 
     public func open(_ entries: [NowPlayingEntry]) async {
         guard let first = entries.first else { return }
+        if activePlaylistID != nil {
+            await persistCurrentState(force: true)
+        }
         nowPlayingList = NowPlayingList(entries: entries, currentIndex: 0)
         activePlaylistID = nil
         persistenceNotice = .none
         isRestoredMediaPendingLoad = false
         isFindingFirstPlayableMedia = true
+        resetTimeline(for: first)
         await load(first.media)
     }
 
@@ -103,13 +116,19 @@ public final class PlaybackCoordinator: ObservableObject {
                     lastKnownPath: entry.media.url.path
                 ),
                 resumePosition: entry.resumePosition,
+                isCompleted: entry.isCompleted,
                 playbackPreferences: entry.playbackPreferences
             )
         }
         let currentEntryID = nowPlayingList.currentIndex.flatMap { index in
             entries.indices.contains(index) ? entries[index].id : nil
         }
-        let playlist = Playlist(name: name, entries: entries, currentEntryID: currentEntryID)
+        let playlist = Playlist(
+            name: name,
+            entries: entries,
+            currentEntryID: currentEntryID,
+            playbackRate: playbackRate
+        )
 
         do {
             try await playlistStore.create(playlist)
@@ -136,10 +155,13 @@ public final class PlaybackCoordinator: ObservableObject {
             let library = try await playlistStore.loadLibrary()
             playlists = library.playlists
             activePlaylistID = library.activePlaylistID
+            playerVolume = library.playerVolume
+            isMuted = library.isMuted
             guard let activeID = library.activePlaylistID,
                   let activePlaylist = library.playlists.first(where: { $0.id == activeID }) else {
                 return
             }
+            playbackRate = activePlaylist.playbackRate
             var restoredEntries: [NowPlayingEntry] = []
             var refreshedReferences: [PersistentLocalMediaReference] = []
             for entry in activePlaylist.entries {
@@ -155,6 +177,7 @@ public final class PlaybackCoordinator: ObservableObject {
                     id: entry.id,
                     media: media,
                     resumePosition: entry.resumePosition,
+                    isCompleted: entry.isCompleted,
                     playbackPreferences: entry.playbackPreferences
                 ))
             }
@@ -166,6 +189,9 @@ public final class PlaybackCoordinator: ObservableObject {
             if currentIndex != nil {
                 state = .paused
                 isRestoredMediaPendingLoad = true
+                if let entry = currentEntry {
+                    resetTimeline(for: entry)
+                }
             }
             persistenceNotice = .none
         } catch let error as PlaylistStoreError {
@@ -189,20 +215,74 @@ public final class PlaybackCoordinator: ObservableObject {
     }
 
     public func pause() async {
+        await persistCurrentState(force: true)
         await engine.pause()
     }
 
     public func stop() async {
+        await persistCurrentState(force: true)
         await engine.stop()
+    }
+
+    public func seek(to requestedPosition: TimeInterval) async {
+        let upperBound = duration > 0 ? duration : .greatestFiniteMagnitude
+        position = min(max(0, requestedPosition), upperBound)
+        updateCurrentEntryProgress(resumePosition: resumePosition, isCompleted: false)
+        await engine.seek(to: position)
+        await persistCurrentState(force: true)
+    }
+
+    public func skipForward() async {
+        await seek(to: position + seekStep)
+    }
+
+    public func skipBackward() async {
+        await seek(to: position - seekStep)
+    }
+
+    public func setPlaybackRate(_ requestedRate: Double) async {
+        let previousRate = playbackRate
+        playbackRate = min(max(requestedRate, 0.25), 4)
+        await engine.setPlaybackRate(playbackRate)
+        if activePlaylistID != nil, !(await persistCurrentState(force: true)) {
+            playbackRate = previousRate
+            await engine.setPlaybackRate(previousRate)
+        }
+    }
+
+    public func setPlayerVolume(_ requestedVolume: Double) async {
+        let previousVolume = playerVolume
+        playerVolume = min(max(requestedVolume, 0), 1)
+        await engine.setPlayerVolume(playerVolume)
+        if !(await persistCurrentState(force: true)) {
+            playerVolume = previousVolume
+            await engine.setPlayerVolume(previousVolume)
+        }
+    }
+
+    public func setMuted(_ muted: Bool) async {
+        let wasMuted = isMuted
+        isMuted = muted
+        await engine.setMuted(muted)
+        if !(await persistCurrentState(force: true)) {
+            isMuted = wasMuted
+            await engine.setMuted(wasMuted)
+        }
+    }
+
+    public func prepareToTerminate() async {
+        await persistCurrentState(force: true)
     }
 
     public func next() async {
         isFindingFirstPlayableMedia = false
+        await persistCurrentState(force: true)
         await move(by: 1)
     }
 
     public func previous() async {
         isFindingFirstPlayableMedia = false
+        await persistCurrentState(force: true)
         await move(by: -1)
     }
 
@@ -213,6 +293,10 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         nowPlayingList = destination
+        if let entry = currentEntry {
+            resetTimeline(for: entry)
+        }
+        await persistCurrentState(force: true)
         await load(media)
     }
 
@@ -221,6 +305,10 @@ public final class PlaybackCoordinator: ObservableObject {
         let loadID = PlaybackLoadID(rawValue: nextLoadID)
         activeLoadID = loadID
         await engine.load(media, loadID: loadID)
+        await engine.setPlaybackRate(playbackRate)
+        await engine.setPlayerVolume(playerVolume)
+        await engine.setMuted(isMuted)
+        await engine.seek(to: currentEntry?.isCompleted == true ? 0 : (currentEntry?.resumePosition ?? 0))
     }
 
     private func receive(_ event: PlaybackEngineEvent) async {
@@ -241,9 +329,19 @@ public final class PlaybackCoordinator: ObservableObject {
             default:
                 break
             }
+        case let .timelineChanged(newPosition, newDuration, loadID):
+            guard loadID == activeLoadID else { return }
+            position = max(0, newPosition)
+            duration = max(0, newDuration)
+            let wasCompleted = currentEntry?.isCompleted ?? false
+            let completed = isAtCompletionThreshold
+            updateCurrentEntryProgress(resumePosition: resumePosition, isCompleted: completed)
+            await persistCurrentState(force: completed && !wasCompleted)
         case let .playbackEnded(loadID):
             guard loadID == activeLoadID else { return }
             isFindingFirstPlayableMedia = false
+            updateCurrentEntryProgress(resumePosition: nil, isCompleted: true)
+            await persistCurrentState(force: true)
             guard let currentIndex = nowPlayingList.currentIndex else {
                 state = .stopped
                 return
@@ -253,6 +351,107 @@ public final class PlaybackCoordinator: ObservableObject {
             } else {
                 state = .stopped
             }
+        }
+    }
+
+    private var currentEntry: NowPlayingEntry? {
+        guard let index = nowPlayingList.currentIndex,
+              nowPlayingList.entries.indices.contains(index) else { return nil }
+        return nowPlayingList.entries[index]
+    }
+
+    private var resumePosition: TimeInterval? {
+        guard position >= 10, !isAtCompletionThreshold else { return nil }
+        return position
+    }
+
+    private var isAtCompletionThreshold: Bool {
+        guard duration > 0 else { return false }
+        return duration - position <= min(30, duration * 0.05)
+    }
+
+    private func resetTimeline(for entry: NowPlayingEntry) {
+        position = entry.isCompleted ? 0 : (entry.resumePosition ?? 0)
+        duration = 0
+        lastPersistedPosition = entry.resumePosition
+    }
+
+    private func updateCurrentEntryProgress(
+        resumePosition: TimeInterval?,
+        isCompleted: Bool
+    ) {
+        guard let index = nowPlayingList.currentIndex,
+              nowPlayingList.entries.indices.contains(index) else { return }
+        var entries = nowPlayingList.entries
+        let entry = entries[index]
+        entries[index] = NowPlayingEntry(
+            id: entry.id,
+            media: entry.media,
+            resumePosition: resumePosition,
+            isCompleted: isCompleted,
+            playbackPreferences: entry.playbackPreferences
+        )
+        nowPlayingList = NowPlayingList(entries: entries, currentIndex: index)
+    }
+
+    @discardableResult
+    private func persistCurrentState(force: Bool) async -> Bool {
+        let completed = currentEntry?.isCompleted ?? false
+        let candidate = completed ? nil : resumePosition
+        let crossedPeriodicBoundary = candidate.map { position in
+            guard let lastPersistedPosition else { return true }
+            return abs(position - lastPersistedPosition) >= 5
+        } ?? false
+        guard force || crossedPeriodicBoundary else { return true }
+
+        let snapshot = PlaybackPersistenceSnapshot(
+            playlistID: activePlaylistID,
+            entryID: currentEntry?.id,
+            resumePosition: candidate,
+            isCompleted: completed,
+            playbackRate: playbackRate,
+            playerVolume: playerVolume,
+            isMuted: isMuted
+        )
+        do {
+            try await playlistStore.savePlaybackSnapshot(snapshot)
+            lastPersistedPosition = candidate
+            applySnapshotLocally(snapshot)
+            if case .failed = persistenceNotice {
+                persistenceNotice = .none
+            }
+            return true
+        } catch let error as PlaylistStoreError {
+            if case let .unavailable(message) = error {
+                persistenceNotice = .failed(message)
+            }
+            return false
+        } catch {
+            persistenceNotice = .failed(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func applySnapshotLocally(_ snapshot: PlaybackPersistenceSnapshot) {
+        playlists = playlists.map { playlist in
+            guard playlist.id == snapshot.playlistID else { return playlist }
+            let entries = playlist.entries.map { entry in
+                guard entry.id == snapshot.entryID else { return entry }
+                return PlaylistEntry(
+                    id: entry.id,
+                    media: entry.media,
+                    resumePosition: snapshot.resumePosition,
+                    isCompleted: snapshot.isCompleted,
+                    playbackPreferences: entry.playbackPreferences
+                )
+            }
+            return Playlist(
+                id: playlist.id,
+                name: playlist.name,
+                entries: entries,
+                currentEntryID: snapshot.entryID ?? playlist.currentEntryID,
+                playbackRate: snapshot.playbackRate
+            )
         }
     }
 }

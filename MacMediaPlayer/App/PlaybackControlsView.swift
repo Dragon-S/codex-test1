@@ -6,33 +6,86 @@ struct PlaybackControlsView: View {
     let openMedia: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button("打开…", action: openMedia)
-                .keyboardShortcut("o")
-            Button("播放") {
-                Task { await coordinator.play() }
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button("后退 \(Int(coordinator.seekStep)) 秒") {
+                    Task { await coordinator.skipBackward() }
+                }
+                .accessibilityLabel("后退 \(Int(coordinator.seekStep)) 秒")
+                Text(timeText(coordinator.position))
+                    .monospacedDigit()
+                    .frame(minWidth: 44, alignment: .trailing)
+                Slider(
+                    value: Binding(
+                        get: { coordinator.position },
+                        set: { value in Task { await coordinator.seek(to: value) } }
+                    ),
+                    in: 0...max(coordinator.duration, 1)
+                )
+                .disabled(coordinator.duration <= 0)
+                .accessibilityLabel("播放位置")
+                .accessibilityValue("\(timeText(coordinator.position))，总时长 \(timeText(coordinator.duration))")
+                Text(timeText(coordinator.duration))
+                    .monospacedDigit()
+                    .frame(minWidth: 44, alignment: .leading)
+                Button("前进 \(Int(coordinator.seekStep)) 秒") {
+                    Task { await coordinator.skipForward() }
+                }
+                .accessibilityLabel("前进 \(Int(coordinator.seekStep)) 秒")
             }
-            Button("暂停") {
-                Task { await coordinator.pause() }
+
+            HStack(spacing: 12) {
+                Button("打开…", action: openMedia)
+                    .keyboardShortcut("o")
+                Button("播放") { Task { await coordinator.play() } }
+                Button("暂停") { Task { await coordinator.pause() } }
+                Button("停止") { Task { await coordinator.stop() } }
+                Button("上一首") { Task { await coordinator.previous() } }
+                Button("下一首") { Task { await coordinator.next() } }
+                Picker("速度", selection: Binding(
+                    get: { coordinator.playbackRate },
+                    set: { rate in Task { await coordinator.setPlaybackRate(rate) } }
+                )) {
+                    Text("0.5×").tag(0.5)
+                    Text("1×").tag(1.0)
+                    Text("1.25×").tag(1.25)
+                    Text("1.5×").tag(1.5)
+                    Text("2×").tag(2.0)
+                }
+                .frame(width: 105)
+                Button(coordinator.isMuted ? "取消静音" : "静音") {
+                    Task { await coordinator.setMuted(!coordinator.isMuted) }
+                }
+                Slider(
+                    value: Binding(
+                        get: { coordinator.playerVolume },
+                        set: { volume in Task { await coordinator.setPlayerVolume(volume) } }
+                    ),
+                    in: 0...1
+                )
+                .frame(width: 90)
+                .accessibilityLabel("播放器音量")
+                .accessibilityValue("\(Int(coordinator.playerVolume * 100))%")
+                Spacer()
+                Text(statusText)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("播放状态")
+                    .accessibilityValue(statusText)
             }
-            Button("停止") {
-                Task { await coordinator.stop() }
-            }
-            Button("上一首") {
-                Task { await coordinator.previous() }
-            }
-            Button("下一首") {
-                Task { await coordinator.next() }
-            }
-            Spacer()
-            Text(statusText)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("播放状态")
-                .accessibilityValue(statusText)
         }
         .buttonStyle(.bordered)
         .padding(12)
         .background(.ultraThinMaterial)
+    }
+
+    private func timeText(_ value: TimeInterval) -> String {
+        let seconds = max(0, Int(value.rounded(.down)))
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds % 60)
+        }
+        return String(format: "%d:%02d", minutes, seconds % 60)
     }
 
     private var statusText: String {

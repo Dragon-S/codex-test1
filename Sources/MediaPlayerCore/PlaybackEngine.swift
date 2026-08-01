@@ -43,6 +43,7 @@ public struct PlaybackLoadID: Equatable, Hashable, Sendable {
 
 public enum PlaybackEngineEvent: Equatable, Sendable {
     case playbackStateChanged(PlaybackState, loadID: PlaybackLoadID)
+    case timelineChanged(position: TimeInterval, duration: TimeInterval, loadID: PlaybackLoadID)
     case playbackEnded(loadID: PlaybackLoadID)
 }
 
@@ -53,4 +54,15 @@ public protocol PlaybackEngine: Sendable {
     func play() async
     func pause() async
     func stop() async
+    func seek(to position: TimeInterval) async
+    func setPlaybackRate(_ rate: Double) async
+    func setPlayerVolume(_ volume: Double) async
+    func setMuted(_ isMuted: Bool) async
+}
+
+public extension PlaybackEngine {
+    func seek(to position: TimeInterval) async {}
+    func setPlaybackRate(_ rate: Double) async {}
+    func setPlayerVolume(_ volume: Double) async {}
+    func setMuted(_ isMuted: Bool) async {}
 }

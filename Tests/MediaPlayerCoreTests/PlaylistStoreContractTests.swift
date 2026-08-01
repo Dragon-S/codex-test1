@@ -64,6 +64,21 @@ struct PlaylistStoreContractTests {
         #expect(restored.activePlaylistID == playlist.id)
         #expect(restored.playlists[0].entries.map(\.media.id) == [sharedReferenceID, sharedReferenceID])
 
+        try await store.savePlaybackSnapshot(PlaybackPersistenceSnapshot(
+            playlistID: playlist.id,
+            entryID: duplicateEntry.id,
+            resumePosition: 73,
+            isCompleted: false,
+            playbackRate: 1.5,
+            playerVolume: 0.4,
+            isMuted: true
+        ))
+        let playbackState = try await store.loadLibrary()
+        #expect(playbackState.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
+        #expect(playbackState.playlists[0].playbackRate == 1.5)
+        #expect(playbackState.playerVolume == 0.4)
+        #expect(playbackState.isMuted)
+
         let refreshedReference = PersistentLocalMediaReference(
             id: sharedReferenceID,
             bookmark: Data([0xAA, 0xBB]),
@@ -74,6 +89,7 @@ struct PlaylistStoreContractTests {
         #expect(refreshed.playlists[0].entries.map(\.media) == [
             refreshedReference, refreshedReference,
         ])
+        #expect(refreshed.playlists[0].entries.map(\.resumePosition) == [42.5, 73])
     }
 }
 

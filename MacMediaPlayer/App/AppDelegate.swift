@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
     private var securityScopedURLs: [URL] = []
+    private var isPreparingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let videoView = PlaybackCanvasView(frame: .zero)
@@ -41,6 +42,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         releaseSecurityScope()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !isPreparingTermination else { return .terminateNow }
+        guard let coordinator else { return .terminateNow }
+        isPreparingTermination = true
+        Task { @MainActor [weak self] in
+            await coordinator.prepareToTerminate()
+            self?.releaseSecurityScope()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func windowWillClose(_ notification: Notification) {

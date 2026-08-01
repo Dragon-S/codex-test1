@@ -34,6 +34,13 @@ func verifyBasicPlaybackEngineContract(
     await engine.pause()
     try await recorder.wait(for: .paused, after: firstPauseMark)
 
+    await engine.seek(to: 0.5)
+    try await recorder.waitForPosition(0.5, loadID: initialLoadID)
+    await engine.setPlaybackRate(1.25)
+    await engine.setPlayerVolume(0.4)
+    await engine.setMuted(true)
+    await engine.setMuted(false)
+
     let playMark = recorder.mark()
     await engine.play()
     try await recorder.wait(for: .playing, after: playMark)
@@ -108,6 +115,20 @@ final class ContractEventRecorder: @unchecked Sendable {
         }
     }
 
+    func waitForPosition(_ position: TimeInterval, loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if eventSnapshot().contains(where: { event in
+                guard case let .timelineChanged(observed, _, eventLoadID) = event else { return false }
+                return eventLoadID == loadID && abs(observed - position) < 0.2
+            }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractTimelineTimeout(expected: position, observed: eventSnapshot())
+    }
+
     private func append(_ event: PlaybackEngineEvent) {
         lock.withLock {
             observedEvents.append(event)
@@ -155,6 +176,11 @@ private actor ContractFakePlaybackEngine: PlaybackEngine {
         guard let currentLoadID else { return }
         continuation.yield(.playbackStateChanged(.stopped, loadID: currentLoadID))
     }
+
+    func seek(to position: TimeInterval) {
+        guard let currentLoadID else { return }
+        continuation.yield(.timelineChanged(position: position, duration: 2, loadID: currentLoadID))
+    }
 }
 
 private struct ContractTimeout: Error, CustomStringConvertible {
@@ -168,5 +194,10 @@ private struct ContractTimeout: Error, CustomStringConvertible {
 
 private struct ContractEventTimeout: Error {
     let expected: PlaybackEngineEvent
+    let observed: [PlaybackEngineEvent]
+}
+
+private struct ContractTimelineTimeout: Error {
+    let expected: TimeInterval
     let observed: [PlaybackEngineEvent]
 }
