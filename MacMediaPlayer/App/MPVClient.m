@@ -17,8 +17,10 @@ static void MPVRenderUpdate(void *context);
     dispatch_queue_t _queue;
     dispatch_source_t _eventTimer;
     BOOL _hasLoadedFile;
-    BOOL _isReplacingFile;
-    uint64_t _loadID;
+    uint64_t _requestedLoadID;
+    uint64_t _eventLoadID;
+    NSMutableArray<NSNumber *> *_pendingLoadIDs;
+    NSMutableDictionary<NSNumber *, NSNumber *> *_loadIDsByPlaylistEntryID;
     mpv_render_context *_renderContext;
     __weak NSOpenGLView *_videoView;
 }
@@ -36,6 +38,8 @@ static void MPVRenderUpdate(void *context);
         return self;
     }
     _queue = dispatch_queue_create("com.dragon-s.MacMediaPlayer.libmpv", DISPATCH_QUEUE_SERIAL);
+    _pendingLoadIDs = [NSMutableArray array];
+    _loadIDsByPlaylistEntryID = [NSMutableDictionary dictionary];
     _videoView = (NSOpenGLView *)videoView;
     _handle = mpv_create();
     if (_handle == NULL) {
@@ -77,20 +81,20 @@ static void MPVRenderUpdate(void *context);
 
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID {
     NSString *path = url.path;
-    [self performCommand:@[ @"loadfile", path, @"replace" ] loading:YES loadID:loadID];
-    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO loadID:0];
+    [self performLoadCommand:@[ @"loadfile", path, @"replace" ] loadID:loadID];
+    [self performCommand:@[ @"set", @"pause", @"no" ]];
 }
 
 - (void)play {
-    [self performCommand:@[ @"set", @"pause", @"no" ] loading:NO loadID:0];
+    [self performCommand:@[ @"set", @"pause", @"no" ]];
 }
 
 - (void)pause {
-    [self performCommand:@[ @"set", @"pause", @"yes" ] loading:NO loadID:0];
+    [self performCommand:@[ @"set", @"pause", @"yes" ]];
 }
 
 - (void)stop {
-    [self performCommand:@[ @"stop" ] loading:NO loadID:0];
+    [self performCommand:@[ @"stop" ]];
 }
 
 - (void)shutdown {
@@ -173,31 +177,47 @@ static void MPVRenderUpdate(void *context);
     mpv_render_context_report_swap(_renderContext);
 }
 
-- (void)performCommand:(NSArray<NSString *> *)arguments loading:(BOOL)loading loadID:(uint64_t)loadID {
+- (void)performLoadCommand:(NSArray<NSString *> *)arguments loadID:(uint64_t)loadID {
     dispatch_async(_queue, ^{
-        if (loading) {
-            self->_loadID = loadID;
-        }
+        self->_requestedLoadID = loadID;
         if (self->_handle == NULL) {
-            [self reportFailure:MPVClientFailureEngineUnavailable];
+            [self reportFailure:MPVClientFailureEngineUnavailable loadID:loadID];
             return;
         }
 
-        const char *command[arguments.count + 1];
-        for (NSUInteger index = 0; index < arguments.count; index++) {
-            command[index] = arguments[index].UTF8String;
-        }
-        command[arguments.count] = NULL;
-
-        int result = mpv_command(self->_handle, command);
+        int result = [self executeCommand:arguments];
         if (result < 0) {
-            [self reportFailure:[self failureForError:result]];
-        } else if (loading) {
-            self->_hasLoadedFile = NO;
-            self->_isReplacingFile = YES;
-            [self reportState:MPVClientPlaybackStateLoading];
+            [self reportFailure:[self failureForError:result] loadID:loadID];
+            return;
+        }
+        [self->_pendingLoadIDs addObject:@(loadID)];
+        self->_hasLoadedFile = NO;
+        [self reportState:MPVClientPlaybackStateLoading loadID:loadID];
+    });
+}
+
+- (void)performCommand:(NSArray<NSString *> *)arguments {
+    dispatch_async(_queue, ^{
+        if (self->_handle == NULL) {
+            [self reportFailure:MPVClientFailureEngineUnavailable loadID:self->_requestedLoadID];
+            return;
+        }
+
+        int result = [self executeCommand:arguments];
+        if (result < 0) {
+            [self reportFailure:[self failureForError:result] loadID:self->_requestedLoadID];
         }
     });
+}
+
+- (int)executeCommand:(NSArray<NSString *> *)arguments {
+    const char *command[arguments.count + 1];
+    for (NSUInteger index = 0; index < arguments.count; index++) {
+        command[index] = arguments[index].UTF8String;
+    }
+    command[arguments.count] = NULL;
+
+    return mpv_command(_handle, command);
 }
 
 - (void)startEventTimer {
@@ -217,9 +237,11 @@ static void MPVRenderUpdate(void *context);
         }
 
         switch (event->event_id) {
+            case MPV_EVENT_START_FILE:
+                [self handleStartFile:event];
+                break;
             case MPV_EVENT_FILE_LOADED:
                 _hasLoadedFile = YES;
-                _isReplacingFile = NO;
                 [self reportCurrentPauseState];
                 break;
             case MPV_EVENT_PROPERTY_CHANGE:
@@ -229,12 +251,24 @@ static void MPVRenderUpdate(void *context);
                 [self handleEndFile:event];
                 break;
             case MPV_EVENT_SHUTDOWN:
-                [self reportState:MPVClientPlaybackStateStopped];
+                [self reportState:MPVClientPlaybackStateStopped loadID:_requestedLoadID];
                 break;
             default:
                 break;
         }
     }
+}
+
+- (void)handleStartFile:(mpv_event *)event {
+    mpv_event_start_file *startFile = event->data;
+    if (startFile == NULL || _pendingLoadIDs.count == 0) {
+        return;
+    }
+    NSNumber *loadID = _pendingLoadIDs.firstObject;
+    [_pendingLoadIDs removeObjectAtIndex:0];
+    _loadIDsByPlaylistEntryID[@(startFile->playlist_entry_id)] = loadID;
+    _eventLoadID = loadID.unsignedLongLongValue;
+    _hasLoadedFile = NO;
 }
 
 - (void)handlePropertyChange:(mpv_event *)event {
@@ -248,24 +282,35 @@ static void MPVRenderUpdate(void *context);
     }
 
     int paused = *(int *)property->data;
-    [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying];
+    [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying
+              loadID:_eventLoadID];
 }
 
 - (void)handleEndFile:(mpv_event *)event {
     mpv_event_end_file *endFile = event->data;
-    if (_isReplacingFile && endFile != NULL && endFile->reason == MPV_END_FILE_REASON_STOP) {
-        return;
+    uint64_t loadID = _eventLoadID;
+    NSNumber *playlistEntryID = nil;
+    if (endFile != NULL) {
+        playlistEntryID = @(endFile->playlist_entry_id);
+        NSNumber *mappedLoadID = _loadIDsByPlaylistEntryID[playlistEntryID];
+        if (mappedLoadID != nil) {
+            loadID = mappedLoadID.unsignedLongLongValue;
+        }
     }
-    _hasLoadedFile = NO;
-    _isReplacingFile = NO;
+    if (loadID == _eventLoadID) {
+        _hasLoadedFile = NO;
+    }
     if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_ERROR) {
-        [self reportFailure:[self failureForError:endFile->error]];
+        [self reportFailure:[self failureForError:endFile->error] loadID:loadID];
     } else if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_EOF) {
         if (self.playbackEndedHandler != nil) {
-            self.playbackEndedHandler(_loadID);
+            self.playbackEndedHandler(loadID);
         }
-    } else {
-        [self reportState:MPVClientPlaybackStateStopped];
+    } else if (loadID == _requestedLoadID) {
+        [self reportState:MPVClientPlaybackStateStopped loadID:loadID];
+    }
+    if (playlistEntryID != nil) {
+        [_loadIDsByPlaylistEntryID removeObjectForKey:playlistEntryID];
     }
 }
 
@@ -274,7 +319,8 @@ static void MPVRenderUpdate(void *context);
     if (mpv_get_property(_handle, "pause", MPV_FORMAT_FLAG, &paused) < 0) {
         return;
     }
-    [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying];
+    [self reportState:paused ? MPVClientPlaybackStatePaused : MPVClientPlaybackStatePlaying
+              loadID:_eventLoadID];
 }
 
 - (MPVClientFailure)failureForError:(int)error {
@@ -293,15 +339,15 @@ static void MPVRenderUpdate(void *context);
     }
 }
 
-- (void)reportState:(MPVClientPlaybackState)state {
+- (void)reportState:(MPVClientPlaybackState)state loadID:(uint64_t)loadID {
     if (self.stateHandler != nil) {
-        self.stateHandler(state, _loadID);
+        self.stateHandler(state, loadID);
     }
 }
 
-- (void)reportFailure:(MPVClientFailure)failure {
+- (void)reportFailure:(MPVClientFailure)failure loadID:(uint64_t)loadID {
     if (self.failureHandler != nil) {
-        self.failureHandler(failure, _loadID);
+        self.failureHandler(failure, loadID);
     }
 }
 

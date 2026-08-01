@@ -46,6 +46,26 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(pixel[0] > 127)
     }
 
+    @Test("真实适配器不会把被替换媒体的迟到事件标记为新加载")
+    func realAdapterKeepsEventsAssociatedWithTheirLoad() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = LoadAssociationRecorder(events: engine.events)
+        let availableURL = try makeSilentWAV()
+        defer { try? FileManager.default.removeItem(at: availableURL) }
+        let oldLoadID = PlaybackLoadID(rawValue: 41)
+        let newLoadID = PlaybackLoadID(rawValue: 42)
+
+        await engine.load(
+            LocalMedia(url: URL(fileURLWithPath: "/tmp/replaced-missing-media.mp4")),
+            loadID: oldLoadID
+        )
+        await engine.load(LocalMedia(url: availableURL), loadID: newLoadID)
+        try await recorder.waitForPlaying(loadID: newLoadID)
+
+        #expect(!recorder.hasFailure(loadID: newLoadID))
+    }
+
     private func makeSilentWAV() throws -> URL {
         let sampleRate: UInt32 = 8_000
         let sampleCount: UInt32 = sampleRate * 2
@@ -81,6 +101,50 @@ struct LibMPVPlaybackEngineContractTests {
         try data.write(to: url, options: .atomic)
         return url
     }
+}
+
+private final class LoadAssociationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [PlaybackEngineEvent] = []
+    private var eventTask: Task<Void, Never>?
+
+    init(events: AsyncStream<PlaybackEngineEvent>) {
+        eventTask = Task { [weak self] in
+            for await event in events {
+                self?.lock.withLock {
+                    self?.events.append(event)
+                }
+            }
+        }
+    }
+
+    func waitForPlaying(loadID: PlaybackLoadID) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if snapshot().contains(.playbackStateChanged(.playing, loadID: loadID)) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw LoadAssociationTimeout(events: snapshot())
+    }
+
+    func hasFailure(loadID: PlaybackLoadID) -> Bool {
+        snapshot().contains { event in
+            if case let .playbackStateChanged(.failed, eventLoadID) = event {
+                return eventLoadID == loadID
+            }
+            return false
+        }
+    }
+
+    private func snapshot() -> [PlaybackEngineEvent] {
+        lock.withLock { events }
+    }
+}
+
+private struct LoadAssociationTimeout: Error {
+    let events: [PlaybackEngineEvent]
 }
 
 private extension Data {
