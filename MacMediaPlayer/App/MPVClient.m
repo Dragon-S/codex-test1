@@ -88,6 +88,7 @@ static void MPVRenderUpdate(void *context);
     mpv_set_option_string(_handle, "hwdec", "videotoolbox");
     mpv_set_option_string(_handle, "keep-open", "yes");
     mpv_set_option_string(_handle, "vo", "libmpv");
+    mpv_set_option_string(_handle, "audio-display", "embedded-first");
 
     int result = mpv_initialize(_handle);
     if (result < 0) {
@@ -363,6 +364,7 @@ static void MPVRenderUpdate(void *context);
                 _hasLoadedFile = YES;
                 [self reportCurrentPauseState];
                 [self reportTrackCatalog];
+                [self reportMediaPresentation];
                 break;
             case MPV_EVENT_PROPERTY_CHANGE:
                 [self handlePropertyChange:event];
@@ -447,6 +449,54 @@ static void MPVRenderUpdate(void *context);
     if (self.trackCatalogHandler != nil) {
         self.trackCatalogHandler(audioTracks, subtitleTracks, _eventLoadID);
     }
+}
+
+- (void)reportMediaPresentation {
+    if (_handle == NULL || self.mediaPresentationHandler == nil) {
+        return;
+    }
+    int64_t trackCount = 0;
+    mpv_get_property(_handle, "track-list/count", MPV_FORMAT_INT64, &trackCount);
+    BOOL hasAudio = NO;
+    BOOL hasPlayableVideo = NO;
+    BOOL hasArtwork = NO;
+    for (int64_t index = 0; index < trackCount; index++) {
+        NSString *prefix = [NSString stringWithFormat:@"track-list/%lld", index];
+        NSString *type = [self stringProperty:[prefix stringByAppendingString:@"/type"]];
+        if ([type isEqualToString:@"audio"]) {
+            hasAudio = YES;
+        } else if ([type isEqualToString:@"video"]) {
+            BOOL isArtwork = [self flagProperty:[prefix stringByAppendingString:@"/albumart"]];
+            hasArtwork = hasArtwork || isArtwork;
+            hasPlayableVideo = hasPlayableVideo || !isArtwork;
+        }
+    }
+
+    NSMutableDictionary<NSString *, NSString *> *metadata = [NSMutableDictionary dictionary];
+    int64_t metadataCount = 0;
+    if (mpv_get_property(_handle, "metadata/list/count", MPV_FORMAT_INT64, &metadataCount) >= 0) {
+        for (int64_t index = 0; index < metadataCount; index++) {
+            NSString *prefix = [NSString stringWithFormat:@"metadata/list/%lld", index];
+            NSString *key = [self stringProperty:[prefix stringByAppendingString:@"/key"]];
+            NSString *value = [self stringProperty:[prefix stringByAppendingString:@"/value"]];
+            if (key.length > 0 && value.length > 0) {
+                metadata[key.lowercaseString] = value;
+            }
+        }
+    }
+
+    NSString *title = metadata[@"title"] ?: [self stringProperty:@"media-title"] ?: @"未知标题";
+    MPVClientMediaKind kind = hasAudio && !hasPlayableVideo
+        ? MPVClientMediaKindAudio
+        : MPVClientMediaKindVideo;
+    self.mediaPresentationHandler(
+        kind,
+        title,
+        metadata[@"artist"],
+        metadata[@"album"],
+        hasArtwork,
+        _eventLoadID
+    );
 }
 
 - (nullable NSString *)stringProperty:(NSString *)name {

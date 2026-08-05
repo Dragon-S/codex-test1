@@ -163,6 +163,33 @@ public struct TrackCatalog: Equatable, Sendable {
     }
 }
 
+public enum PlaybackMediaKind: Equatable, Sendable {
+    case audio
+    case video
+}
+
+public struct PlaybackMediaPresentation: Equatable, Sendable {
+    public let kind: PlaybackMediaKind
+    public let title: String
+    public let artist: String?
+    public let album: String?
+    public let hasArtwork: Bool
+
+    public init(
+        kind: PlaybackMediaKind,
+        title: String,
+        artist: String? = nil,
+        album: String? = nil,
+        hasArtwork: Bool = false
+    ) {
+        self.kind = kind
+        self.title = title
+        self.artist = artist
+        self.album = album
+        self.hasArtwork = hasArtwork
+    }
+}
+
 public enum SubtitleSelection: Equatable, Sendable {
     case off
     case embedded(EmbeddedSubtitleTrackID)
@@ -180,6 +207,7 @@ public enum PlaybackEngineEvent: Equatable, Sendable {
     case settingsChanged(PlaybackSettings, loadID: PlaybackLoadID)
     case playbackEnded(loadID: PlaybackLoadID)
     case trackCatalogChanged(TrackCatalog, loadID: PlaybackLoadID)
+    case mediaPresentationChanged(PlaybackMediaPresentation, loadID: PlaybackLoadID)
 }
 
 public protocol PlaybackEngine: Sendable {

@@ -208,6 +208,57 @@ struct PlaybackControlsView: View {
     }
 }
 
+struct AudioNowPlayingView: View {
+    @ObservedObject var coordinator: PlaybackCoordinator
+
+    var body: some View {
+        Group {
+            if let presentation = coordinator.mediaPresentation,
+               presentation.kind == .audio {
+                VStack(spacing: 24) {
+                    Spacer(minLength: 32)
+                    if !presentation.hasArtwork {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 88, weight: .light))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("没有可用封面")
+                    }
+                    Spacer()
+                    VStack(spacing: 6) {
+                        Text(presentation.title)
+                            .font(.title.bold())
+                            .lineLimit(2)
+                        if let artist = presentation.artist {
+                            Text(artist)
+                                .font(.title3)
+                        }
+                        if let album = presentation.album {
+                            Text(album)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 20)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.bottom, 96)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(presentation.hasArtwork ? Color.clear : Color.black)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(audioAccessibilityLabel(presentation))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func audioAccessibilityLabel(_ presentation: PlaybackMediaPresentation) -> String {
+        [presentation.title, presentation.artist, presentation.album]
+            .compactMap { $0 }
+            .joined(separator: "，")
+    }
+}
+
 struct NowPlayingListView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let addMediaToPlaylist: (PlaylistID) -> Void
@@ -217,6 +268,7 @@ struct NowPlayingListView: View {
     @State private var playlistName = ""
     @State private var renameName = ""
     @State private var playlistAwaitingDeletion: PlaylistID?
+    @State private var selectedEntryID: PlaylistEntryID?
 
     private var browsedPlaylist: Playlist? {
         guard let id = coordinator.browsingPlaylistID else { return nil }
@@ -248,12 +300,19 @@ struct NowPlayingListView: View {
                 .padding(.bottom, 8)
         }
         .frame(minWidth: 260, idealWidth: 300)
+        .background(.ultraThinMaterial)
         .onAppear(perform: chooseInitialPlaylist)
         .onChange(of: coordinator.playlists.map(\.id)) { _, _ in
             chooseInitialPlaylist()
         }
         .onChange(of: coordinator.browsingPlaylistID) { _, _ in
             renameName = browsedPlaylist?.name ?? ""
+            selectedEntryID = browsedPlaylist?.currentEntryID
+        }
+        .onChange(of: browsedPlaylist?.entries.map(\.id)) { _, entryIDs in
+            if let selectedEntryID, entryIDs?.contains(selectedEntryID) != true {
+                self.selectedEntryID = nil
+            }
         }
         .alert(
             "删除正在播放的 Playlist？",
@@ -395,17 +454,25 @@ struct NowPlayingListView: View {
                     .padding(.horizontal, 12)
                     .accessibilityLabel("当前媒体是脱离列表的播放项")
             }
-            List(Array(playlist.entries.enumerated()), id: \.element.id) { index, entry in
+            List(Array(playlist.entries.enumerated()), id: \.element.id, selection: $selectedEntryID) { index, entry in
+                let presentation = entryPresentation(for: entry, in: playlist)
                 HStack {
-                    Image(systemName: entry.media.availability == .missing
-                        ? "exclamationmark.triangle.fill"
-                        : (isPlaying(entry.id, in: playlist.id) ? "play.fill" : "circle"))
-                        .foregroundStyle(entry.media.availability == .missing ? .orange : .primary)
+                    Image(systemName: presentation.systemImage)
+                        .foregroundStyle(presentation.color)
                         .accessibilityHidden(true)
                     Text(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
                         .lineLimit(1)
+                        .foregroundStyle(presentation.titleColor)
+                    if playlist.currentEntryID == entry.id {
+                        Text("当前")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.blue.opacity(0.2), in: Capsule())
+                    }
                     Spacer()
                     Button {
+                        selectedEntryID = entry.id
                         Task { try? await coordinator.playEntry(entry.id, in: playlist.id) }
                     } label: {
                         Image(systemName: "play.fill")
@@ -443,10 +510,9 @@ struct NowPlayingListView: View {
                     .buttonStyle(.plain)
                     .help("从 Playlist 移除；不会删除源文件")
                 }
+                .tag(entry.id)
                 .accessibilityLabel(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
-                .accessibilityValue(entry.media.availability == .missing
-                    ? "文件缺失"
-                    : (isPlaying(entry.id, in: playlist.id) ? "当前播放" : ""))
+                .accessibilityValue(presentation.accessibilityValue)
             }
         }
     }
@@ -488,10 +554,63 @@ struct NowPlayingListView: View {
         return coordinator.nowPlayingList.entries[index].id == entryID
     }
 
+    private func isCurrentPlaybackFailed(_ entryID: PlaylistEntryID, in playlistID: PlaylistID) -> Bool {
+        guard isPlaying(entryID, in: playlistID) else { return false }
+        if case .failed = coordinator.state {
+            return true
+        }
+        return false
+    }
+
+    private struct PlaylistEntryPresentation {
+        let systemImage: String
+        let color: Color
+        let titleColor: Color
+        let accessibilityValue: String
+    }
+
+    private func entryPresentation(
+        for entry: PlaylistEntry,
+        in playlist: Playlist
+    ) -> PlaylistEntryPresentation {
+        let isMissing = entry.media.availability == .missing
+        let isPlaying = isPlaying(entry.id, in: playlist.id)
+        let isCurrent = playlist.currentEntryID == entry.id
+        let isUnavailable = !isMissing && (
+            isCurrentPlaybackFailed(entry.id, in: playlist.id)
+                || playlist.randomRound?.unavailableEntryIDs.contains(entry.id) == true
+        )
+        var statuses: [String] = []
+        if selectedEntryID == entry.id { statuses.append("已选中") }
+        if isCurrent { statuses.append("当前条目") }
+        if isPlaying { statuses.append("当前播放") }
+        if isMissing { statuses.append("文件缺失") }
+        if isUnavailable { statuses.append("不可用") }
+
+        let appearance: (String, Color, Color) = if isMissing {
+            ("exclamationmark.triangle.fill", .orange, .primary)
+        } else if isUnavailable {
+            ("xmark.octagon.fill", .red, .red)
+        } else if isPlaying {
+            ("play.fill", .blue, .primary)
+        } else if isCurrent {
+            ("bookmark.fill", .primary, .primary)
+        } else {
+            ("circle", .primary, .primary)
+        }
+        return PlaylistEntryPresentation(
+            systemImage: appearance.0,
+            color: appearance.1,
+            titleColor: appearance.2,
+            accessibilityValue: statuses.joined(separator: "，")
+        )
+    }
+
     private func chooseInitialPlaylist() {
         if let browsingID = coordinator.browsingPlaylistID,
            coordinator.playlists.contains(where: { $0.id == browsingID }) {
             renameName = browsedPlaylist?.name ?? ""
+            selectedEntryID = browsedPlaylist?.currentEntryID
             return
         }
         if let id = coordinator.activePlaylistID ?? coordinator.playlists.first?.id {
