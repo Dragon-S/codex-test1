@@ -315,6 +315,14 @@ public struct RandomPlaybackRound: Equatable, Codable, Sendable {
         )
     }
 
+    func removingFailedSelection(_ entryID: PlaylistEntryID) -> RandomPlaybackRound {
+        RandomPlaybackRound(
+            order: order,
+            playedEntryIDs: playedEntryIDs.filter { $0 != entryID },
+            unavailableEntryIDs: unavailableEntryIDs.filter { $0 != entryID }
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case order, playedEntryIDs, unavailableEntryIDs
     }
@@ -655,6 +663,7 @@ public protocol PersistentMediaAccess: Sendable {
 
 public enum PersistentMediaAccessError: Error, Equatable, Sendable {
     case missing(String)
+    case unreadable(String)
 }
 
 public protocol PersistentExternalSubtitleAccess: Sendable {

@@ -231,7 +231,7 @@ struct PlaybackControlsView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([recovery.mediaURL])
                     }
                 }
-                if recovery.actions.contains(.remove) {
+                if recovery.actions.contains(.removeEntryFromList) {
                     Button("从列表移除", role: .destructive) {
                         Task { try? await coordinator.removeFailedEntry() }
                     }
@@ -257,16 +257,30 @@ struct PlaybackControlsView: View {
 
     @ViewBuilder
     private var playbackQualityNotice: some View {
-        if coordinator.playbackQualityNotice == .softwareDecodingFallback {
+        switch coordinator.playbackQualityNotice {
+        case .none:
+            EmptyView()
+        case .softwareDecodingFallback:
             Label(
-                "硬件解码初始化失败，已降级为软件解码；4K 可能不稳定，1080p 及以下继续使用完整质量设置。",
+                "硬件解码初始化失败，正在用软件解码确认媒体质量。",
                 systemImage: "gauge.with.dots.needle.33percent"
             )
             .font(.caption)
             .foregroundStyle(.orange)
-            .accessibilityLabel(
-                "已降级为软件解码。4K 可能不稳定，1080p 及以下继续使用完整质量设置。"
+        case .softwareDecodingFallbackFor4K:
+            Label(
+                "硬件解码初始化失败；4K 已明确降级为软件解码，若播放不稳定请跳过或移除。",
+                systemImage: "gauge.with.dots.needle.33percent"
             )
+            .font(.caption)
+            .foregroundStyle(.orange)
+        case .softwareDecodingFallbackRequiresFullQualityGate:
+            Label(
+                "硬件解码初始化失败，已改用软件解码；1080p 及以下仍须通过完整质量门槛。",
+                systemImage: "checkmark.seal"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }

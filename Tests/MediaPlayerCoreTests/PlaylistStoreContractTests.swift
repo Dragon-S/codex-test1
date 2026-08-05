@@ -785,6 +785,55 @@ struct NamedPlaylistCoordinatorTests {
         #expect(coordinator.playlists == before.playlists)
     }
 
+    @Test("持久访问被拒绝会保留选择并发布可操作的无法读取错误")
+    func persistentAccessDenialPublishesUnreadableRecovery() async throws {
+        let reference = PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data([0x82]),
+            lastKnownPath: "/tmp/permission-denied.mkv"
+        )
+        let entry = PlaylistEntry(media: reference, resumePosition: 18)
+        let playlist = Playlist(name: "访问失败", entries: [entry])
+        let store = InMemoryPlaylistStore(library: PlaylistLibrary(playlists: [playlist]))
+        let engine = PlaylistFakePlaybackEngine()
+        let access = RecoveringMediaAccess(
+            media: LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/restored-after-permission.mkv"),
+                referenceID: reference.id,
+                bookmark: Data([0x83])
+            ),
+            failuresBeforeSuccess: 1
+        )
+        let coordinator = PlaybackCoordinator(
+            engine: engine,
+            playlistStore: store,
+            persistentMediaAccess: access
+        )
+        try await coordinator.restorePersistentState()
+
+        try await coordinator.playEntry(entry.id, in: playlist.id)
+
+        #expect(coordinator.state == .failed(.unreadable))
+        #expect(coordinator.activePlaylistID == playlist.id)
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
+        #expect(coordinator.playlists[0].entries[0].media.availability == .available)
+        guard case let .recovery(recovery) = coordinator.playbackFailureNotice else {
+            Issue.record("访问失败应发布领域恢复操作")
+            return
+        }
+        #expect(recovery.failure == .unreadable)
+        #expect(recovery.mediaURL.path == reference.lastKnownPath)
+        #expect(recovery.actions.contains(.retry))
+        #expect(await engine.commands.isEmpty)
+
+        await coordinator.retryPlaybackFailure()
+
+        #expect(await access.attemptCount == 2)
+        #expect(await engine.commands == [.load])
+        #expect(coordinator.nowPlayingList.currentMedia?.url.lastPathComponent == "restored-after-permission.mkv")
+        #expect(coordinator.playbackFailureNotice == .none)
+    }
+
     @Test("缺失条目恢复流程可移除应用内条目但不改变其他共享条目")
     func missingRecoveryCanRemoveOneEntryOnly() async throws {
         let reference = PersistentLocalMediaReference(
@@ -1283,7 +1332,12 @@ struct PlaylistProgressionTests {
 
         let round = try #require((await store.loadLibrary()).playlists[0].randomRound)
         #expect(round.playedEntryIDs == [first.id])
-        #expect(round.unavailableEntryIDs.count == 2)
+        #expect(round.unavailableEntryIDs.isEmpty)
+        guard case let .exhausted(failures) = coordinator.playbackFailureNotice else {
+            Issue.record("随机轮次失败应只在本轮汇总")
+            return
+        }
+        #expect(failures.count == 2)
         #expect(await engine.commands == [.load, .load, .load])
     }
 
@@ -1459,6 +1513,25 @@ private struct RefreshingMediaAccess: PersistentMediaAccess {
 private struct MissingMediaAccess: PersistentMediaAccess {
     func restore(_ reference: PersistentLocalMediaReference) throws -> LocalMedia {
         throw PersistentMediaAccessError.missing(reference.lastKnownPath)
+    }
+}
+
+private actor RecoveringMediaAccess: PersistentMediaAccess {
+    private let media: LocalMedia
+    private let failuresBeforeSuccess: Int
+    private(set) var attemptCount = 0
+
+    init(media: LocalMedia, failuresBeforeSuccess: Int) {
+        self.media = media
+        self.failuresBeforeSuccess = failuresBeforeSuccess
+    }
+
+    func restore(_ reference: PersistentLocalMediaReference) throws -> LocalMedia {
+        attemptCount += 1
+        guard attemptCount > failuresBeforeSuccess else {
+            throw PersistentMediaAccessError.unreadable(reference.lastKnownPath)
+        }
+        return media
     }
 }
 

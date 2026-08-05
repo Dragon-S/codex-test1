@@ -172,6 +172,24 @@ final class ContractEventRecorder: @unchecked Sendable {
         throw MediaPresentationTimeout(loadID: loadID, observed: eventSnapshot())
     }
 
+    func waitForVideoPresentationWithDimensions(
+        loadID: PlaybackLoadID
+    ) async throws -> PlaybackMediaPresentation {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            for event in eventSnapshot() {
+                if case let .mediaPresentationChanged(presentation, eventLoadID) = event,
+                   eventLoadID == loadID,
+                   presentation.kind == .video,
+                   presentation.videoDimensions != nil {
+                    return presentation
+                }
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw MediaPresentationTimeout(loadID: loadID, observed: eventSnapshot())
+    }
+
     func trackCatalogCount(loadID: PlaybackLoadID) -> Int {
         eventSnapshot().count { event in
             if case let .trackCatalogChanged(_, eventLoadID) = event {

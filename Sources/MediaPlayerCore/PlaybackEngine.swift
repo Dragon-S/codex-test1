@@ -42,7 +42,7 @@ public enum PlaybackFailure: Equatable, Sendable {
 public enum PlaybackFailureRecoveryAction: Equatable, Sendable {
     case retry
     case revealInFinder
-    case remove
+    case removeEntryFromList
     case skip
 }
 
@@ -74,6 +74,8 @@ public enum PlaybackFailureNotice: Equatable, Sendable {
 public enum PlaybackQualityNotice: Equatable, Sendable {
     case none
     case softwareDecodingFallback
+    case softwareDecodingFallbackFor4K
+    case softwareDecodingFallbackRequiresFullQualityGate
 }
 
 public struct PlaybackLoadID: Equatable, Hashable, Sendable {
@@ -205,25 +207,39 @@ public enum PlaybackMediaKind: Equatable, Sendable {
     case video
 }
 
+public struct VideoDimensions: Equatable, Sendable {
+    public let width: Int
+    public let height: Int
+
+    public init(width: Int, height: Int) {
+        precondition(width > 0 && height > 0)
+        self.width = width
+        self.height = height
+    }
+}
+
 public struct PlaybackMediaPresentation: Equatable, Sendable {
     public let kind: PlaybackMediaKind
     public let title: String
     public let artist: String?
     public let album: String?
     public let hasArtwork: Bool
+    public let videoDimensions: VideoDimensions?
 
     public init(
         kind: PlaybackMediaKind,
         title: String,
         artist: String? = nil,
         album: String? = nil,
-        hasArtwork: Bool = false
+        hasArtwork: Bool = false,
+        videoDimensions: VideoDimensions? = nil
     ) {
         self.kind = kind
         self.title = title
         self.artist = artist
         self.album = album
         self.hasArtwork = hasArtwork
+        self.videoDimensions = videoDimensions
     }
 }
 

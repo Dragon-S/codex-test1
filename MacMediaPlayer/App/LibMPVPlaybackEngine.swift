@@ -61,19 +61,26 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
                 loadID: PlaybackLoadID(rawValue: rawLoadID)
             ))
         }
-        client.mediaPresentationHandler = { [continuation] kind, title, artist, album, hasArtwork, rawLoadID in
-            let mediaKind: PlaybackMediaKind = switch kind {
+        client.mediaPresentationHandler = { [continuation] presentation, rawLoadID in
+            let mediaKind: PlaybackMediaKind = switch presentation.kind {
             case .audio: .audio
             case .video: .video
             @unknown default: .video
             }
+            let dimensions = presentation.pixelWidth > 0 && presentation.pixelHeight > 0
+                ? VideoDimensions(
+                    width: presentation.pixelWidth,
+                    height: presentation.pixelHeight
+                )
+                : nil
             continuation.yield(.mediaPresentationChanged(
                 PlaybackMediaPresentation(
                     kind: mediaKind,
-                    title: title,
-                    artist: artist,
-                    album: album,
-                    hasArtwork: hasArtwork
+                    title: presentation.title,
+                    artist: presentation.artist,
+                    album: presentation.album,
+                    hasArtwork: presentation.hasArtwork,
+                    videoDimensions: dimensions
                 ),
                 loadID: PlaybackLoadID(rawValue: rawLoadID)
             ))

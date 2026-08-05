@@ -157,7 +157,7 @@ struct PlaybackCoordinatorTests {
             failure: .unsupported,
             entryID: coordinator.nowPlayingList.entries[0].id,
             mediaURL: media[0].url,
-            actions: [.revealInFinder, .remove, .skip]
+            actions: [.revealInFinder, .removeEntryFromList, .skip]
         )))
         #expect(await engine.commands == [.load(media[0])])
     }
@@ -207,6 +207,20 @@ struct PlaybackCoordinatorTests {
         #expect(coordinator.playbackQualityNotice == .softwareDecodingFallback)
         #expect(coordinator.playbackFailureNotice == .none)
 
+        let fallbackLoadID = try #require(await engine.loadIDs.last)
+        engine.send(.mediaPresentationChanged(
+            PlaybackMediaPresentation(
+                kind: .video,
+                title: "4K",
+                videoDimensions: VideoDimensions(width: 3_840, height: 2_160)
+            ),
+            loadID: fallbackLoadID
+        ))
+        try await wait(
+            for: .softwareDecodingFallbackFor4K,
+            coordinator: coordinator
+        )
+
         await engine.sendState(.failed(.decoderInitializationFailed))
         try await wait(for: .failed(.decoderInitializationFailed), coordinator: coordinator)
         try await Task.sleep(for: .milliseconds(10))
@@ -218,6 +232,30 @@ struct PlaybackCoordinatorTests {
         }
         #expect(recovery.failure == .decoderInitializationFailed)
         #expect(recovery.actions.contains(.retry))
+    }
+
+    @Test("软件解码的 1080p 视频继续报告完整质量门槛")
+    func reportsFullQualityGateFor1080pSoftwareDecoding() async throws {
+        let engine = FakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        await coordinator.open(localMedia("full-quality-1080p.mp4"))
+        await engine.sendState(.failed(.decoderInitializationFailed))
+        try await waitForCommands(count: 2, engine: engine)
+        let loadID = try #require(await engine.loadIDs.last)
+
+        engine.send(.mediaPresentationChanged(
+            PlaybackMediaPresentation(
+                kind: .video,
+                title: "1080p",
+                videoDimensions: VideoDimensions(width: 1_920, height: 1_080)
+            ),
+            loadID: loadID
+        ))
+
+        try await wait(
+            for: .softwareDecodingFallbackRequiresFullQualityGate,
+            coordinator: coordinator
+        )
     }
 
     @Test("播放、暂停与停止由协调层转发并由引擎事件确认")
@@ -339,6 +377,20 @@ struct PlaybackCoordinatorTests {
             try await Task.sleep(for: .milliseconds(1))
         }
         Issue.record("等待播放引擎命令超时")
+    }
+
+    private func wait(
+        for expected: PlaybackQualityNotice,
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if coordinator.playbackQualityNotice == expected {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("等待播放质量状态超时")
     }
 }
 
