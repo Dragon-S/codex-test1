@@ -1287,6 +1287,41 @@ struct PlaylistProgressionTests {
         #expect(await engine.commands == [.load, .load, .load])
     }
 
+    @Test("顺序循环自动推进会在一轮内有限跳过并汇总全部失败")
+    func exhaustsSequentialFailuresWithoutLooping() async throws {
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let playlist = try await coordinator.createPlaylist(named: "顺序全失败")
+        let first = try await coordinator.add(bookmarkedMedia("first.mp4", 0xC1), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("second.mp4", 0xC2), to: playlist.id)
+        _ = try await coordinator.add(bookmarkedMedia("third.mp4", 0xC3), to: playlist.id)
+        try await coordinator.setRepeatMode(.playlist, for: playlist.id)
+        try await coordinator.playEntry(first.id, in: playlist.id)
+
+        await coordinator.next()
+        await engine.sendState(.loading)
+        await engine.sendState(.failed(.unsupported))
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 2 }
+
+        await engine.sendState(.loading)
+        await engine.sendState(.failed(.corrupted))
+        try await waitUntil { coordinator.nowPlayingList.currentIndex == 0 }
+
+        await engine.sendState(.loading)
+        await engine.sendState(.failed(.unreadable))
+        try await waitUntil { coordinator.state == .stopped }
+
+        guard case let .exhausted(failures) = coordinator.playbackFailureNotice else {
+            Issue.record("整轮失败后应发布汇总")
+            return
+        }
+        #expect(failures.map(\.failure) == [.unsupported, .corrupted, .unreadable])
+        #expect(failures.map(\.mediaURL.lastPathComponent) == [
+            "second.mp4", "third.mp4", "first.mp4",
+        ])
+        #expect(await engine.commands == [.load, .load, .load, .load])
+    }
+
     @Test("随机自动推进同样跳过已知缺失条目且不会开启空轮次")
     func randomProgressionSkipsKnownMissingEntries() async throws {
         let current = PlaylistEntry(media: PersistentLocalMediaReference(

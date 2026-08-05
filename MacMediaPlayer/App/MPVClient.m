@@ -86,6 +86,7 @@ static void MPVRenderUpdate(void *context);
     mpv_set_option_string(_handle, "config", "no");
     mpv_set_option_string(_handle, "terminal", "no");
     mpv_set_option_string(_handle, "hwdec", "videotoolbox");
+    mpv_set_option_string(_handle, "hwdec-software-fallback", "no");
     mpv_set_option_string(_handle, "keep-open", "yes");
     mpv_set_option_string(_handle, "vo", "libmpv");
     mpv_set_option_string(_handle, "audio-display", "embedded-first");
@@ -126,9 +127,11 @@ static void MPVRenderUpdate(void *context);
 }
 
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID {
-    NSString *path = url.path;
-    [self performLoadCommand:@[ @"loadfile", path, @"replace" ] loadID:loadID];
-    [self performCommand:@[ @"set", @"pause", @"no" ]];
+    [self performLoadURL:url loadID:loadID hardwareDecoding:YES];
+}
+
+- (void)loadURLUsingSoftwareDecoding:(NSURL *)url loadID:(uint64_t)loadID {
+    [self performLoadURL:url loadID:loadID hardwareDecoding:NO];
 }
 
 - (void)play {
@@ -297,7 +300,9 @@ static void MPVRenderUpdate(void *context);
     mpv_render_context_report_swap(_renderContext);
 }
 
-- (void)performLoadCommand:(NSArray<NSString *> *)arguments loadID:(uint64_t)loadID {
+- (void)performLoadURL:(NSURL *)url
+                loadID:(uint64_t)loadID
+      hardwareDecoding:(BOOL)hardwareDecoding {
     dispatch_async(_queue, ^{
         self->_requestedLoadID = loadID;
         if (self->_handle == NULL) {
@@ -305,7 +310,16 @@ static void MPVRenderUpdate(void *context);
             return;
         }
 
-        int result = [self executeCommand:arguments];
+        int result = mpv_set_property_string(
+            self->_handle,
+            "hwdec",
+            hardwareDecoding ? "videotoolbox" : "no"
+        );
+        if (result < 0) {
+            [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID];
+            return;
+        }
+        result = [self executeCommand:@[ @"loadfile", url.path, @"replace" ]];
         if (result < 0) {
             [self reportFailure:[self failureForError:result] loadID:loadID];
             return;
@@ -313,6 +327,10 @@ static void MPVRenderUpdate(void *context);
         [self->_pendingLoadIDs addObject:@(loadID)];
         self->_hasLoadedFile = NO;
         [self reportState:MPVClientPlaybackStateLoading loadID:loadID];
+        result = [self executeCommand:@[ @"set", @"pause", @"no" ]];
+        if (result < 0) {
+            [self reportFailure:[self failureForError:result] loadID:loadID];
+        }
     });
 }
 

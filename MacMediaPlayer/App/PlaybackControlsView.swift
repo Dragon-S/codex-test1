@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -93,6 +94,9 @@ struct PlaybackControlsView: View {
                     }
                 }
             }
+
+            playbackFailureRecovery
+            playbackQualityNotice
         }
         .buttonStyle(.bordered)
         .padding(12)
@@ -204,6 +208,65 @@ struct PlaybackControlsView: View {
         case .corrupted: "媒体内容已损坏"
         case .decoderInitializationFailed: "解码器初始化失败"
         case .engineUnavailable: "播放引擎不可用"
+        }
+    }
+
+    @ViewBuilder
+    private var playbackFailureRecovery: some View {
+        switch coordinator.playbackFailureNotice {
+        case .none:
+            EmptyView()
+        case let .recovery(recovery):
+            HStack(spacing: 8) {
+                Label(failureText(recovery.failure), systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                Spacer()
+                if recovery.actions.contains(.retry) {
+                    Button("重试") {
+                        Task { await coordinator.retryPlaybackFailure() }
+                    }
+                }
+                if recovery.actions.contains(.revealInFinder) {
+                    Button("在 Finder 中显示") {
+                        NSWorkspace.shared.activateFileViewerSelecting([recovery.mediaURL])
+                    }
+                }
+                if recovery.actions.contains(.remove) {
+                    Button("从列表移除", role: .destructive) {
+                        Task { try? await coordinator.removeFailedEntry() }
+                    }
+                    .help("只移除应用内条目，不删除源文件")
+                }
+                if recovery.actions.contains(.skip) {
+                    Button("跳过") {
+                        Task { await coordinator.skipPlaybackFailure() }
+                    }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("播放失败：\(failureText(recovery.failure))")
+        case let .exhausted(failures):
+            Label(
+                "本轮 \(failures.count) 个条目均播放失败，已停止自动推进",
+                systemImage: "stop.circle.fill"
+            )
+            .foregroundStyle(.red)
+            .accessibilityLabel("本轮 \(failures.count) 个条目均播放失败，已停止自动推进")
+        }
+    }
+
+    @ViewBuilder
+    private var playbackQualityNotice: some View {
+        if coordinator.playbackQualityNotice == .softwareDecodingFallback {
+            Label(
+                "硬件解码初始化失败，已降级为软件解码；4K 可能不稳定，1080p 及以下继续使用完整质量设置。",
+                systemImage: "gauge.with.dots.needle.33percent"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .accessibilityLabel(
+                "已降级为软件解码。4K 可能不稳定，1080p 及以下继续使用完整质量设置。"
+            )
         }
     }
 }

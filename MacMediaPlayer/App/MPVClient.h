@@ -58,6 +58,7 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID;
+- (void)loadURLUsingSoftwareDecoding:(NSURL *)url loadID:(uint64_t)loadID;
 - (void)play;
 - (void)pause;
 - (void)stop;

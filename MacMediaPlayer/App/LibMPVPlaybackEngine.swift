@@ -89,6 +89,10 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         client.load(media.url, loadID: loadID.rawValue)
     }
 
+    func loadUsingSoftwareDecoding(_ media: LocalMedia, loadID: PlaybackLoadID) async {
+        client.loadURL(usingSoftwareDecoding: media.url, loadID: loadID.rawValue)
+    }
+
     func play() async {
         client.play()
     }
@@ -171,7 +175,7 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         }
     }
 
-    private static func failure(for failure: MPVClientFailure) -> PlaybackFailure {
+    static func failure(for failure: MPVClientFailure) -> PlaybackFailure {
         switch failure {
         case .unreadable: .unreadable
         case .unsupported: .unsupported

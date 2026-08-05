@@ -39,6 +39,43 @@ public enum PlaybackFailure: Equatable, Sendable {
     case engineUnavailable
 }
 
+public enum PlaybackFailureRecoveryAction: Equatable, Sendable {
+    case retry
+    case revealInFinder
+    case remove
+    case skip
+}
+
+public struct PlaybackFailureRecovery: Equatable, Sendable {
+    public let failure: PlaybackFailure
+    public let entryID: PlaylistEntryID
+    public let mediaURL: URL
+    public let actions: [PlaybackFailureRecoveryAction]
+
+    public init(
+        failure: PlaybackFailure,
+        entryID: PlaylistEntryID,
+        mediaURL: URL,
+        actions: [PlaybackFailureRecoveryAction]
+    ) {
+        self.failure = failure
+        self.entryID = entryID
+        self.mediaURL = mediaURL
+        self.actions = actions
+    }
+}
+
+public enum PlaybackFailureNotice: Equatable, Sendable {
+    case none
+    case recovery(PlaybackFailureRecovery)
+    case exhausted([PlaybackFailureRecovery])
+}
+
+public enum PlaybackQualityNotice: Equatable, Sendable {
+    case none
+    case softwareDecodingFallback
+}
+
 public struct PlaybackLoadID: Equatable, Hashable, Sendable {
     public let rawValue: UInt64
 
@@ -214,6 +251,7 @@ public protocol PlaybackEngine: Sendable {
     var events: AsyncStream<PlaybackEngineEvent> { get }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) async
+    func loadUsingSoftwareDecoding(_ media: LocalMedia, loadID: PlaybackLoadID) async
     func play() async
     func pause() async
     func stop() async
@@ -227,6 +265,10 @@ public protocol PlaybackEngine: Sendable {
 }
 
 public extension PlaybackEngine {
+    func loadUsingSoftwareDecoding(_ media: LocalMedia, loadID: PlaybackLoadID) async {
+        await load(media, loadID: loadID)
+    }
+
     func selectAudioTrack(_ id: AudioTrackID) async -> Bool { false }
     func selectSubtitle(_ selection: SubtitleSelection) async -> Bool { false }
     func loadExternalSubtitle(_ subtitle: LocalExternalSubtitle) async -> ExternalSubtitleLoadResult {

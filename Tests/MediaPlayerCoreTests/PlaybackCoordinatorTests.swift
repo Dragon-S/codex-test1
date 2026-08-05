@@ -141,37 +141,39 @@ struct PlaybackCoordinatorTests {
         #expect(boundaryCoordinator.missingMediaNotice == .none)
     }
 
-    @Test("新打开的首项不可用时会继续尝试下一项")
-    func skipsUnavailableMediaWhileFindingFirstPlayableItem() async throws {
+    @Test("手动打开失败会保留当前选择并提供适用恢复操作")
+    func manualOpenFailureKeepsSelectionAndOffersRecovery() async throws {
         let engine = FakePlaybackEngine()
         let coordinator = PlaybackCoordinator(engine: engine)
-        let media = [localMedia("unreadable.mp4"), localMedia("available.mp3")]
+        let media = [localMedia("unsupported.mp4"), localMedia("available.mp3")]
         await coordinator.open(media)
 
-        await engine.sendState(.failed(.unreadable))
-        try await wait(forCurrentIndex: 1, coordinator: coordinator)
+        await engine.sendState(.failed(.unsupported))
+        try await wait(for: .failed(.unsupported), coordinator: coordinator)
 
-        #expect(coordinator.nowPlayingList.currentMedia == media[1])
-        #expect(await engine.commands == [.load(media[0]), .load(media[1])])
-
-        await engine.sendState(.playing)
-        try await wait(for: .playing, coordinator: coordinator)
+        #expect(coordinator.nowPlayingList.currentIndex == 0)
+        #expect(coordinator.nowPlayingList.currentMedia == media[0])
+        #expect(coordinator.playbackFailureNotice == .recovery(PlaybackFailureRecovery(
+            failure: .unsupported,
+            entryID: coordinator.nowPlayingList.entries[0].id,
+            mediaURL: media[0].url,
+            actions: [.revealInFinder, .remove, .skip]
+        )))
+        #expect(await engine.commands == [.load(media[0])])
     }
 
-    @Test("新打开的所有条目都不可用时保留末项失败并停止尝试")
-    func stopsTryingAfterAllNewMediaAreUnavailable() async throws {
+    @Test("手动打开的首项失败不会悄悄尝试后续条目")
+    func doesNotAdvanceAfterManualOpenFailure() async throws {
         let engine = FakePlaybackEngine()
         let coordinator = PlaybackCoordinator(engine: engine)
         let media = [localMedia("first-unreadable.mp4"), localMedia("second-corrupted.mkv")]
         await coordinator.open(media)
 
         await engine.sendState(.failed(.unreadable))
-        try await wait(forCurrentIndex: 1, coordinator: coordinator)
-        await engine.sendState(.failed(.corrupted))
-        try await wait(for: .failed(.corrupted), coordinator: coordinator)
+        try await wait(for: .failed(.unreadable), coordinator: coordinator)
 
-        #expect(coordinator.nowPlayingList.currentMedia == media[1])
-        #expect(await engine.commands == [.load(media[0]), .load(media[1])])
+        #expect(coordinator.nowPlayingList.currentMedia == media[0])
+        #expect(await engine.commands == [.load(media[0])])
     }
 
     @Test("打开本地媒体后等待真实引擎状态")
@@ -189,6 +191,33 @@ struct PlaybackCoordinatorTests {
         try await wait(for: .playing, coordinator: coordinator)
 
         #expect(coordinator.state == .playing)
+    }
+
+    @Test("解码器初始化失败只自动尝试一次软件解码并明确降级")
+    func retriesDecoderInitializationOnceWithSoftwareDecoding() async throws {
+        let engine = FakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let media = localMedia("hardware-decoder-failure.mp4")
+        await coordinator.open(media)
+
+        await engine.sendState(.failed(.decoderInitializationFailed))
+        try await waitForCommands(count: 2, engine: engine)
+
+        #expect(await engine.commands == [.load(media), .loadUsingSoftwareDecoding(media)])
+        #expect(coordinator.playbackQualityNotice == .softwareDecodingFallback)
+        #expect(coordinator.playbackFailureNotice == .none)
+
+        await engine.sendState(.failed(.decoderInitializationFailed))
+        try await wait(for: .failed(.decoderInitializationFailed), coordinator: coordinator)
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(await engine.commands == [.load(media), .loadUsingSoftwareDecoding(media)])
+        guard case let .recovery(recovery) = coordinator.playbackFailureNotice else {
+            Issue.record("软件解码失败后应发布恢复操作")
+            return
+        }
+        #expect(recovery.failure == .decoderInitializationFailed)
+        #expect(recovery.actions.contains(.retry))
     }
 
     @Test("播放、暂停与停止由协调层转发并由引擎事件确认")
@@ -212,6 +241,47 @@ struct PlaybackCoordinatorTests {
         await engine.sendState(.stopped)
         try await wait(for: .stopped, coordinator: coordinator)
         #expect(coordinator.state == .stopped)
+    }
+
+    @Test("恢复操作可重试、跳过或只移除应用内条目")
+    func performsPlaybackFailureRecoveryActions() async throws {
+        let retryEngine = FakePlaybackEngine()
+        let retryCoordinator = PlaybackCoordinator(engine: retryEngine)
+        let retryMedia = localMedia("retry.mp4")
+        await retryCoordinator.open(retryMedia)
+        await retryEngine.sendState(.failed(.corrupted))
+        try await wait(for: .failed(.corrupted), coordinator: retryCoordinator)
+
+        await retryCoordinator.retryPlaybackFailure()
+
+        #expect(await retryEngine.commands == [.load(retryMedia), .load(retryMedia)])
+        #expect(retryCoordinator.nowPlayingList.currentMedia == retryMedia)
+
+        let skipEngine = FakePlaybackEngine()
+        let skipCoordinator = PlaybackCoordinator(engine: skipEngine)
+        let skipMedia = [localMedia("skip.mp4"), localMedia("next.mp3")]
+        await skipCoordinator.open(skipMedia)
+        await skipEngine.sendState(.failed(.unsupported))
+        try await wait(for: .failed(.unsupported), coordinator: skipCoordinator)
+
+        await skipCoordinator.skipPlaybackFailure()
+
+        #expect(skipCoordinator.nowPlayingList.currentIndex == 1)
+        #expect(await skipEngine.commands == [.load(skipMedia[0]), .load(skipMedia[1])])
+
+        let removeEngine = FakePlaybackEngine()
+        let removeCoordinator = PlaybackCoordinator(engine: removeEngine)
+        let removeMedia = [localMedia("remove.mp4"), localMedia("keep.mp3")]
+        await removeCoordinator.open(removeMedia)
+        await removeEngine.sendState(.failed(.corrupted))
+        try await wait(for: .failed(.corrupted), coordinator: removeCoordinator)
+
+        try await removeCoordinator.removeFailedEntry()
+
+        #expect(removeCoordinator.nowPlayingList.entries.map(\.media) == [removeMedia[1]])
+        #expect(removeCoordinator.nowPlayingList.currentIndex == 0)
+        #expect(removeCoordinator.state == .stopped)
+        #expect(await removeEngine.commands == [.load(removeMedia[0]), .stop])
     }
 
     private func wait(for expected: PlaybackState, coordinator: PlaybackCoordinator) async throws {
@@ -259,6 +329,17 @@ struct PlaybackCoordinatorTests {
             observed: coordinator.mediaPresentation
         )
     }
+
+    private func waitForCommands(count: Int, engine: FakePlaybackEngine) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if await engine.commands.count == count {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("等待播放引擎命令超时")
+    }
 }
 
 private struct CoordinatorStateTimeout: Error {
@@ -278,6 +359,7 @@ private struct CoordinatorMediaPresentationTimeout: Error {
 
 private enum PlaybackEngineCommand: Equatable, Sendable {
     case load(LocalMedia)
+    case loadUsingSoftwareDecoding(LocalMedia)
     case play
     case pause
     case stop
@@ -295,6 +377,11 @@ private actor FakePlaybackEngine: PlaybackEngine {
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
         commands.append(.load(media))
+        loadIDs.append(loadID)
+    }
+
+    func loadUsingSoftwareDecoding(_ media: LocalMedia, loadID: PlaybackLoadID) {
+        commands.append(.loadUsingSoftwareDecoding(media))
         loadIDs.append(loadID)
     }
 

@@ -6,6 +6,15 @@ import Testing
 
 @MainActor
 struct LibMPVPlaybackEngineContractTests {
+    @Test("真实适配器将 libmpv 失败映射为稳定领域错误")
+    func realAdapterMapsFailuresToDomainErrors() {
+        #expect(LibMPVPlaybackEngine.failure(for: .unreadable) == .unreadable)
+        #expect(LibMPVPlaybackEngine.failure(for: .unsupported) == .unsupported)
+        #expect(LibMPVPlaybackEngine.failure(for: .corrupted) == .corrupted)
+        #expect(LibMPVPlaybackEngine.failure(for: .decoderInitialization) == .decoderInitializationFailed)
+        #expect(LibMPVPlaybackEngine.failure(for: .engineUnavailable) == .engineUnavailable)
+    }
+
     @Test("真实 libmpv 适配器履行基础 PlaybackEngine 契约")
     func realAdapterFulfillsBasicPlaybackContract() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 640, height: 360))
@@ -19,6 +28,24 @@ struct LibMPVPlaybackEngineContractTests {
             engine: engine,
             media: LocalMedia(url: mediaURL)
         )
+    }
+
+    @Test("真实 libmpv 适配器可显式使用软件解码加载视频")
+    func realAdapterLoadsVideoUsingSoftwareDecoding() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 17)
+
+        await engine.loadUsingSoftwareDecoding(
+            LocalMedia(url: mediaURL),
+            loadID: loadID
+        )
+
+        try await recorder.waitForState(.playing, loadID: loadID)
+        #expect(!recorder.hasFailure(loadID: loadID))
     }
 
     @Test("真实 libmpv 适配器把首帧输出到 AppKit 画布")
