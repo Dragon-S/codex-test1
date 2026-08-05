@@ -23,6 +23,11 @@ typedef NS_ENUM(NSInteger, MPVClientExternalSubtitleResult) {
     MPVClientExternalSubtitleResultDamaged,
 };
 
+typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
+    MPVClientMediaKindAudio,
+    MPVClientMediaKindVideo,
+};
+
 @interface MPVClientTrack : NSObject
 
 @property (nonatomic, readonly) NSUUID *identifier;
@@ -49,6 +54,7 @@ typedef NS_ENUM(NSInteger, MPVClientExternalSubtitleResult) {
 @property (nonatomic, copy, nullable) void (^timelineHandler)(double position, double duration, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^settingsHandler)(double rate, double volume, BOOL muted, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^trackCatalogHandler)(NSArray<MPVClientTrack *> *audioTracks, NSArray<MPVClientTrack *> *subtitleTracks, uint64_t loadID);
+@property (nonatomic, copy, nullable) void (^mediaPresentationHandler)(MPVClientMediaKind kind, NSString *title, NSString * _Nullable artist, NSString * _Nullable album, BOOL hasArtwork, uint64_t loadID);
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID;

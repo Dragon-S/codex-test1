@@ -58,6 +58,34 @@ struct PlaybackCoordinatorTests {
         #expect(await engine.commands == [.load(oldMedia[0]), .load(newMedia[0])])
     }
 
+    @Test("协调层只发布当前加载的音频标题、艺人、专辑与封面状态")
+    func publishesAudioPresentationForCurrentLoadOnly() async throws {
+        let engine = FakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        await coordinator.open([localMedia("first.flac")])
+        let firstLoadID = try #require(await engine.loadIDs.last)
+
+        let expected = PlaybackMediaPresentation(
+            kind: .audio,
+            title: "夜航",
+            artist: "测试艺人",
+            album: "测试专辑",
+            hasArtwork: true
+        )
+        engine.send(.mediaPresentationChanged(expected, loadID: firstLoadID))
+        try await wait(for: expected, coordinator: coordinator)
+
+        await coordinator.open([localMedia("second.mp4")])
+        #expect(coordinator.mediaPresentation == nil)
+        engine.send(.mediaPresentationChanged(
+            PlaybackMediaPresentation(kind: .audio, title: "迟到标题"),
+            loadID: firstLoadID
+        ))
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(coordinator.mediaPresentation == nil)
+    }
+
     @Test("下一首与上一首按正在播放列表顺序加载相邻条目")
     func movesToNextAndPreviousMediaInOrder() async {
         let engine = FakePlaybackEngine()
@@ -214,6 +242,23 @@ struct PlaybackCoordinatorTests {
             observed: coordinator.nowPlayingList.currentIndex
         )
     }
+
+    private func wait(
+        for expected: PlaybackMediaPresentation,
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if coordinator.mediaPresentation == expected {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        throw CoordinatorMediaPresentationTimeout(
+            expected: expected,
+            observed: coordinator.mediaPresentation
+        )
+    }
 }
 
 private struct CoordinatorStateTimeout: Error {
@@ -224,6 +269,11 @@ private struct CoordinatorStateTimeout: Error {
 private struct CoordinatorListTimeout: Error {
     let expected: Int
     let observed: Int?
+}
+
+private struct CoordinatorMediaPresentationTimeout: Error {
+    let expected: PlaybackMediaPresentation
+    let observed: PlaybackMediaPresentation?
 }
 
 private enum PlaybackEngineCommand: Equatable, Sendable {

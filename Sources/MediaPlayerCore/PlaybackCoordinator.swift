@@ -122,6 +122,7 @@ public final class PlaybackCoordinator: ObservableObject {
     @Published public private(set) var trackSelection = TrackSelectionState()
     @Published public private(set) var trackNotice: TrackNotice = .none
     @Published public private(set) var missingMediaNotice: MissingMediaNotice = .none
+    @Published public private(set) var mediaPresentation: PlaybackMediaPresentation?
 
     public var missingMediaCount: Int {
         nowPlayingList.entries.count(where: \.isMediaMissing)
@@ -1158,6 +1159,7 @@ public final class PlaybackCoordinator: ObservableObject {
         availableEmbeddedSubtitleTracks = []
         trackSelection = TrackSelectionState()
         trackNotice = .none
+        mediaPresentation = nil
         await engine.load(media, loadID: loadID)
         await engine.setPlaybackRate(playbackRate)
         await engine.setPlayerVolume(playerVolume)
@@ -1298,6 +1300,9 @@ public final class PlaybackCoordinator: ObservableObject {
         case let .trackCatalogChanged(catalog, loadID):
             guard loadID == activeLoadID else { return }
             await applyTrackCatalog(catalog)
+        case let .mediaPresentationChanged(presentation, loadID):
+            guard loadID == activeLoadID else { return }
+            mediaPresentation = presentation
         }
     }
 
