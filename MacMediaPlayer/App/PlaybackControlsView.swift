@@ -262,6 +262,7 @@ struct AudioNowPlayingView: View {
 struct NowPlayingListView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let addMediaToPlaylist: (PlaylistID) -> Void
+    let importFolderToPlaylist: (PlaylistID) -> Void
     let relocateMissingMedia: (LocalMediaReferenceID) -> Void
     let confirmMediaReplacement: (LocalMediaReferenceID) -> Void
     let cancelMediaReplacement: () -> Void
@@ -417,6 +418,7 @@ struct NowPlayingListView: View {
             .padding(.horizontal, 12)
             HStack {
                 Button("添加…") { addMediaToPlaylist(playlist.id) }
+                Button("导入文件夹…") { importFolderToPlaylist(playlist.id) }
                 Button("删除 Playlist", role: .destructive) {
                     if coordinator.activePlaylistID == playlist.id {
                         playlistAwaitingDeletion = playlist.id

@@ -1,6 +1,46 @@
 import Combine
 import Foundation
 
+private struct LocalMediaReferenceIndex {
+    private var byFileIdentity: [LocalFileIdentity: PersistentLocalMediaReference] = [:]
+    private var byStandardizedPath: [String: PersistentLocalMediaReference] = [:]
+
+    init(references: some Sequence<PersistentLocalMediaReference>) {
+        for reference in references {
+            insert(reference)
+        }
+    }
+
+    func reference(matching media: LocalMedia) -> PersistentLocalMediaReference? {
+        if let fileIdentity = media.fileIdentity {
+            if let reference = byFileIdentity[fileIdentity] {
+                return reference
+            }
+            guard let pathReference = byStandardizedPath[standardizedPath(media.url)],
+                  pathReference.fileIdentity == nil else {
+                return nil
+            }
+            return pathReference
+        }
+        return byStandardizedPath[standardizedPath(media.url)]
+    }
+
+    mutating func insert(_ reference: PersistentLocalMediaReference) {
+        if let fileIdentity = reference.fileIdentity {
+            byFileIdentity[fileIdentity] = reference
+        }
+        byStandardizedPath[standardizedPath(reference.lastKnownPath)] = reference
+    }
+}
+
+private func standardizedPath(_ url: URL) -> String {
+    url.standardizedFileURL.path
+}
+
+private func standardizedPath(_ path: String) -> String {
+    standardizedPath(URL(fileURLWithPath: path))
+}
+
 public protocol PlaybackTimeSource: Sendable {
     var now: TimeInterval { get }
 }
@@ -277,82 +317,68 @@ public final class PlaybackCoordinator: ObservableObject {
 
     @discardableResult
     public func add(_ media: LocalMedia, to playlistID: PlaylistID) async throws -> PlaylistEntry {
-        guard let bookmark = media.bookmark else {
-            persistenceNotice = .failed("无法持久保存 \(media.url.lastPathComponent) 的只读访问权限")
-            throw PlaylistPersistenceError.missingBookmark(media.url.path)
-        }
+        try await appendMedia([media], to: playlistID)[0]
+    }
+
+    @discardableResult
+    public func importFolder(
+        _ folder: URL,
+        into playlistID: PlaylistID,
+        duplicatePolicy: FolderImportDuplicatePolicy = .skipExisting,
+        traverser: any FolderTraversing = FileSystemFolderTraverser(),
+        mediaProbe: any FolderMediaProbing = FileSystemFolderMediaProbe()
+    ) async throws -> FolderImportReport {
         guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
             throw PlaylistPersistenceError.playlistNotFound(playlistID)
         }
-        let sharedReference = playlists.lazy
-            .flatMap(\.entries)
-            .map(\.media)
-            .first { reference in
-                if let fileIdentity = media.fileIdentity,
-                   let referenceIdentity = reference.fileIdentity {
-                    return referenceIdentity == fileIdentity
-                }
-                return URL(fileURLWithPath: reference.lastKnownPath).standardizedFileURL
-                    == media.url.standardizedFileURL
-            }
-        let persistentReference = PersistentLocalMediaReference(
-            id: sharedReference?.id ?? media.referenceID,
-            bookmark: bookmark,
-            lastKnownPath: media.url.path,
-            fileIdentity: media.fileIdentity ?? sharedReference?.fileIdentity
+        let files = try await traverser.files(in: folder).sorted(by: folderImportNaturalLessThan)
+        var mediaItems: [LocalMedia] = []
+        var refreshedMediaItems: [LocalMedia] = []
+        var skippedCount = 0
+        var failedCount = 0
+        var targetMediaIndex = LocalMediaReferenceIndex(
+            references: playlists[playlistIndex].entries.map(\.media)
         )
-        let entry = PlaylistEntry(media: persistentReference)
-        var updatedPlaylists = playlists.map { playlist in
-            playlist.replacingEntries(
-                playlist.entries.map { existingEntry in
-                    guard existingEntry.media.id == persistentReference.id else { return existingEntry }
-                    return PlaylistEntry(
-                        id: existingEntry.id,
-                        media: persistentReference,
-                        resumePosition: existingEntry.resumePosition,
-                        isCompleted: existingEntry.isCompleted,
-                        playbackPreferences: existingEntry.playbackPreferences
-                    )
-                },
-                currentEntryID: playlist.currentEntryID
-            )
-        }
-        let playlist = updatedPlaylists[playlistIndex]
-        var updatedPlaylist = playlist.replacingEntries(
-            playlist.entries + [entry],
-            currentEntryID: playlist.currentEntryID
-        )
-        if let round = playlist.randomRound {
-            updatedPlaylist = updatedPlaylist.replacingRandomRound(round.addingUnplayed(entry.id))
-        }
-        updatedPlaylists[playlistIndex] = updatedPlaylist
-        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
-        if activePlaylistID == playlistID {
-            let normalizedMedia = LocalMedia(
-                url: media.url,
-                referenceID: persistentReference.id,
-                bookmark: persistentReference.bookmark,
-                fileIdentity: persistentReference.fileIdentity
-            )
-            let refreshedEntries = nowPlayingList.entries.map { nowPlayingEntry in
-                guard nowPlayingEntry.media.referenceID == persistentReference.id else {
-                    return nowPlayingEntry
+
+        for file in files {
+            try Task.checkCancellation()
+            switch try await mediaProbe.probe(file) {
+            case let .supported(media):
+                guard let bookmark = media.bookmark else {
+                    failedCount += 1
+                    continue
                 }
-                return NowPlayingEntry(
-                    id: nowPlayingEntry.id,
-                    media: normalizedMedia,
-                    resumePosition: nowPlayingEntry.resumePosition,
-                    isCompleted: nowPlayingEntry.isCompleted,
-                    playbackPreferences: nowPlayingEntry.playbackPreferences
-                )
+                if duplicatePolicy == .skipExisting,
+                   targetMediaIndex.reference(matching: media) != nil {
+                    skippedCount += 1
+                    refreshedMediaItems.append(media)
+                    continue
+                }
+                mediaItems.append(media)
+                targetMediaIndex.insert(PersistentLocalMediaReference(
+                    id: media.referenceID,
+                    bookmark: bookmark,
+                    lastKnownPath: media.url.path,
+                    fileIdentity: media.fileIdentity
+                ))
+            case .unsupported:
+                skippedCount += 1
+            case .failed:
+                failedCount += 1
             }
-            nowPlayingList = NowPlayingList(
-                entries: refreshedEntries + [NowPlayingEntry(id: entry.id, media: normalizedMedia)],
-                currentIndex: nowPlayingList.currentIndex
-            )
         }
-        browsingPlaylistID = playlistID
-        return entry
+
+        try Task.checkCancellation()
+        let entries = try await appendMedia(
+            mediaItems,
+            refreshing: refreshedMediaItems,
+            to: playlistID
+        )
+        return FolderImportReport(
+            addedCount: entries.count,
+            skippedCount: skippedCount,
+            failedCount: failedCount
+        )
     }
 
     @discardableResult
@@ -1887,6 +1913,112 @@ public final class PlaybackCoordinator: ObservableObject {
     private func selectedSubtitleName(in catalog: TrackCatalog) -> String? {
         guard case let .embedded(id) = trackSelection.subtitle else { return nil }
         return catalog.embeddedSubtitleTracks.first(where: { $0.id == id })?.displayName
+    }
+
+    private func appendMedia(
+        _ mediaItems: [LocalMedia],
+        refreshing refreshedMediaItems: [LocalMedia] = [],
+        to playlistID: PlaylistID
+    ) async throws -> [PlaylistEntry] {
+        guard !mediaItems.isEmpty || !refreshedMediaItems.isEmpty else { return [] }
+        guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }) else {
+            throw PlaylistPersistenceError.playlistNotFound(playlistID)
+        }
+        var referenceIndex = LocalMediaReferenceIndex(
+            references: playlists.lazy.flatMap(\.entries).map(\.media)
+        )
+        var refreshedReferencesByID: [LocalMediaReferenceID: PersistentLocalMediaReference] = [:]
+        func refreshedReference(for media: LocalMedia) throws -> PersistentLocalMediaReference {
+            guard let bookmark = media.bookmark else {
+                persistenceNotice = .failed("无法持久保存 \(media.url.lastPathComponent) 的只读访问权限")
+                throw PlaylistPersistenceError.missingBookmark(media.url.path)
+            }
+            let sharedReference = referenceIndex.reference(matching: media)
+            let reference = PersistentLocalMediaReference(
+                id: sharedReference?.id ?? media.referenceID,
+                bookmark: bookmark,
+                lastKnownPath: media.url.path,
+                fileIdentity: media.fileIdentity ?? sharedReference?.fileIdentity
+            )
+            referenceIndex.insert(reference)
+            refreshedReferencesByID[reference.id] = reference
+            return reference
+        }
+        for media in refreshedMediaItems {
+            _ = try refreshedReference(for: media)
+        }
+        var entries = try mediaItems.map { media in
+            PlaylistEntry(media: try refreshedReference(for: media))
+        }
+        entries = entries.map { entry in
+            PlaylistEntry(
+                id: entry.id,
+                media: refreshedReferencesByID[entry.media.id] ?? entry.media
+            )
+        }
+        var updatedPlaylists = playlists.map { playlist in
+            playlist.replacingEntries(
+                playlist.entries.map { entry in
+                    guard let reference = refreshedReferencesByID[entry.media.id] else {
+                        return entry
+                    }
+                    return PlaylistEntry(
+                        id: entry.id,
+                        media: reference,
+                        resumePosition: entry.resumePosition,
+                        isCompleted: entry.isCompleted,
+                        playbackPreferences: entry.playbackPreferences
+                    )
+                },
+                currentEntryID: playlist.currentEntryID
+            )
+        }
+        let playlist = updatedPlaylists[playlistIndex]
+        var updatedPlaylist = playlist.replacingEntries(
+            playlist.entries + entries,
+            currentEntryID: playlist.currentEntryID
+        )
+        if var round = playlist.randomRound {
+            for entry in entries {
+                round = round.addingUnplayed(entry.id)
+            }
+            updatedPlaylist = updatedPlaylist.replacingRandomRound(round)
+        }
+        updatedPlaylists[playlistIndex] = updatedPlaylist
+        try await commit(updatedPlaylists, activePlaylistID: activePlaylistID)
+        let refreshedNowPlayingEntries = nowPlayingList.entries.map { nowPlayingEntry in
+            guard let reference = refreshedReferencesByID[nowPlayingEntry.media.referenceID]
+            else {
+                return nowPlayingEntry
+            }
+            return NowPlayingEntry(
+                id: nowPlayingEntry.id,
+                media: localMedia(for: reference),
+                resumePosition: nowPlayingEntry.resumePosition,
+                isCompleted: nowPlayingEntry.isCompleted,
+                playbackPreferences: nowPlayingEntry.playbackPreferences
+            )
+        }
+        let appendedNowPlayingEntries = activePlaylistID == playlistID
+            ? entries.map {
+                    NowPlayingEntry(id: $0.id, media: localMedia(for: $0.media))
+                }
+            : []
+        nowPlayingList = NowPlayingList(
+            entries: refreshedNowPlayingEntries + appendedNowPlayingEntries,
+            currentIndex: nowPlayingList.currentIndex
+        )
+        browsingPlaylistID = playlistID
+        return entries
+    }
+
+    private func localMedia(for reference: PersistentLocalMediaReference) -> LocalMedia {
+        LocalMedia(
+            url: URL(fileURLWithPath: reference.lastKnownPath),
+            referenceID: reference.id,
+            bookmark: reference.bookmark,
+            fileIdentity: reference.fileIdentity
+        )
     }
 
     private func record(_ error: PlaylistStoreError) {
