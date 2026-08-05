@@ -24,6 +24,7 @@
 		A1000000000000000000000F /* SecurityScopedMediaAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000115 /* SecurityScopedMediaAccessTests.swift */; };
 		A10000000000000000000010 /* MediaReplacementAssessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000116 /* MediaReplacementAssessor.swift */; };
 		A10000000000000000000011 /* PlaybackViewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000117 /* PlaybackViewControllerTests.swift */; };
+		A10000000000000000000012 /* FolderImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000118 /* FolderImport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 		A10000000000000000000115 /* SecurityScopedMediaAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SecurityScopedMediaAccessTests.swift; path = ../MacMediaPlayerTests/SecurityScopedMediaAccessTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000116 /* MediaReplacementAssessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MediaReplacementAssessor.swift; path = ../Sources/MediaPlayerCore/MediaReplacementAssessor.swift; sourceTree = "<group>"; };
 		A10000000000000000000117 /* PlaybackViewControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaybackViewControllerTests.swift; path = ../MacMediaPlayerTests/PlaybackViewControllerTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000118 /* FolderImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FolderImport.swift; path = ../Sources/MediaPlayerCore/FolderImport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,7 +101,7 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */, A10000000000000000000116 /* MediaReplacementAssessor.swift */, A10000000000000000000112 /* PlaylistModels.swift */, A10000000000000000000113 /* PlaylistStore.swift */); name = Core; sourceTree = "<group>"; };
+		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */, A10000000000000000000118 /* FolderImport.swift */, A10000000000000000000116 /* MediaReplacementAssessor.swift */, A10000000000000000000112 /* PlaylistModels.swift */, A10000000000000000000113 /* PlaylistStore.swift */); name = Core; sourceTree = "<group>"; };
 		A10000000000000000000303 /* Tests */ = {isa = PBXGroup; children = (A1000000000000000000010A /* PlaybackEngineContractTests.swift */, A10000000000000000000111 /* PlaybackEngineContract.swift */, A10000000000000000000117 /* PlaybackViewControllerTests.swift */, A10000000000000000000115 /* SecurityScopedMediaAccessTests.swift */); name = Tests; sourceTree = "<group>"; };
 		A10000000000000000000304 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000100 /* MacMediaPlayer.app */, A10000000000000000000110 /* MacMediaPlayerTests.xctest */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -168,7 +170,7 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E, A10000000000000000000010); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E, A10000000000000000000010, A10000000000000000000012); runOnlyForDeploymentPostprocessing = 0; };
 		A10000000000000000000222 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A1000000000000000000000B, A10000000000000000000011, A1000000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

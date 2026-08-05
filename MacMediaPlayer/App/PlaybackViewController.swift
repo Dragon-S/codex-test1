@@ -31,6 +31,7 @@ final class PlaybackViewController: NSViewController {
         openExternalSubtitle: @escaping () -> Void,
         relocateExternalSubtitle: @escaping () -> Void,
         addMediaToPlaylist: @escaping (PlaylistID) -> Void,
+        importFolderToPlaylist: @escaping (PlaylistID) -> Void = { _ in },
         relocateMissingMedia: @escaping (LocalMediaReferenceID) -> Void,
         confirmMediaReplacement: @escaping (LocalMediaReferenceID) -> Void,
         cancelMediaReplacement: @escaping () -> Void,
@@ -52,6 +53,7 @@ final class PlaybackViewController: NSViewController {
             rootView: NowPlayingListView(
                 coordinator: coordinator,
                 addMediaToPlaylist: addMediaToPlaylist,
+                importFolderToPlaylist: importFolderToPlaylist,
                 relocateMissingMedia: relocateMissingMedia,
                 confirmMediaReplacement: confirmMediaReplacement,
                 cancelMediaReplacement: cancelMediaReplacement

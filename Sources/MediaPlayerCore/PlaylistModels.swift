@@ -46,13 +46,84 @@ public enum LocalMediaAvailability: String, Equatable, Codable, Sendable {
 }
 
 public enum MVPSelectableMediaFormats {
-    public static let filenameExtensions = [
-        "mp4", "mov", "mkv", "webm",
-        "mp3", "m4a", "aac", "alac", "flac", "wav", "ogg", "opus",
+    private enum ContainerSignature {
+        case isoBaseMedia
+        case ebml
+        case mp3
+        case adts
+        case alac
+        case flac
+        case wave
+        case ogg
+    }
+
+    private static let formats: [(filenameExtension: String, signature: ContainerSignature)] = [
+        ("mp4", .isoBaseMedia),
+        ("mov", .isoBaseMedia),
+        ("mkv", .ebml),
+        ("webm", .ebml),
+        ("mp3", .mp3),
+        ("m4a", .isoBaseMedia),
+        ("aac", .adts),
+        ("alac", .alac),
+        ("flac", .flac),
+        ("wav", .wave),
+        ("ogg", .ogg),
+        ("opus", .ogg),
     ]
 
+    public static let filenameExtensions = formats.map(\.filenameExtension)
+
     public static func allows(filenameExtension: String) -> Bool {
-        filenameExtensions.contains(filenameExtension.lowercased())
+        formats.contains { $0.filenameExtension == filenameExtension.lowercased() }
+    }
+
+    static func matchesContainerSignature(
+        _ header: Data,
+        filenameExtension: String
+    ) -> Bool {
+        guard let signature = formats.first(where: {
+            $0.filenameExtension == filenameExtension.lowercased()
+        })?.signature else {
+            return false
+        }
+        switch signature {
+        case .isoBaseMedia:
+            guard header.count >= 8 else { return false }
+            let atomType = Data(header[4..<8])
+            return ["ftyp", "moov", "mdat", "wide", "free", "skip"]
+                .map { Data($0.utf8) }
+                .contains(atomType)
+        case .ebml:
+            return header.starts(with: [0x1A, 0x45, 0xDF, 0xA3])
+        case .mp3:
+            return header.starts(with: Data("ID3".utf8)) || hasMPEGAudioFrameSync(header)
+        case .adts:
+            return hasADTSFrameSync(header)
+        case .alac:
+            return header.starts(with: Data("caff".utf8))
+                || (header.count >= 8 && Data(header[4..<8]) == Data("ftyp".utf8))
+        case .flac:
+            return header.starts(with: Data("fLaC".utf8))
+        case .wave:
+            return header.count >= 12
+                && header.starts(with: Data("RIFF".utf8))
+                && Data(header[8..<12]) == Data("WAVE".utf8)
+        case .ogg:
+            return header.starts(with: Data("OggS".utf8))
+        }
+    }
+
+    private static func hasMPEGAudioFrameSync(_ header: Data) -> Bool {
+        guard header.count >= 2, header[header.startIndex] == 0xFF else { return false }
+        let secondByte = header[header.index(after: header.startIndex)]
+        return secondByte & 0xE0 == 0xE0 && secondByte & 0x06 != 0
+    }
+
+    private static func hasADTSFrameSync(_ header: Data) -> Bool {
+        guard header.count >= 2, header[header.startIndex] == 0xFF else { return false }
+        let secondByte = header[header.index(after: header.startIndex)]
+        return secondByte & 0xF6 == 0xF0
     }
 }
 

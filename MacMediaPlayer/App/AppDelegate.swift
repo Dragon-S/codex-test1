@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var coordinator: PlaybackCoordinator?
     private var securityScopedURLs: [URL] = []
     private var pendingMediaReplacement: (referenceID: LocalMediaReferenceID, media: LocalMedia)?
+    private let localMediaFactory = FileSystemLocalMediaFactory()
     private var isPreparingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -40,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             },
             addMediaToPlaylist: { [weak self] playlistID in
                 self?.addMedia(to: playlistID)
+            },
+            importFolderToPlaylist: { [weak self] playlistID in
+                self?.importFolder(to: playlistID)
             },
             relocateMissingMedia: { [weak self] referenceID in
                 self?.relocateMedia(referenceID: referenceID)
@@ -112,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func play(_ urls: [URL]) {
         let newSecurityScopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
-        let media = urls.map(localMedia(for:))
+        let media = urls.map(localMediaFactory.media(for:))
         releaseSecurityScope()
         securityScopedURLs = newSecurityScopedURLs
         guard let coordinator else { return }
@@ -177,11 +181,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     securityScopedURLs.append(url)
                 }
                 _ = try? await coordinator.add(
-                    localMedia(for: url),
+                    localMediaFactory.media(for: url),
                     to: playlistID
                 )
             }
         }
+    }
+
+    private func importFolder(to playlistID: PlaylistID) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.title = "向 Playlist 导入文件夹"
+        panel.prompt = "选择"
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let folder = panel.url else { return }
+            self?.chooseFolderImportPolicy(for: folder, playlistID: playlistID)
+        }
+    }
+
+    private func chooseFolderImportPolicy(for folder: URL, playlistID: PlaylistID) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = "如何处理已有媒体？"
+        alert.informativeText = "默认按本地媒体身份跳过目标 Playlist 已有媒体。只有显式允许时，才会为整批媒体创建重复条目。"
+        alert.addButton(withTitle: "跳过已有媒体")
+        alert.addButton(withTitle: "允许整批重复")
+        alert.addButton(withTitle: "取消")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            let policy: FolderImportDuplicatePolicy
+            switch response {
+            case .alertFirstButtonReturn:
+                policy = .skipExisting
+            case .alertSecondButtonReturn:
+                policy = .allowDuplicates
+            default:
+                return
+            }
+            self?.performFolderImport(folder, playlistID: playlistID, policy: policy)
+        }
+    }
+
+    private func performFolderImport(
+        _ folder: URL,
+        playlistID: PlaylistID,
+        policy: FolderImportDuplicatePolicy
+    ) {
+        guard let coordinator else { return }
+        if folder.startAccessingSecurityScopedResource() {
+            securityScopedURLs.append(folder)
+        }
+        Task { @MainActor [weak self] in
+            do {
+                let report = try await coordinator.importFolder(
+                    folder,
+                    into: playlistID,
+                    duplicatePolicy: policy
+                )
+                self?.showFolderImportResult(report)
+            } catch is CancellationError {
+            } catch {
+                self?.showFolderImportFailure(error)
+            }
+        }
+    }
+
+    private func showFolderImportResult(_ report: FolderImportReport) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = "文件夹导入完成"
+        alert.informativeText = "新增 \(report.addedCount)，跳过 \(report.skippedCount)，失败 \(report.failedCount)。"
+        alert.addButton(withTitle: "好")
+        alert.beginSheetModal(for: window)
+    }
+
+    private func showFolderImportFailure(_ error: any Error) {
+        guard let window else { return }
+        let alert = NSAlert(error: error)
+        alert.messageText = "无法导入文件夹"
+        alert.beginSheetModal(for: window)
     }
 
     private func relocateMedia(referenceID: LocalMediaReferenceID) {
@@ -201,7 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if url.startAccessingSecurityScopedResource() {
                     securityScopedURLs.append(url)
                 }
-                let media = localMedia(for: url)
+                let media = localMediaFactory.media(for: url)
                 guard let result = try? await coordinator.relocateMissingMedia(
                     referenceID: referenceID,
                     to: media
@@ -227,30 +307,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 confirmedReplacement: true
             )
         }
-    }
-
-    private func localMedia(for url: URL) -> LocalMedia {
-        let bookmark = try? url.bookmarkData(
-            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        return LocalMedia(
-            url: url,
-            bookmark: bookmark,
-            fileIdentity: Self.fileIdentity(for: url)
-        )
-    }
-
-    private static func fileIdentity(for url: URL) -> LocalFileIdentity? {
-        guard let identifier = try? url.resourceValues(
-            forKeys: [.fileResourceIdentifierKey]
-        ).fileResourceIdentifier else { return nil }
-        guard let data = try? NSKeyedArchiver.archivedData(
-            withRootObject: identifier,
-            requiringSecureCoding: false
-        ) else { return nil }
-        return LocalFileIdentity(rawValue: data)
     }
 
     private func makePlaylistStore() -> any PlaylistStore {
