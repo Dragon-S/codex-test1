@@ -80,6 +80,27 @@ struct ResumeAndPlaybackSettingsTests {
         #expect(fixture.coordinator.position == 48)
     }
 
+    @Test("播放中途失败会保存最后有效续播位置")
+    func playbackFailurePersistsLastConfirmedPosition() async throws {
+        let fixture = try await makePersistentFixture(entryCount: 1)
+
+        await fixture.engine.sendTimeline(position: 11, duration: 120)
+        try await waitUntil {
+            try await storedEntry(in: fixture.store, at: 0).resumePosition == 11
+        }
+        await fixture.engine.sendTimeline(position: 27, duration: 120)
+        try await waitUntil { fixture.coordinator.position == 27 }
+        #expect(try await storedEntry(in: fixture.store, at: 0).resumePosition == 11)
+
+        await fixture.engine.sendState(.failed(.corrupted))
+        try await waitUntil {
+            try await storedEntry(in: fixture.store, at: 0).resumePosition == 27
+        }
+
+        #expect(fixture.coordinator.state == .failed(.corrupted))
+        #expect(fixture.coordinator.position == 27)
+    }
+
     @Test("连续拖动只把最新定位目标确认为最终保存位置")
     func consecutiveSeeksPersistLatestConfirmedTarget() async throws {
         let fixture = try await makePersistentFixture(entryCount: 1, resumePositions: [48])

@@ -6,6 +6,15 @@ import Testing
 
 @MainActor
 struct LibMPVPlaybackEngineContractTests {
+    @Test("真实适配器将 libmpv 失败映射为稳定领域错误")
+    func realAdapterMapsFailuresToDomainErrors() {
+        #expect(LibMPVPlaybackEngine.failure(for: .unreadable) == .unreadable)
+        #expect(LibMPVPlaybackEngine.failure(for: .unsupported) == .unsupported)
+        #expect(LibMPVPlaybackEngine.failure(for: .corrupted) == .corrupted)
+        #expect(LibMPVPlaybackEngine.failure(for: .decoderInitialization) == .decoderInitializationFailed)
+        #expect(LibMPVPlaybackEngine.failure(for: .engineUnavailable) == .engineUnavailable)
+    }
+
     @Test("真实 libmpv 适配器履行基础 PlaybackEngine 契约")
     func realAdapterFulfillsBasicPlaybackContract() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 640, height: 360))
@@ -21,6 +30,44 @@ struct LibMPVPlaybackEngineContractTests {
         )
     }
 
+    @Test("真实 libmpv 适配器可显式使用软件解码加载视频")
+    func realAdapterLoadsVideoUsingSoftwareDecoding() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 17)
+
+        await engine.loadUsingSoftwareDecoding(
+            LocalMedia(url: mediaURL),
+            loadID: loadID
+        )
+
+        try await recorder.waitForState(.playing, loadID: loadID)
+        let presentation = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        #expect(presentation.kind == .video)
+        #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
+        #expect(!recorder.hasFailure(loadID: loadID))
+    }
+
+    @Test("真实适配器在 VideoToolbox 未启用时报告解码器初始化失败")
+    func realAdapterReportsVideoToolboxInitializationFailure() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 18)
+
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+
+        try await recorder.waitForState(
+            .failed(.decoderInitializationFailed),
+            loadID: loadID
+        )
+    }
+
     @Test("真实 libmpv 适配器把首帧输出到 AppKit 画布")
     func realAdapterRendersFirstFrameToAppKitCanvas() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
@@ -32,18 +79,14 @@ struct LibMPVPlaybackEngineContractTests {
         let mediaURL = try makeRedMP4()
         defer { try? FileManager.default.removeItem(at: mediaURL) }
 
-        await engine.load(
+        let loadID = PlaybackLoadID(rawValue: 1)
+        await engine.loadUsingSoftwareDecoding(
             LocalMedia(url: mediaURL),
-            loadID: PlaybackLoadID(rawValue: 1)
+            loadID: loadID
         )
-        try await recorder.wait(for: .playing)
-        try await Task.sleep(for: .milliseconds(200))
-
-        videoView.openGLContext?.makeCurrentContext()
-        glReadBuffer(GLenum(GL_FRONT))
-        var pixel: [UInt8] = [0, 0, 0, 0]
-        glReadPixels(160, 90, 1, 1, GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), &pixel)
-        #expect(pixel[0] > 127)
+        try await recorder.waitForState(.playing, loadID: loadID)
+        _ = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        try await expectRedCenterPixel(in: videoView)
     }
 
     @Test("真实适配器不会把被替换媒体的迟到事件标记为新加载")
@@ -142,6 +185,27 @@ struct LibMPVPlaybackEngineContractTests {
             .appendingPathComponent("playback-contract-\(UUID().uuidString).wav")
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    private func expectRedCenterPixel(in videoView: PlaybackCanvasView) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while ContinuousClock.now < deadline {
+            videoView.openGLContext?.makeCurrentContext()
+            let frontRed = redComponent(atCenterOf: GLenum(GL_FRONT))
+            let backRed = redComponent(atCenterOf: GLenum(GL_BACK))
+            if max(frontRed, backRed) > 127 {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        Issue.record("等待真实 libmpv 首帧超时")
+    }
+
+    private func redComponent(atCenterOf buffer: GLenum) -> UInt8 {
+        glReadBuffer(buffer)
+        var pixel: [UInt8] = [0, 0, 0, 0]
+        glReadPixels(160, 90, 1, 1, GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), &pixel)
+        return pixel[0]
     }
 
     private func makeTaggedSilentWAV() throws -> URL {

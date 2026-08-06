@@ -1,19 +1,5 @@
 import Foundation
 
-enum SecurityScopedMediaAccessError: Error, LocalizedError {
-    case bookmarkCannotBeResolved(String)
-    case permissionDenied(String)
-
-    var errorDescription: String? {
-        switch self {
-        case let .bookmarkCannotBeResolved(path):
-            "无法恢复本地媒体引用：\(path)"
-        case let .permissionDenied(path):
-            "没有读取本地媒体的权限：\(path)"
-        }
-    }
-}
-
 final class SecurityScopedMediaAccess: PersistentMediaAccess, PersistentExternalSubtitleAccess, @unchecked Sendable {
     private let lock = NSLock()
     private var accessedURLs: [URL] = []
@@ -52,11 +38,14 @@ final class SecurityScopedMediaAccess: PersistentMediaAccess, PersistentExternal
                 bookmarkDataIsStale: &isStale
             )
         } catch {
-            throw SecurityScopedMediaAccessError.bookmarkCannotBeResolved(lastKnownPath)
+            let error: PersistentMediaAccessError = FileManager.default.fileExists(
+                atPath: lastKnownPath
+            ) ? .unreadable(lastKnownPath) : .missing(lastKnownPath)
+            throw error
         }
         let startedSecurityScope = url.startAccessingSecurityScopedResource()
         guard startedSecurityScope || FileManager.default.isReadableFile(atPath: url.path) else {
-            throw SecurityScopedMediaAccessError.permissionDenied(url.path)
+            throw PersistentMediaAccessError.unreadable(url.path)
         }
         if startedSecurityScope {
             lock.withLock {

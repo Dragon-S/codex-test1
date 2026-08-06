@@ -34,6 +34,30 @@ static void MPVRenderUpdate(void *context);
 
 @end
 
+@implementation MPVClientMediaPresentation
+
+- (instancetype)initWithKind:(MPVClientMediaKind)kind
+                        title:(NSString *)title
+                       artist:(NSString *)artist
+                        album:(NSString *)album
+                   hasArtwork:(BOOL)hasArtwork
+                   pixelWidth:(NSInteger)pixelWidth
+                  pixelHeight:(NSInteger)pixelHeight {
+    self = [super init];
+    if (self != nil) {
+        _kind = kind;
+        _title = [title copy];
+        _artist = [artist copy];
+        _album = [album copy];
+        _hasArtwork = hasArtwork;
+        _pixelWidth = pixelWidth;
+        _pixelHeight = pixelHeight;
+    }
+    return self;
+}
+
+@end
+
 @interface MPVClient () {
     mpv_handle *_handle;
     dispatch_queue_t _queue;
@@ -43,6 +67,8 @@ static void MPVRenderUpdate(void *context);
     uint64_t _eventLoadID;
     NSMutableArray<NSNumber *> *_pendingLoadIDs;
     NSMutableDictionary<NSNumber *, NSNumber *> *_loadIDsByPlaylistEntryID;
+    NSMutableDictionary<NSNumber *, NSNumber *> *_hardwareDecodingByLoadID;
+    NSMutableSet<NSNumber *> *_reportedHardwareFallbackLoadIDs;
     NSMutableDictionary<NSUUID *, NSNumber *> *_audioTrackIDs;
     NSMutableDictionary<NSUUID *, NSNumber *> *_subtitleTrackIDs;
     NSMutableDictionary<NSNumber *, NSUUID *> *_audioIdentifiers;
@@ -73,6 +99,8 @@ static void MPVRenderUpdate(void *context);
     _queue = dispatch_queue_create("com.dragon-s.MacMediaPlayer.libmpv", DISPATCH_QUEUE_SERIAL);
     _pendingLoadIDs = [NSMutableArray array];
     _loadIDsByPlaylistEntryID = [NSMutableDictionary dictionary];
+    _hardwareDecodingByLoadID = [NSMutableDictionary dictionary];
+    _reportedHardwareFallbackLoadIDs = [NSMutableSet set];
     _audioTrackIDs = [NSMutableDictionary dictionary];
     _subtitleTrackIDs = [NSMutableDictionary dictionary];
     _audioIdentifiers = [NSMutableDictionary dictionary];
@@ -86,6 +114,7 @@ static void MPVRenderUpdate(void *context);
     mpv_set_option_string(_handle, "config", "no");
     mpv_set_option_string(_handle, "terminal", "no");
     mpv_set_option_string(_handle, "hwdec", "videotoolbox");
+    mpv_set_option_string(_handle, "hwdec-software-fallback", "no");
     mpv_set_option_string(_handle, "keep-open", "yes");
     mpv_set_option_string(_handle, "vo", "libmpv");
     mpv_set_option_string(_handle, "audio-display", "embedded-first");
@@ -126,9 +155,11 @@ static void MPVRenderUpdate(void *context);
 }
 
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID {
-    NSString *path = url.path;
-    [self performLoadCommand:@[ @"loadfile", path, @"replace" ] loadID:loadID];
-    [self performCommand:@[ @"set", @"pause", @"no" ]];
+    [self performLoadURL:url loadID:loadID hardwareDecoding:YES];
+}
+
+- (void)loadURLUsingSoftwareDecoding:(NSURL *)url loadID:(uint64_t)loadID {
+    [self performLoadURL:url loadID:loadID hardwareDecoding:NO];
 }
 
 - (void)play {
@@ -154,7 +185,8 @@ static void MPVRenderUpdate(void *context);
         int result = [self executeCommand:@[ @"seek", value, @"absolute+exact" ]];
         if (result < 0) {
             self->_forceNextPositionReport = NO;
-            [self reportFailure:[self failureForError:result] loadID:self->_requestedLoadID];
+            [self reportFailure:[self failureForError:result]
+                        loadID:self->_requestedLoadID];
         }
     });
 }
@@ -297,22 +329,53 @@ static void MPVRenderUpdate(void *context);
     mpv_render_context_report_swap(_renderContext);
 }
 
-- (void)performLoadCommand:(NSArray<NSString *> *)arguments loadID:(uint64_t)loadID {
+- (void)performLoadURL:(NSURL *)url
+                loadID:(uint64_t)loadID
+      hardwareDecoding:(BOOL)hardwareDecoding {
     dispatch_async(_queue, ^{
         self->_requestedLoadID = loadID;
+        self->_hardwareDecodingByLoadID[@(loadID)] = @(hardwareDecoding);
         if (self->_handle == NULL) {
             [self reportFailure:MPVClientFailureEngineUnavailable loadID:loadID];
             return;
         }
 
-        int result = [self executeCommand:arguments];
+        // 软件加载同时把 hwdec 设为 no，因此这里的 yes 不会产生第二次硬解回退。
+        int result = mpv_set_property_string(
+            self->_handle,
+            "hwdec-software-fallback",
+            hardwareDecoding ? "no" : "yes"
+        );
         if (result < 0) {
-            [self reportFailure:[self failureForError:result] loadID:loadID];
+            [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID];
+            [self->_hardwareDecodingByLoadID removeObjectForKey:@(loadID)];
+            return;
+        }
+        result = mpv_set_property_string(
+            self->_handle,
+            "hwdec",
+            hardwareDecoding ? "videotoolbox" : "no"
+        );
+        if (result < 0) {
+            [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID];
+            [self->_hardwareDecodingByLoadID removeObjectForKey:@(loadID)];
+            return;
+        }
+        result = [self executeCommand:@[ @"loadfile", url.path, @"replace" ]];
+        if (result < 0) {
+            [self reportFailure:[self failureForError:result]
+                        loadID:loadID];
+            [self->_hardwareDecodingByLoadID removeObjectForKey:@(loadID)];
             return;
         }
         [self->_pendingLoadIDs addObject:@(loadID)];
         self->_hasLoadedFile = NO;
         [self reportState:MPVClientPlaybackStateLoading loadID:loadID];
+        result = [self executeCommand:@[ @"set", @"pause", @"no" ]];
+        if (result < 0) {
+            [self reportFailure:[self failureForError:result]
+                        loadID:loadID];
+        }
     });
 }
 
@@ -325,7 +388,8 @@ static void MPVRenderUpdate(void *context);
 
         int result = [self executeCommand:arguments];
         if (result < 0) {
-            [self reportFailure:[self failureForError:result] loadID:self->_requestedLoadID];
+            [self reportFailure:[self failureForError:result]
+                        loadID:self->_requestedLoadID];
         }
     });
 }
@@ -369,6 +433,10 @@ static void MPVRenderUpdate(void *context);
             case MPV_EVENT_PROPERTY_CHANGE:
                 [self handlePropertyChange:event];
                 break;
+            case MPV_EVENT_VIDEO_RECONFIG:
+                [self reportMediaPresentation];
+                [self reportHardwareFallbackIfNeeded];
+                break;
             case MPV_EVENT_END_FILE:
                 [self handleEndFile:event];
                 break;
@@ -379,6 +447,32 @@ static void MPVRenderUpdate(void *context);
                 break;
         }
     }
+}
+
+- (void)reportHardwareFallbackIfNeeded {
+    NSNumber *loadID = @(_eventLoadID);
+    if (![_hardwareDecodingByLoadID[loadID] boolValue]
+        || [_reportedHardwareFallbackLoadIDs containsObject:loadID]) {
+        return;
+    }
+    NSString *activeHardwareDecoder = [self stringProperty:@"hwdec-current"];
+    if (activeHardwareDecoder == nil) {
+        [_reportedHardwareFallbackLoadIDs addObject:loadID];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), _queue, ^{
+            NSString *delayedHardwareDecoder = [self stringProperty:@"hwdec-current"];
+            if (delayedHardwareDecoder == nil || [delayedHardwareDecoder isEqualToString:@"no"]) {
+                [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID.unsignedLongLongValue];
+            } else {
+                [self->_reportedHardwareFallbackLoadIDs removeObject:loadID];
+            }
+        });
+        return;
+    }
+    if (![activeHardwareDecoder isEqualToString:@"no"]) {
+        return;
+    }
+    [_reportedHardwareFallbackLoadIDs addObject:loadID];
+    [self reportFailure:MPVClientFailureDecoderInitialization loadID:_eventLoadID];
 }
 
 - (void)handleStartFile:(mpv_event *)event {
@@ -460,6 +554,8 @@ static void MPVRenderUpdate(void *context);
     BOOL hasAudio = NO;
     BOOL hasPlayableVideo = NO;
     BOOL hasArtwork = NO;
+    int64_t pixelWidth = 0;
+    int64_t pixelHeight = 0;
     for (int64_t index = 0; index < trackCount; index++) {
         NSString *prefix = [NSString stringWithFormat:@"track-list/%lld", index];
         NSString *type = [self stringProperty:[prefix stringByAppendingString:@"/type"]];
@@ -469,6 +565,12 @@ static void MPVRenderUpdate(void *context);
             BOOL isArtwork = [self flagProperty:[prefix stringByAppendingString:@"/albumart"]];
             hasArtwork = hasArtwork || isArtwork;
             hasPlayableVideo = hasPlayableVideo || !isArtwork;
+            if (!isArtwork && pixelWidth == 0 && pixelHeight == 0) {
+                pixelWidth = [self integerProperty:[prefix stringByAppendingString:@"/demux-w"]
+                                          fallback:0];
+                pixelHeight = [self integerProperty:[prefix stringByAppendingString:@"/demux-h"]
+                                           fallback:0];
+            }
         }
     }
 
@@ -489,14 +591,19 @@ static void MPVRenderUpdate(void *context);
     MPVClientMediaKind kind = hasAudio && !hasPlayableVideo
         ? MPVClientMediaKindAudio
         : MPVClientMediaKindVideo;
-    self.mediaPresentationHandler(
-        kind,
-        title,
-        metadata[@"artist"],
-        metadata[@"album"],
-        hasArtwork,
-        _eventLoadID
-    );
+    MPVClientMediaPresentation *presentation = [[MPVClientMediaPresentation alloc]
+        initWithKind:kind
+        title:title
+        artist:metadata[@"artist"]
+        album:metadata[@"album"]
+        hasArtwork:hasArtwork
+        pixelWidth:(NSInteger)(pixelWidth > 0
+            ? pixelWidth
+            : [self integerProperty:@"width" fallback:0])
+        pixelHeight:(NSInteger)(pixelHeight > 0
+            ? pixelHeight
+            : [self integerProperty:@"height" fallback:0])];
+    self.mediaPresentationHandler(presentation, _eventLoadID);
 }
 
 - (nullable NSString *)stringProperty:(NSString *)name {
@@ -583,7 +690,8 @@ static void MPVRenderUpdate(void *context);
         _hasLoadedFile = NO;
     }
     if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_ERROR) {
-        [self reportFailure:[self failureForError:endFile->error] loadID:loadID];
+        [self reportFailure:[self failureForError:endFile->error]
+                    loadID:loadID];
     } else if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_EOF) {
         if (self.playbackEndedHandler != nil) {
             self.playbackEndedHandler(loadID);
@@ -594,6 +702,8 @@ static void MPVRenderUpdate(void *context);
     if (playlistEntryID != nil) {
         [_loadIDsByPlaylistEntryID removeObjectForKey:playlistEntryID];
     }
+    [_hardwareDecodingByLoadID removeObjectForKey:@(loadID)];
+    [_reportedHardwareFallbackLoadIDs removeObject:@(loadID)];
 }
 
 - (void)reportCurrentPauseState {
@@ -615,7 +725,9 @@ static void MPVRenderUpdate(void *context);
             return MPVClientFailureUnsupported;
         case MPV_ERROR_AO_INIT_FAILED:
         case MPV_ERROR_VO_INIT_FAILED:
-            return MPVClientFailureDecoderInitialization;
+            return MPVClientFailureEngineUnavailable;
+        case MPV_ERROR_GENERIC:
+            return MPVClientFailureCorrupted;
         default:
             return MPVClientFailureCorrupted;
     }
