@@ -72,6 +72,11 @@ public struct NowPlayingList: Equatable, Sendable {
         return entries[currentIndex].media
     }
 
+    public var hasPlayableCurrentEntry: Bool {
+        guard let currentIndex, entries.indices.contains(currentIndex) else { return false }
+        return !entries[currentIndex].isMediaMissing
+    }
+
     public init(entries: [NowPlayingEntry] = [], currentIndex: Int? = nil) {
         self.entries = entries
         self.currentIndex = currentIndex
@@ -957,6 +962,18 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         await engine.play()
+    }
+
+    public func togglePlayback() async {
+        guard nowPlayingList.currentMedia != nil else { return }
+        switch state {
+        case .playing:
+            await pause()
+        case .idle, .paused, .stopped:
+            await play()
+        case .loading, .failed:
+            return
+        }
     }
 
     public func pause() async {
