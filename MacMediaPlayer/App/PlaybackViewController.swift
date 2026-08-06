@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 private enum PlaybackKeyCode {
@@ -66,13 +67,14 @@ final class PlaybackViewController: NSViewController {
 
     private let controlsView: NSHostingView<PlaybackControlsView>
     private let audioNowPlayingView: NSHostingView<AudioNowPlayingView>
-    private let nowPlayingListView: NSHostingView<NowPlayingListView>
+    private let nowPlayingListView: FocusableHostingView<NowPlayingListView>
     private let coordinator: PlaybackCoordinator
     private let openMedia: () -> Void
     private let playlistToggleButton = NSButton()
     private var canvasBesidePlaylistConstraint: NSLayoutConstraint?
     private var canvasFullWidthConstraint: NSLayoutConstraint?
     private var controlsAutoHideWorkItem: DispatchWorkItem?
+    private var accessibilityCancellables: Set<AnyCancellable> = []
 
     init(
         coordinator: PlaybackCoordinator,
@@ -100,7 +102,7 @@ final class PlaybackViewController: NSViewController {
         audioNowPlayingView = NSHostingView(
             rootView: AudioNowPlayingView(coordinator: coordinator)
         )
-        nowPlayingListView = NSHostingView(
+        nowPlayingListView = FocusableHostingView(
             rootView: NowPlayingListView(
                 coordinator: coordinator,
                 addMediaToPlaylist: addMediaToPlaylist,
@@ -111,6 +113,7 @@ final class PlaybackViewController: NSViewController {
             )
         )
         super.init(nibName: nil, bundle: nil)
+        observeAccessibilityAnnouncements()
     }
 
     @available(*, unavailable)
@@ -137,7 +140,9 @@ final class PlaybackViewController: NSViewController {
         playlistToggleButton.bezelStyle = .texturedRounded
         playlistToggleButton.target = self
         playlistToggleButton.action = #selector(togglePlaylist)
-        playlistToggleButton.setAccessibilityLabel("显示或隐藏 Playlist")
+        updatePlaylistToggleAccessibility()
+        nowPlayingListView.setAccessibilityRole(.group)
+        nowPlayingListView.setAccessibilityLabel("Playlist 侧栏")
         container.addSubview(videoView)
         container.addSubview(audioNowPlayingView)
         container.addSubview(controlsView)
@@ -208,13 +213,13 @@ final class PlaybackViewController: NSViewController {
 
     func setPlaylistVisible(_ isVisible: Bool) {
         guard isPlaylistVisible != isVisible else { return }
-        if !isVisible,
-           let focusedView = view.window?.firstResponder as? NSView,
-           focusedView === nowPlayingListView || focusedView.isDescendant(of: nowPlayingListView) {
-            view.window?.makeFirstResponder(view)
-        }
         isPlaylistVisible = isVisible
         updateTheaterLayout()
+        if isVisible {
+            view.window?.focusForAccessibility(nowPlayingListView)
+        } else {
+            view.window?.focusForAccessibility(playlistToggleButton)
+        }
     }
 
     func setFullScreenMode(_ isFullScreen: Bool) {
@@ -344,10 +349,97 @@ final class PlaybackViewController: NSViewController {
     private func updateTheaterLayout() {
         nowPlayingListView.isHidden = !isPlaylistVisible
         playlistToggleButton.title = isPlaylistVisible ? "隐藏 Playlist" : "显示 Playlist"
+        updatePlaylistToggleAccessibility()
         let overlaysCanvas = isFullScreen || !isPlaylistVisible
         canvasBesidePlaylistConstraint?.isActive = !overlaysCanvas
         canvasFullWidthConstraint?.isActive = overlaysCanvas
         view.needsLayout = true
+    }
+
+    private func observeAccessibilityAnnouncements() {
+        coordinator.$nowPlayingList
+            .map { $0.currentMedia?.url.lastPathComponent }
+            .removeDuplicates()
+            .sink { [weak self] name in
+                self?.videoView.setAccessibilityValue(name ?? "无当前媒体")
+            }
+            .store(in: &accessibilityCancellables)
+
+        coordinator.$nowPlayingList
+            .map { list in
+                guard let index = list.currentIndex,
+                      list.entries.indices.contains(index) else { return nil }
+                let entry = list.entries[index]
+                guard entry.media.availability != .missing else { return nil }
+                return "当前条目：\(entry.media.url.lastPathComponent)，第 \(index + 1) 项，共 \(list.entries.count) 项"
+            }
+            .removeDuplicates()
+            .dropFirst()
+            .compactMap { $0 }
+            .sink { [weak self] message in self?.announceForAccessibility(message) }
+            .store(in: &accessibilityCancellables)
+
+        coordinator.$state
+            .removeDuplicates()
+            .dropFirst()
+            .map(PlaybackStatusText.announcement(for:))
+            .sink { [weak self] message in self?.announceForAccessibility(message) }
+            .store(in: &accessibilityCancellables)
+
+        coordinator.$isMuted
+            .removeDuplicates()
+            .dropFirst()
+            .map { $0 ? "已静音" : "已取消静音" }
+            .sink { [weak self] message in self?.announceForAccessibility(message) }
+            .store(in: &accessibilityCancellables)
+
+        coordinator.$persistenceNotice
+            .removeDuplicates()
+            .dropFirst()
+            .compactMap { notice -> String? in
+                guard case let .failed(message) = notice else { return nil }
+                return "存储失败：\(message)"
+            }
+            .sink { [weak self] message in self?.announceForAccessibility(message) }
+            .store(in: &accessibilityCancellables)
+
+        coordinator.$missingMediaNotice
+            .combineLatest(coordinator.$playlists)
+            .map(Self.accessibilityAnnouncement(for:playlists:))
+            .removeDuplicates()
+            .compactMap { $0 }
+            .sink { [weak self] message in self?.announceForAccessibility(message) }
+            .store(in: &accessibilityCancellables)
+    }
+
+    private func announceForAccessibility(_ message: String) {
+        (viewIfLoaded as? TheaterContainerView)?.announce(message)
+    }
+
+    private static func accessibilityAnnouncement(
+        for notice: MissingMediaNotice,
+        playlists: [Playlist]
+    ) -> String? {
+        switch notice {
+        case .none:
+            return nil
+        case let .recoveryRequired(entryID, _):
+            let name = playlists.lazy.flatMap(\.entries)
+                .first(where: { $0.id == entryID })
+                .map { URL(fileURLWithPath: $0.media.lastKnownPath).lastPathComponent }
+                ?? "所选文件"
+            return "文件缺失：\(name)"
+        case let .noPlayableEntries(missingCount):
+            return "没有可播放条目；已跳过 \(missingCount) 个文件缺失条目"
+        case let .replacementConfirmationRequired(impact):
+            return "需要确认媒体替换；将影响 \(impact.affectedPlaylistCount) 个 Playlist 中的 \(impact.affectedEntryCount) 个条目"
+        }
+    }
+
+    private func updatePlaylistToggleAccessibility() {
+        let action = isPlaylistVisible ? "隐藏 Playlist" : "显示 Playlist"
+        playlistToggleButton.setAccessibilityLabel(action)
+        playlistToggleButton.setAccessibilityValue(isPlaylistVisible ? "已展开" : "已折叠")
     }
 
     @objc private func togglePlaylist() {
@@ -366,6 +458,10 @@ final class PlaybackViewController: NSViewController {
     }
 }
 
+private final class FocusableHostingView<Content: View>: NSHostingView<Content> {
+    override var acceptsFirstResponder: Bool { true }
+}
+
 private final class TheaterContainerView: NSView {
     var pointerActivity: (() -> Void)?
     var escapeKeyDown: (() -> Bool)?
@@ -376,6 +472,9 @@ private final class TheaterContainerView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         focusRingType = .exterior
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("播放器")
     }
 
     @available(*, unavailable)
@@ -416,6 +515,18 @@ private final class TheaterContainerView: NSView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    func announce(_ message: String) {
+        setAccessibilityValue(message)
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+            ]
+        )
     }
 }
 

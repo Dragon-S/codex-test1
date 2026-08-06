@@ -2,6 +2,34 @@ import AppKit
 import Foundation
 import SwiftUI
 
+enum PlaybackStatusText {
+    static func status(for state: PlaybackState) -> String {
+        switch state {
+        case .idle: "尚未打开媒体"
+        case .loading: "正在载入"
+        case .playing: "正在播放"
+        case .paused: "已暂停"
+        case .stopped: "已停止"
+        case let .failed(failure): self.failure(failure)
+        }
+    }
+
+    static func announcement(for state: PlaybackState) -> String {
+        guard case let .failed(failure) = state else { return status(for: state) }
+        return "播放失败：\(self.failure(failure))"
+    }
+
+    static func failure(_ failure: PlaybackFailure) -> String {
+        switch failure {
+        case .unreadable: "无法读取文件"
+        case .unsupported: "不支持此媒体"
+        case .corrupted: "媒体内容已损坏"
+        case .decoderInitializationFailed: "解码器初始化失败"
+        case .engineUnavailable: "播放引擎不可用"
+        }
+    }
+}
+
 struct PlaybackControlsView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
     let openMedia: () -> Void
@@ -27,7 +55,10 @@ struct PlaybackControlsView: View {
                 )
                 .disabled(coordinator.duration <= 0)
                 .accessibilityLabel("播放位置")
-                .accessibilityValue("\(timeText(coordinator.position))，总时长 \(timeText(coordinator.duration))")
+                .accessibilityValue(
+                    "当前位置 \(accessibilityTimeText(coordinator.position))，总时长 \(accessibilityTimeText(coordinator.duration))"
+                )
+                .accessibilityHint("调高或调低以定位播放位置")
                 Text(timeText(coordinator.duration))
                     .monospacedDigit()
                     .frame(minWidth: 44, alignment: .leading)
@@ -68,6 +99,7 @@ struct PlaybackControlsView: View {
                 Button(coordinator.isMuted ? "取消静音" : "静音") {
                     Task { await coordinator.setMuted(!coordinator.isMuted) }
                 }
+                .accessibilityValue(coordinator.isMuted ? "已静音" : "未静音")
                 Slider(
                     value: Binding(
                         get: { coordinator.playerVolume },
@@ -78,6 +110,7 @@ struct PlaybackControlsView: View {
                 .frame(width: 90)
                 .accessibilityLabel("播放器音量")
                 .accessibilityValue("\(Int(coordinator.playerVolume * 100))%")
+                .accessibilityHint("调高或调低播放器音量，不会修改系统音量")
                 audioTrackMenu
                 subtitleMenu
                 Spacer()
@@ -113,6 +146,20 @@ struct PlaybackControlsView: View {
         return String(format: "%d:%02d", minutes, seconds % 60)
     }
 
+    private func accessibilityTimeText(_ value: TimeInterval) -> String {
+        let seconds = max(0, Int(value.rounded(.down)))
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remainingSeconds = seconds % 60
+        return [
+            hours > 0 ? "\(hours) 小时" : nil,
+            minutes > 0 ? "\(minutes) 分钟" : nil,
+            remainingSeconds > 0 || (hours == 0 && minutes == 0) ? "\(remainingSeconds) 秒" : nil,
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+    }
+
     private var audioTrackMenu: some View {
         Menu("音轨") {
             if coordinator.availableAudioTracks.isEmpty {
@@ -133,6 +180,8 @@ struct PlaybackControlsView: View {
         }
         .disabled(coordinator.nowPlayingList.currentMedia == nil)
         .accessibilityLabel("选择音轨")
+        .accessibilityValue(selectedAudioTrackName)
+        .accessibilityHint("打开菜单后选择当前媒体的音轨")
     }
 
     private var subtitleMenu: some View {
@@ -175,6 +224,27 @@ struct PlaybackControlsView: View {
         }
         .disabled(coordinator.nowPlayingList.currentMedia == nil)
         .accessibilityLabel("选择字幕")
+        .accessibilityValue(selectedSubtitleName)
+        .accessibilityHint("打开菜单后选择、关闭或重新定位字幕")
+    }
+
+    private var selectedAudioTrackName: String {
+        guard let id = coordinator.trackSelection.audioTrackID else { return "自动选择" }
+        return coordinator.availableAudioTracks.first(where: { $0.id == id })?.displayName
+            ?? "所选音轨不可用"
+    }
+
+    private var selectedSubtitleName: String {
+        switch coordinator.trackSelection.subtitle {
+        case .off:
+            "已关闭"
+        case let .embedded(id):
+            coordinator.availableEmbeddedSubtitleTracks.first(where: { $0.id == id })?.displayName
+                ?? "所选字幕不可用"
+        case .external:
+            coordinator.preferredExternalSubtitleName.map { "外部字幕：\($0)" }
+                ?? "外部字幕"
+        }
     }
 
     private var noticeText: String? {
@@ -191,24 +261,7 @@ struct PlaybackControlsView: View {
     }
 
     private var statusText: String {
-        switch coordinator.state {
-        case .idle: "尚未打开媒体"
-        case .loading: "正在载入"
-        case .playing: "正在播放"
-        case .paused: "已暂停"
-        case .stopped: "已停止"
-        case let .failed(failure): failureText(failure)
-        }
-    }
-
-    private func failureText(_ failure: PlaybackFailure) -> String {
-        switch failure {
-        case .unreadable: "无法读取文件"
-        case .unsupported: "不支持此媒体"
-        case .corrupted: "媒体内容已损坏"
-        case .decoderInitializationFailed: "解码器初始化失败"
-        case .engineUnavailable: "播放引擎不可用"
-        }
+        PlaybackStatusText.status(for: coordinator.state)
     }
 
     @ViewBuilder
@@ -218,7 +271,7 @@ struct PlaybackControlsView: View {
             EmptyView()
         case let .recovery(recovery):
             HStack(spacing: 8) {
-                Label(failureText(recovery.failure), systemImage: "exclamationmark.triangle.fill")
+                Label(PlaybackStatusText.failure(recovery.failure), systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                 Spacer()
                 if recovery.actions.contains(.retry) {
@@ -244,7 +297,7 @@ struct PlaybackControlsView: View {
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("播放失败：\(failureText(recovery.failure))")
+            .accessibilityLabel("播放失败：\(PlaybackStatusText.failure(recovery.failure))")
         case let .exhausted(failures):
             Label(
                 "本轮 \(failures.count) 个条目均播放失败，已停止自动推进",
@@ -467,14 +520,28 @@ struct NowPlayingListView: View {
                 }
             }
         }
-        .accessibilityValue(coordinator.activePlaylistID == playlist.id
-            ? "正在播放的 Playlist" : "")
+        .accessibilityLabel("Playlist：\(playlist.name)")
+        .accessibilityValue(playlistAccessibilityValue(playlist))
+        .accessibilityAddTraits(
+            coordinator.browsingPlaylistID == playlist.id ? .isSelected : []
+        )
 
         if coordinator.browsingPlaylistID == playlist.id {
             button.buttonStyle(.borderedProminent)
         } else {
             button.buttonStyle(.bordered)
         }
+    }
+
+    private func playlistAccessibilityValue(_ playlist: Playlist) -> String {
+        var statuses: [String] = []
+        if coordinator.browsingPlaylistID == playlist.id {
+            statuses.append("正在浏览")
+        }
+        if coordinator.activePlaylistID == playlist.id {
+            statuses.append("正在播放")
+        }
+        return statuses.isEmpty ? "未选择" : statuses.joined(separator: "，")
     }
 
     private func playlistEditor(_ playlist: Playlist) -> some View {
@@ -535,11 +602,12 @@ struct NowPlayingListView: View {
             }
             List(Array(playlist.entries.enumerated()), id: \.element.id, selection: $selectedEntryID) { index, entry in
                 let presentation = entryPresentation(for: entry, in: playlist)
+                let mediaName = URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent
                 HStack {
                     Image(systemName: presentation.systemImage)
                         .foregroundStyle(presentation.color)
                         .accessibilityHidden(true)
-                    Text(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
+                    Text(mediaName)
                         .lineLimit(1)
                         .foregroundStyle(presentation.titleColor)
                     if playlist.currentEntryID == entry.id {
@@ -558,6 +626,7 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("播放")
+                    .accessibilityLabel("播放 \(mediaName)")
                     Button {
                         Task { _ = try? await coordinator.duplicateEntry(entry.id, in: playlist.id) }
                     } label: {
@@ -565,6 +634,7 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("刻意重复添加")
+                    .accessibilityLabel("刻意重复添加 \(mediaName)")
                     Button {
                         Task { try? await coordinator.moveEntry(entry.id, in: playlist.id, to: index - 1) }
                     } label: {
@@ -573,6 +643,7 @@ struct NowPlayingListView: View {
                     .buttonStyle(.plain)
                     .disabled(index == 0)
                     .help("上移")
+                    .accessibilityLabel("上移 \(mediaName)")
                     Button {
                         Task { try? await coordinator.moveEntry(entry.id, in: playlist.id, to: index + 1) }
                     } label: {
@@ -581,6 +652,7 @@ struct NowPlayingListView: View {
                     .buttonStyle(.plain)
                     .disabled(index == playlist.entries.count - 1)
                     .help("下移")
+                    .accessibilityLabel("下移 \(mediaName)")
                     Button(role: .destructive) {
                         Task { try? await coordinator.removeEntry(entry.id, from: playlist.id) }
                     } label: {
@@ -588,9 +660,11 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("从 Playlist 移除；不会删除源文件")
+                    .accessibilityLabel("从 Playlist 移除 \(mediaName)")
+                    .accessibilityHint("不会删除源文件")
                 }
                 .tag(entry.id)
-                .accessibilityLabel(URL(fileURLWithPath: entry.media.lastKnownPath).lastPathComponent)
+                .accessibilityLabel(mediaName)
                 .accessibilityValue(presentation.accessibilityValue)
             }
         }

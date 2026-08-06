@@ -1,6 +1,83 @@
 import AppKit
 import UniformTypeIdentifiers
 
+extension NSWindow {
+    @MainActor
+    @discardableResult
+    func focusForAccessibility(_ responder: NSResponder) -> Bool {
+        if let view = responder as? NSView {
+            guard view.window === self, view.acceptsFirstResponder else { return false }
+        }
+        guard makeFirstResponder(responder), firstResponder === responder else { return false }
+        if let view = responder as? NSView {
+            NSAccessibility.post(element: view, notification: .focusedUIElementChanged)
+        }
+        return true
+    }
+}
+
+@MainActor
+private protocol AccessibilityFocusElement: AnyObject {
+    func accessibilityTopLevelUIElement() -> Any?
+    func setAccessibilityFocused(_ accessibilityFocused: Bool)
+    func isAccessibilityFocused() -> Bool
+}
+
+extension NSView: AccessibilityFocusElement {}
+extension NSAccessibilityElement: AccessibilityFocusElement {}
+extension NSCell: AccessibilityFocusElement {}
+
+@MainActor
+final class WindowAccessibilityFocusReturn {
+    private weak var window: NSWindow?
+    private weak var responder: NSResponder?
+    private weak var accessibilityElement: (any AccessibilityFocusElement)?
+
+    init(
+        window: NSWindow,
+        accessibilityFocusedElement: Any? = NSApp.accessibilityApplicationFocusedUIElement()
+    ) {
+        self.window = window
+        responder = window.firstResponder
+        accessibilityElement = accessibilityFocusedElement as? any AccessibilityFocusElement
+    }
+
+    @discardableResult
+    func restore() -> Bool {
+        guard let window else { return false }
+        if let accessibilityElement,
+           restoreAccessibilityFocus(to: accessibilityElement, in: window) {
+            return true
+        }
+        guard let responder else { return false }
+        return window.focusForAccessibility(responder)
+    }
+
+    private func restoreAccessibilityFocus(
+        to element: any AccessibilityFocusElement,
+        in window: NSWindow
+    ) -> Bool {
+        if let view = element as? NSView,
+           window.focusForAccessibility(view) {
+            return true
+        }
+        guard belongsToWindow(element.accessibilityTopLevelUIElement(), window: window) else {
+            return false
+        }
+        element.setAccessibilityFocused(true)
+        guard element.isAccessibilityFocused() else { return false }
+        NSAccessibility.post(element: element, notification: .focusedUIElementChanged)
+        return true
+    }
+
+    private func belongsToWindow(_ topLevelElement: Any?, window: NSWindow) -> Bool {
+        if let view = topLevelElement as? NSView {
+            return view.window === window
+        }
+        return topLevelElement as AnyObject? === window
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private enum ExternalSubtitlePanelAction {
@@ -208,7 +285,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedSubtitleTypes
+        let focusReturn = WindowAccessibilityFocusReturn(window: window)
         panel.beginSheetModal(for: window) { [weak self, weak coordinator] response in
+            defer { focusReturn.restore() }
             guard response == .OK, let url = panel.url, let coordinator else { return }
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -342,7 +421,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedMediaTypes
+        let focusReturn = WindowAccessibilityFocusReturn(window: window)
         panel.beginSheetModal(for: window) { [weak self, weak coordinator] response in
+            defer { focusReturn.restore() }
             guard response == .OK,
                   let self,
                   let coordinator,

@@ -21,6 +21,9 @@
         return nil;
     }
     self.wantsBestResolutionOpenGLSurface = YES;
+    self.accessibilityElement = YES;
+    self.accessibilityRole = NSAccessibilityGroupRole;
+    self.accessibilityLabel = @"当前媒体播放区域";
     GLint swapInterval = 1;
     [self.openGLContext setValues:&swapInterval forParameter:NSOpenGLContextParameterSwapInterval];
     return self;

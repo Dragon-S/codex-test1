@@ -27,6 +27,99 @@ struct PlaybackViewControllerTests {
         #expect(controller.view.focusRingType == .exterior)
     }
 
+    @Test("视频画布以当前媒体播放区域暴露给 VoiceOver")
+    func playbackCanvasExposesMediaAreaSemantics() {
+        let controller = makeController()
+        controller.loadViewIfNeeded()
+
+        #expect(controller.videoView.isAccessibilityElement())
+        #expect(controller.videoView.accessibilityRole() == .group)
+        #expect(controller.videoView.accessibilityLabel() == "当前媒体播放区域")
+    }
+
+    @Test("当前条目、播放状态与静音变化通过播放器元素通知 VoiceOver")
+    func criticalPlaybackChangesUpdateAccessibleAnnouncement() async throws {
+        let engine = LayoutFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let controller = makeController(coordinator: coordinator)
+        controller.loadViewIfNeeded()
+
+        #expect(controller.view.isAccessibilityElement())
+        #expect(controller.view.accessibilityRole() == .group)
+        #expect(controller.view.accessibilityLabel() == "播放器")
+
+        await coordinator.open(LocalMedia(url: URL(fileURLWithPath: "/tmp/夜航.mp4")))
+        try await expectAccessibilityAnnouncement(
+            "当前条目：夜航.mp4，第 1 项，共 1 项",
+            from: controller
+        )
+        #expect(controller.videoView.accessibilityValue() as? String == "夜航.mp4")
+
+        await engine.sendState(.playing)
+        try await expectAccessibilityAnnouncement("正在播放", from: controller)
+
+        await coordinator.setMuted(true)
+        try await expectAccessibilityAnnouncement("已静音", from: controller)
+
+        await engine.sendState(.paused)
+        try await expectAccessibilityAnnouncement("已暂停", from: controller)
+    }
+
+    @Test("重复媒体条目切换时 VoiceOver 仍可分辨当前位置")
+    func duplicateMediaChangesExposeCurrentEntryPosition() async throws {
+        let engine = LayoutFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let controller = makeController(coordinator: coordinator)
+        controller.loadViewIfNeeded()
+        let media = LocalMedia(url: URL(fileURLWithPath: "/tmp/重复.mp4"))
+
+        await coordinator.open([media, media])
+        try await expectAccessibilityAnnouncement(
+            "当前条目：重复.mp4，第 1 项，共 2 项",
+            from: controller
+        )
+
+        await coordinator.next()
+
+        try await expectAccessibilityAnnouncement(
+            "当前条目：重复.mp4，第 2 项，共 2 项",
+            from: controller
+        )
+    }
+
+    @Test("文件缺失与持久化失败会请求 VoiceOver 播报")
+    func recoveryBlockingChangesUpdateAccessibleAnnouncement() async throws {
+        let missingReference = PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data("bookmark".utf8),
+            lastKnownPath: "/tmp/失联.mp4",
+            availability: .missing
+        )
+        let missingEntry = PlaylistEntry(media: missingReference)
+        let playlist = Playlist(name: "待看", entries: [missingEntry])
+        let coordinator = PlaybackCoordinator(
+            engine: LayoutFakePlaybackEngine(),
+            playlistStore: InMemoryPlaylistStore(library: PlaylistLibrary(playlists: [playlist]))
+        )
+        let controller = makeController(coordinator: coordinator)
+        controller.loadViewIfNeeded()
+        try await coordinator.restorePersistentState()
+
+        try await coordinator.playEntry(missingEntry.id, in: playlist.id)
+
+        try await expectAccessibilityAnnouncement("文件缺失：失联.mp4", from: controller)
+
+        let unavailableCoordinator = PlaybackCoordinator(
+            engine: LayoutFakePlaybackEngine(),
+            playlistStore: UnavailablePlaylistStore(message: "持久化离线")
+        )
+        let unavailableController = makeController(coordinator: unavailableCoordinator)
+        unavailableController.loadViewIfNeeded()
+        _ = try? await unavailableCoordinator.createPlaylist(named: "失败")
+
+        try await expectAccessibilityAnnouncement("存储失败：持久化离线", from: unavailableController)
+    }
+
     @Test("核心播放键只匹配规定按键与修饰组合")
     func matchesCorePlaybackShortcutsExactly() throws {
         #expect(PlaybackKeyboardShortcut(event: try keyEvent(keyCode: 49, characters: " ")) == .togglePlayback)
@@ -165,6 +258,102 @@ struct PlaybackViewControllerTests {
         #expect(window.contentView === controller.view)
     }
 
+    @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
+    func playlistSidebarMovesFocusInAndBack() throws {
+        let controller = makeController()
+        let window = host(controller, size: NSSize(width: 1_000, height: 700))
+        controller.setPlaylistVisible(false)
+        let toggleButton = try #require(controller.view.subviews
+            .compactMap { $0 as? NSButton }
+            .first { $0.title == "显示 Playlist" })
+        #expect(toggleButton.accessibilityLabel() == "显示 Playlist")
+        #expect(toggleButton.accessibilityValue() as? String == "已折叠")
+        #expect(window.makeFirstResponder(toggleButton))
+
+        controller.setPlaylistVisible(true)
+
+        #expect(toggleButton.accessibilityLabel() == "隐藏 Playlist")
+        #expect(toggleButton.accessibilityValue() as? String == "已展开")
+
+        let sidebar = try #require(controller.view.subviews.first {
+            $0.accessibilityLabel() == "Playlist 侧栏"
+        })
+        #expect(sidebar.isAccessibilityElement())
+        #expect(sidebar.accessibilityRole() == .group)
+        #expect(window.firstResponder === sidebar)
+
+        controller.setPlaylistVisible(false)
+
+        #expect(window.firstResponder === toggleButton)
+    }
+
+    @Test("关闭重定位面板后焦点返回原触发控件")
+    func relocationPanelReturnsFocusToTrigger() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let trigger = NSButton(title: "重新定位…", target: nil, action: nil)
+        let panelControl = NSTextField(string: "面板内容")
+        window.contentView?.addSubview(trigger)
+        window.contentView?.addSubview(panelControl)
+        #expect(window.makeFirstResponder(trigger))
+        let focusReturn = WindowAccessibilityFocusReturn(window: window)
+        #expect(window.makeFirstResponder(panelControl))
+
+        #expect(focusReturn.restore())
+
+        #expect(window.firstResponder === trigger)
+    }
+
+    @Test("重定位面板优先返回捕获的 VoiceOver 焦点")
+    func relocationPanelPrefersCapturedAccessibilityFocus() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let voiceOverTrigger = NSButton(title: "重新定位外部字幕…", target: nil, action: nil)
+        let keyboardFocus = NSTextField(string: "键盘焦点")
+        let panelControl = NSTextField(string: "面板内容")
+        window.contentView?.addSubview(voiceOverTrigger)
+        window.contentView?.addSubview(keyboardFocus)
+        window.contentView?.addSubview(panelControl)
+        #expect(window.makeFirstResponder(keyboardFocus))
+        let focusReturn = WindowAccessibilityFocusReturn(
+            window: window,
+            accessibilityFocusedElement: voiceOverTrigger
+        )
+        #expect(window.makeFirstResponder(panelControl))
+
+        #expect(focusReturn.restore())
+        #expect(window.firstResponder === voiceOverTrigger)
+    }
+
+    @Test("触发控件失效时不声称焦点已恢复")
+    func focusReturnReportsFailedRestoration() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let trigger = ConditionalFirstResponderView(frame: NSRect(x: 0, y: 0, width: 80, height: 24))
+        let panelControl = NSTextField(string: "面板内容")
+        window.contentView?.addSubview(trigger)
+        window.contentView?.addSubview(panelControl)
+        #expect(window.makeFirstResponder(trigger))
+        let focusReturn = WindowAccessibilityFocusReturn(window: window)
+        #expect(window.makeFirstResponder(panelControl))
+        trigger.allowsFirstResponder = false
+
+        #expect(!focusReturn.restore())
+        #expect(window.firstResponder !== trigger)
+    }
+
     @Test("全屏 Playlist 以覆盖层显示且不改变画布尺寸")
     func fullscreenPlaylistOverlaysCanvasWithoutResizingIt() {
         let controller = makeController()
@@ -290,12 +479,31 @@ struct PlaybackViewControllerTests {
     ) -> NSEvent.ModifierFlags {
         modifiers.intersection([.command, .control, .option, .shift])
     }
+
+    private func expectAccessibilityAnnouncement(
+        _ expected: String,
+        from controller: PlaybackViewController
+    ) async throws {
+        for _ in 0..<100 where controller.view.accessibilityValue() as? String != expected {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(controller.view.accessibilityValue() as? String == expected)
+    }
+
 }
 
 private final class ShortcutSwallowingView: NSView {
     override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {}
+}
+
+private final class ConditionalFirstResponderView: NSView {
+    var allowsFirstResponder = true
+
+    override var acceptsFirstResponder: Bool { allowsFirstResponder }
+
+    override func becomeFirstResponder() -> Bool { allowsFirstResponder }
 }
 
 private enum LayoutEngineCommand: Equatable, Sendable {
@@ -309,14 +517,17 @@ private enum LayoutEngineCommand: Equatable, Sendable {
 
 private actor LayoutFakePlaybackEngine: PlaybackEngine {
     private(set) var commands: [LayoutEngineCommand] = []
+    private var loadID: PlaybackLoadID?
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
+    private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
 
     init() {
-        events = AsyncStream { _ in }
+        (events, continuation) = AsyncStream.makeStream()
     }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
         commands.append(.load(media))
+        self.loadID = loadID
     }
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
@@ -325,4 +536,9 @@ private actor LayoutFakePlaybackEngine: PlaybackEngine {
     func setPlaybackRate(_ rate: Double) {}
     func setPlayerVolume(_ volume: Double) { commands.append(.setPlayerVolume(volume)) }
     func setMuted(_ isMuted: Bool) {}
+
+    func sendState(_ state: PlaybackState) {
+        guard let loadID else { return }
+        continuation.yield(.playbackStateChanged(state, loadID: loadID))
+    }
 }
