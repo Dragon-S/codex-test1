@@ -10,12 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var window: NSWindow?
     private var coordinator: PlaybackCoordinator?
+    private var systemMediaKeyController: SystemMediaKeyController?
     private var securityScopedURLs: [URL] = []
     private var pendingMediaReplacement: (referenceID: LocalMediaReferenceID, media: LocalMedia)?
     private let localMediaFactory = FileSystemLocalMediaFactory()
     private var isPreparingTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = makeMainMenu()
         let videoView = PlaybackCanvasView(frame: .zero)
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let fileAccess = SecurityScopedMediaAccess()
@@ -31,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             )
         )
         self.coordinator = coordinator
+        systemMediaKeyController = SystemMediaKeyController(coordinator: coordinator)
 
         let viewController = PlaybackViewController(
             coordinator: coordinator,
@@ -56,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             },
             videoView: videoView
         )
-        let window = NSWindow(contentViewController: viewController)
+        let window = PlaybackWindow(contentViewController: viewController)
+        viewController.installKeyboardHandling(on: window)
         window.title = "Mac Media Player"
         window.setContentSize(NSSize(width: 960, height: 600))
         window.minSize = NSSize(width: 640, height: 400)
@@ -74,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        systemMediaKeyController?.invalidate()
         releaseSecurityScope()
     }
 
@@ -96,6 +101,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         NSApp.terminate(nil)
+    }
+
+    func makeMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+
+        let applicationMenu = NSMenu(title: "Mac Media Player")
+        let applicationItem = NSMenuItem(title: "Mac Media Player", action: nil, keyEquivalent: "")
+        applicationItem.submenu = applicationMenu
+        mainMenu.addItem(applicationItem)
+        applicationMenu.addItem(withTitle: "关于 Mac Media Player", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        applicationMenu.addItem(.separator())
+        let quitItem = applicationMenu.addItem(withTitle: "退出 Mac Media Player", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.keyEquivalentModifierMask = .command
+
+        let fileMenu = NSMenu(title: "文件")
+        let fileItem = NSMenuItem(title: "文件", action: nil, keyEquivalent: "")
+        fileItem.submenu = fileMenu
+        mainMenu.addItem(fileItem)
+        let openItem = fileMenu.addItem(withTitle: "打开…", action: #selector(openDocument(_:)), keyEquivalent: "o")
+        openItem.target = self
+        openItem.keyEquivalentModifierMask = .command
+
+        let editMenu = NSMenu(title: "编辑")
+        let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: "")
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+        addResponderMenuItem(to: editMenu, title: "撤销", action: "undo:", key: "z")
+        addResponderMenuItem(to: editMenu, title: "重做", action: "redo:", key: "Z", modifiers: [.command, .shift])
+        editMenu.addItem(.separator())
+        addResponderMenuItem(to: editMenu, title: "剪切", action: "cut:", key: "x")
+        addResponderMenuItem(to: editMenu, title: "复制", action: "copy:", key: "c")
+        addResponderMenuItem(to: editMenu, title: "粘贴", action: "paste:", key: "v")
+        addResponderMenuItem(to: editMenu, title: "全选", action: "selectAll:", key: "a")
+
+        let viewMenu = NSMenu(title: "显示")
+        let viewItem = NSMenuItem(title: "显示", action: nil, keyEquivalent: "")
+        viewItem.submenu = viewMenu
+        mainMenu.addItem(viewItem)
+        let fullScreenItem = viewMenu.addItem(
+            withTitle: "进入全屏",
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f"
+        )
+        fullScreenItem.keyEquivalentModifierMask = [.control, .command]
+
+        return mainMenu
+    }
+
+    @objc private func openDocument(_ sender: Any?) {
+        openMedia()
+    }
+
+    private func addResponderMenuItem(
+        to menu: NSMenu,
+        title: String,
+        action: String,
+        key: String,
+        modifiers: NSEvent.ModifierFlags = .command
+    ) {
+        let item = menu.addItem(
+            withTitle: title,
+            action: Selector(action),
+            keyEquivalent: key
+        )
+        item.keyEquivalentModifierMask = modifiers
     }
 
     private func openMedia() {

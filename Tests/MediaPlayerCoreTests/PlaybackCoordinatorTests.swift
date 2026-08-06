@@ -4,6 +4,29 @@ import Testing
 
 @MainActor
 struct PlaybackCoordinatorTests {
+    @Test("播放切换只在存在当前条目时按当前状态播放或暂停")
+    func togglesPlaybackForCurrentEntryOnly() async throws {
+        let emptyEngine = FakePlaybackEngine()
+        let emptyCoordinator = PlaybackCoordinator(engine: emptyEngine)
+
+        await emptyCoordinator.togglePlayback()
+        #expect(await emptyEngine.commands.isEmpty)
+
+        let engine = FakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let media = localMedia("toggle.mp4")
+        await coordinator.open(media)
+        await engine.sendState(.playing)
+        try await wait(for: .playing, coordinator: coordinator)
+
+        await coordinator.togglePlayback()
+        await engine.sendState(.paused)
+        try await wait(for: .paused, coordinator: coordinator)
+        await coordinator.togglePlayback()
+
+        #expect(await engine.commands == [.load(media), .pause, .play])
+    }
+
     @Test("一次打开多个本地媒体会按选择顺序形成正在播放列表并加载首项")
     func opensMultipleLocalMediaInSelectionOrder() async {
         let engine = FakePlaybackEngine()

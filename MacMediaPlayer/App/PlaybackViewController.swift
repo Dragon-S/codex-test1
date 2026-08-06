@@ -1,6 +1,53 @@
 import AppKit
 import SwiftUI
 
+private enum PlaybackKeyCode {
+    static let space: UInt16 = 49
+    static let escape: UInt16 = 53
+    static let leftArrow: UInt16 = 123
+    static let rightArrow: UInt16 = 124
+    static let downArrow: UInt16 = 125
+    static let upArrow: UInt16 = 126
+    static let p: UInt16 = 35
+}
+
+enum PlaybackKeyboardShortcut: Equatable {
+    case togglePlayback
+    case skipBackward
+    case skipForward
+    case increasePlayerVolume
+    case decreasePlayerVolume
+    case toggleFullScreen
+    case togglePlaylist
+    case openMedia
+
+    init?(event: NSEvent) {
+        guard event.type == .keyDown else { return nil }
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        let characters = event.charactersIgnoringModifiers?.lowercased()
+
+        if modifiers.isEmpty {
+            switch event.keyCode {
+            case PlaybackKeyCode.space: self = .togglePlayback
+            case PlaybackKeyCode.leftArrow: self = .skipBackward
+            case PlaybackKeyCode.rightArrow: self = .skipForward
+            case PlaybackKeyCode.upArrow: self = .increasePlayerVolume
+            case PlaybackKeyCode.downArrow: self = .decreasePlayerVolume
+            case PlaybackKeyCode.p where characters == "p": self = .togglePlaylist
+            default: return nil
+            }
+            return
+        }
+        if modifiers == [.control, .command], characters == "f" {
+            self = .toggleFullScreen
+        } else if modifiers == .command, characters == "o" {
+            self = .openMedia
+        } else {
+            return nil
+        }
+    }
+}
+
 final class PlaybackViewController: NSViewController {
     enum EscapeKeyResult: Equatable {
         case dismissedPlaylist
@@ -20,6 +67,8 @@ final class PlaybackViewController: NSViewController {
     private let controlsView: NSHostingView<PlaybackControlsView>
     private let audioNowPlayingView: NSHostingView<AudioNowPlayingView>
     private let nowPlayingListView: NSHostingView<NowPlayingListView>
+    private let coordinator: PlaybackCoordinator
+    private let openMedia: () -> Void
     private let playlistToggleButton = NSButton()
     private var canvasBesidePlaylistConstraint: NSLayoutConstraint?
     private var canvasFullWidthConstraint: NSLayoutConstraint?
@@ -38,6 +87,8 @@ final class PlaybackViewController: NSViewController {
         videoView: PlaybackCanvasView
     ) {
         self.videoView = videoView
+        self.coordinator = coordinator
+        self.openMedia = openMedia
         controlsView = NSHostingView(
             rootView: PlaybackControlsView(
                 coordinator: coordinator,
@@ -73,6 +124,9 @@ final class PlaybackViewController: NSViewController {
         container.escapeKeyDown = { [weak self] in
             guard let self else { return false }
             return handleEscapeKey() != .ignored
+        }
+        container.keyboardShortcut = { [weak self] shortcut in
+            Task { await self?.performKeyboardShortcut(shortcut) }
         }
         videoView.translatesAutoresizingMaskIntoConstraints = false
         controlsView.translatesAutoresizingMaskIntoConstraints = false
@@ -154,6 +208,11 @@ final class PlaybackViewController: NSViewController {
 
     func setPlaylistVisible(_ isVisible: Bool) {
         guard isPlaylistVisible != isVisible else { return }
+        if !isVisible,
+           let focusedView = view.window?.firstResponder as? NSView,
+           focusedView === nowPlayingListView || focusedView.isDescendant(of: nowPlayingListView) {
+            view.window?.makeFirstResponder(view)
+        }
         isPlaylistVisible = isVisible
         updateTheaterLayout()
     }
@@ -187,7 +246,85 @@ final class PlaybackViewController: NSViewController {
         scheduleControlsAutoHide()
     }
 
+    func performKeyboardShortcut(_ shortcut: PlaybackKeyboardShortcut) async {
+        switch shortcut {
+        case .togglePlayback:
+            await coordinator.togglePlayback()
+        case .skipBackward:
+            guard coordinator.nowPlayingList.currentMedia != nil else { return }
+            await coordinator.skipBackward()
+        case .skipForward:
+            guard coordinator.nowPlayingList.currentMedia != nil else { return }
+            await coordinator.skipForward()
+        case .increasePlayerVolume:
+            await coordinator.setPlayerVolume(coordinator.playerVolume + 0.05)
+        case .decreasePlayerVolume:
+            await coordinator.setPlayerVolume(coordinator.playerVolume - 0.05)
+        case .toggleFullScreen:
+            view.window?.toggleFullScreen(nil)
+        case .togglePlaylist:
+            togglePlaylist()
+        case .openMedia:
+            openMedia()
+        }
+    }
+
+    func installKeyboardHandling(on window: PlaybackWindow) {
+        window.playbackShortcutHandler = { [weak self] event, firstResponder in
+            self?.handleKeyboardEquivalent(event, firstResponder: firstResponder) ?? false
+        }
+    }
+
+    func handleKeyboardEquivalent(
+        _ event: NSEvent,
+        firstResponder: NSResponder?
+    ) -> Bool {
+        guard let shortcut = PlaybackKeyboardShortcut(event: event) else { return false }
+        guard !shouldDefer(shortcut, to: firstResponder) else { return false }
+        Task { await performKeyboardShortcut(shortcut) }
+        return true
+    }
+
+    private func shouldDefer(
+        _ shortcut: PlaybackKeyboardShortcut,
+        to firstResponder: NSResponder?
+    ) -> Bool {
+        switch shortcut {
+        case .openMedia, .toggleFullScreen:
+            return false
+        case .togglePlaylist:
+            return firstResponder is NSTextView || firstResponder is NSTextField
+        case .togglePlayback:
+            return isTextEditor(firstResponder)
+                || firstResponder is NSButton
+                || isFocusedInsideLocalControls(firstResponder)
+        case .skipBackward, .skipForward, .increasePlayerVolume, .decreasePlayerVolume:
+            return isTextEditor(firstResponder)
+                || firstResponder is NSControl
+                || isFocusedInsideLocalControls(firstResponder)
+        }
+    }
+
+    private func isTextEditor(_ responder: NSResponder?) -> Bool {
+        responder is NSTextView || responder is NSTextField
+    }
+
+    private func isFocusedInsideLocalControls(_ responder: NSResponder?) -> Bool {
+        guard let focusedView = responder as? NSView else { return false }
+        return focusedView === controlsView
+            || focusedView.isDescendant(of: controlsView)
+            || focusedView === nowPlayingListView
+            || focusedView.isDescendant(of: nowPlayingListView)
+    }
+
     private func setControlsVisible(_ isVisible: Bool) {
+        if !isVisible,
+           let focusedView = view.window?.firstResponder as? NSView,
+           focusedView === controlsView
+            || focusedView.isDescendant(of: controlsView)
+            || focusedView === playlistToggleButton {
+            view.window?.makeFirstResponder(view)
+        }
         isControlsVisible = isVisible
         controlsView.isHidden = isFullScreen && !isVisible
         playlistToggleButton.isHidden = isFullScreen && !isVisible
@@ -232,8 +369,27 @@ final class PlaybackViewController: NSViewController {
 private final class TheaterContainerView: NSView {
     var pointerActivity: (() -> Void)?
     var escapeKeyDown: (() -> Bool)?
+    var keyboardShortcut: ((PlaybackKeyboardShortcut) -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        focusRingType = .exterior
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) 未实现")
+    }
+
+    override var focusRingMaskBounds: NSRect {
+        bounds.insetBy(dx: 2, dy: 2)
+    }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(rect: focusRingMaskBounds).fill()
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -251,9 +407,25 @@ private final class TheaterContainerView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53, escapeKeyDown?() == true {
+        if event.keyCode == PlaybackKeyCode.escape, escapeKeyDown?() == true {
+            return
+        }
+        if window?.firstResponder === self,
+           let shortcut = PlaybackKeyboardShortcut(event: event) {
+            keyboardShortcut?(shortcut)
             return
         }
         super.keyDown(with: event)
+    }
+}
+
+final class PlaybackWindow: NSWindow {
+    var playbackShortcutHandler: ((NSEvent, NSResponder?) -> Bool)?
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if playbackShortcutHandler?(event, firstResponder) == true {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
