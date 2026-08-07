@@ -587,7 +587,8 @@ static void MPVRenderUpdate(void *context);
         }
     }
 
-    NSString *title = metadata[@"title"] ?: [self stringProperty:@"media-title"] ?: @"未知标题";
+    NSString *title = metadata[@"title"] ?: [self stringProperty:@"media-title"]
+        ?: NSLocalizedString(@"media.unknownTitle", nil);
     MPVClientMediaKind kind = hasAudio && !hasPlayableVideo
         ? MPVClientMediaKindAudio
         : MPVClientMediaKindVideo;

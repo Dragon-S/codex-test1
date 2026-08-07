@@ -66,9 +66,14 @@ public actor UnavailablePlaylistStore: PlaylistStore {
 
 public actor InMemoryPlaylistStore: PlaylistStore {
     private var library: PlaylistLibrary
+    private let messages: any MediaPlayerMessageLocalizing
 
-    public init(library: PlaylistLibrary = PlaylistLibrary()) {
+    public init(
+        library: PlaylistLibrary = PlaylistLibrary(),
+        messages: any MediaPlayerMessageLocalizing = SimplifiedChineseMediaPlayerMessages()
+    ) {
         self.library = library
+        self.messages = messages
     }
 
     public func create(_ playlist: Playlist) throws {
@@ -106,17 +111,23 @@ public actor InMemoryPlaylistStore: PlaylistStore {
         library = try library.replacingPlaybackPreferences(
             playlistID: playlistID,
             entryID: entryID,
-            preferences: preferences
+            preferences: preferences,
+            messages: messages
         )
     }
 }
 
 public actor SQLitePlaylistStore: PlaylistStore {
     private let connection: SQLiteConnection
+    private let messages: any MediaPlayerMessageLocalizing
 
     private var database: OpaquePointer { connection.raw }
 
-    public init(databaseURL: URL) throws {
+    public init(
+        databaseURL: URL,
+        messages: any MediaPlayerMessageLocalizing = SimplifiedChineseMediaPlayerMessages()
+    ) throws {
+        self.messages = messages
         var connection: OpaquePointer?
         let openResult = sqlite3_open_v2(
             databaseURL.path,
@@ -125,16 +136,14 @@ public actor SQLitePlaylistStore: PlaylistStore {
             nil
         )
         guard openResult == SQLITE_OK, let connection else {
-            let message = connection.map { String(cString: sqlite3_errmsg($0)) } ?? "无法打开数据库"
             if let connection { sqlite3_close(connection) }
-            throw PlaylistStoreError.unavailable(message)
+            throw PlaylistStoreError.unavailable(messages.cannotOpenDatabase())
         }
         self.connection = SQLiteConnection(raw: connection)
         let schema = "CREATE TABLE IF NOT EXISTS playlist_library (id INTEGER PRIMARY KEY CHECK (id = 1), payload BLOB NOT NULL)"
         guard sqlite3_exec(connection, schema, nil, nil, nil) == SQLITE_OK else {
-            let message = String(cString: sqlite3_errmsg(connection))
             sqlite3_close(connection)
-            throw PlaylistStoreError.unavailable(message)
+            throw PlaylistStoreError.unavailable(messages.databaseUnavailable())
         }
     }
 
@@ -217,7 +226,8 @@ public actor SQLitePlaylistStore: PlaylistStore {
             let updated = try current.replacingPlaybackPreferences(
                 playlistID: playlistID,
                 entryID: entryID,
-                preferences: preferences
+                preferences: preferences,
+                messages: messages
             )
             try writeLibrary(updated)
             try execute("COMMIT")
@@ -254,7 +264,7 @@ public actor SQLitePlaylistStore: PlaylistStore {
                 from: Data(bytes: bytes, count: count)
             )
         } catch {
-            throw PlaylistStoreError.unavailable("持久状态已损坏：\(error.localizedDescription)")
+            throw PlaylistStoreError.unavailable(messages.corruptPersistentState())
         }
     }
 
@@ -263,7 +273,7 @@ public actor SQLitePlaylistStore: PlaylistStore {
         do {
             payload = try JSONEncoder().encode(library)
         } catch {
-            throw PlaylistStoreError.unavailable("无法编码持久状态：\(error.localizedDescription)")
+            throw PlaylistStoreError.unavailable(messages.cannotEncodePersistentState())
         }
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -292,7 +302,7 @@ public actor SQLitePlaylistStore: PlaylistStore {
     }
 
     private func databaseError() -> PlaylistStoreError {
-        .unavailable(String(cString: sqlite3_errmsg(database)))
+        .unavailable(messages.databaseUnavailable())
     }
 }
 
@@ -418,13 +428,14 @@ private extension PlaylistLibrary {
     func replacingPlaybackPreferences(
         playlistID: PlaylistID,
         entryID: PlaylistEntryID,
-        preferences: EntryPlaybackPreferences
+        preferences: EntryPlaybackPreferences,
+        messages: any MediaPlayerMessageLocalizing
     ) throws -> PlaylistLibrary {
         guard let playlistIndex = playlists.firstIndex(where: { $0.id == playlistID }),
               let entryIndex = playlists[playlistIndex].entries.firstIndex(where: {
                   $0.id == entryID
               }) else {
-            throw PlaylistStoreError.unavailable("找不到要更新的播放列表条目")
+            throw PlaylistStoreError.unavailable(messages.playlistEntryNotFound())
         }
         var updatedPlaylists = playlists
         let playlist = updatedPlaylists[playlistIndex]

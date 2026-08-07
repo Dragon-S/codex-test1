@@ -92,6 +92,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var pendingMediaReplacement: (referenceID: LocalMediaReferenceID, media: LocalMedia)?
     private let localMediaFactory = FileSystemLocalMediaFactory()
     private var isPreparingTermination = false
+    private let localization: AppLocalization
+
+    init(localization: AppLocalization = .live) {
+        self.localization = localization
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMainMenu()
@@ -107,7 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 preferredAudioLanguages: Locale.preferredLanguages,
                 preferredSubtitleLanguages: Locale.preferredLanguages,
                 subtitleAutoPolicy: .automatic
-            )
+            ),
+            messages: localization
         )
         self.coordinator = coordinator
         systemMediaKeyController = SystemMediaKeyController(coordinator: coordinator)
@@ -134,7 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             cancelMediaReplacement: { [weak self] in
                 self?.pendingMediaReplacement = nil
             },
-            videoView: videoView
+            videoView: videoView,
+            localization: localization
         )
         let window = PlaybackWindow(contentViewController: viewController)
         viewController.installKeyboardHandling(on: window)
@@ -187,37 +195,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let applicationItem = NSMenuItem(title: "Mac Media Player", action: nil, keyEquivalent: "")
         applicationItem.submenu = applicationMenu
         mainMenu.addItem(applicationItem)
-        applicationMenu.addItem(withTitle: "关于 Mac Media Player", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        applicationMenu.addItem(
+            withTitle: localization.text("menu.about"),
+            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: ""
+        )
         applicationMenu.addItem(.separator())
-        let quitItem = applicationMenu.addItem(withTitle: "退出 Mac Media Player", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = applicationMenu.addItem(
+            withTitle: localization.text("menu.quit"),
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
         quitItem.keyEquivalentModifierMask = .command
 
-        let fileMenu = NSMenu(title: "文件")
-        let fileItem = NSMenuItem(title: "文件", action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: localization.text("menu.file"))
+        let fileItem = NSMenuItem(title: localization.text("menu.file"), action: nil, keyEquivalent: "")
         fileItem.submenu = fileMenu
         mainMenu.addItem(fileItem)
-        let openItem = fileMenu.addItem(withTitle: "打开…", action: #selector(openDocument(_:)), keyEquivalent: "o")
+        let openItem = fileMenu.addItem(
+            withTitle: localization.text("action.open"),
+            action: #selector(openDocument(_:)),
+            keyEquivalent: "o"
+        )
         openItem.target = self
         openItem.keyEquivalentModifierMask = .command
 
-        let editMenu = NSMenu(title: "编辑")
-        let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: localization.text("menu.edit"))
+        let editItem = NSMenuItem(title: localization.text("menu.edit"), action: nil, keyEquivalent: "")
         editItem.submenu = editMenu
         mainMenu.addItem(editItem)
-        addResponderMenuItem(to: editMenu, title: "撤销", action: "undo:", key: "z")
-        addResponderMenuItem(to: editMenu, title: "重做", action: "redo:", key: "Z", modifiers: [.command, .shift])
+        addResponderMenuItem(to: editMenu, title: localization.text("menu.undo"), action: "undo:", key: "z")
+        addResponderMenuItem(
+            to: editMenu,
+            title: localization.text("menu.redo"),
+            action: "redo:",
+            key: "Z",
+            modifiers: [.command, .shift]
+        )
         editMenu.addItem(.separator())
-        addResponderMenuItem(to: editMenu, title: "剪切", action: "cut:", key: "x")
-        addResponderMenuItem(to: editMenu, title: "复制", action: "copy:", key: "c")
-        addResponderMenuItem(to: editMenu, title: "粘贴", action: "paste:", key: "v")
-        addResponderMenuItem(to: editMenu, title: "全选", action: "selectAll:", key: "a")
+        addResponderMenuItem(to: editMenu, title: localization.text("menu.cut"), action: "cut:", key: "x")
+        addResponderMenuItem(to: editMenu, title: localization.text("menu.copy"), action: "copy:", key: "c")
+        addResponderMenuItem(to: editMenu, title: localization.text("menu.paste"), action: "paste:", key: "v")
+        addResponderMenuItem(to: editMenu, title: localization.text("menu.selectAll"), action: "selectAll:", key: "a")
 
-        let viewMenu = NSMenu(title: "显示")
-        let viewItem = NSMenuItem(title: "显示", action: nil, keyEquivalent: "")
+        let viewMenu = NSMenu(title: localization.text("menu.view"))
+        let viewItem = NSMenuItem(title: localization.text("menu.view"), action: nil, keyEquivalent: "")
         viewItem.submenu = viewMenu
         mainMenu.addItem(viewItem)
         let fullScreenItem = viewMenu.addItem(
-            withTitle: "进入全屏",
+            withTitle: localization.text("menu.enterFullScreen"),
             action: #selector(NSWindow.toggleFullScreen(_:)),
             keyEquivalent: "f"
         )
@@ -248,8 +274,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func openMedia() {
         guard let window else { return }
         let panel = NSOpenPanel()
-        panel.title = "打开本地媒体"
-        panel.prompt = "打开"
+        panel.title = localization.text("panel.openMedia.title")
+        panel.prompt = localization.text("action.openPlain")
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedMediaTypes
@@ -278,10 +304,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let panel = NSOpenPanel()
         panel.title = switch action {
-        case .selectNew: "选择外部字幕"
-        case .relocate: "重新定位外部字幕"
+        case .selectNew: localization.text("panel.selectSubtitle.title")
+        case .relocate: localization.text("panel.relocateSubtitle.title")
         }
-        panel.prompt = "选择"
+        panel.prompt = localization.text("action.choose")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedSubtitleTypes
@@ -316,8 +342,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func addMedia(to playlistID: PlaylistID) {
         guard let window else { return }
         let panel = NSOpenPanel()
-        panel.title = "向 Playlist 添加本地媒体"
-        panel.prompt = "添加"
+        panel.title = localization.text("panel.addMedia.title")
+        panel.prompt = localization.text("action.add")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedMediaTypes
@@ -340,8 +366,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func importFolder(to playlistID: PlaylistID) {
         guard let window else { return }
         let panel = NSOpenPanel()
-        panel.title = "向 Playlist 导入文件夹"
-        panel.prompt = "选择"
+        panel.title = localization.text("panel.importFolder.title")
+        panel.prompt = localization.text("action.choose")
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -354,11 +380,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func chooseFolderImportPolicy(for folder: URL, playlistID: PlaylistID) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "如何处理已有媒体？"
-        alert.informativeText = "默认按本地媒体身份跳过目标 Playlist 已有媒体。只有显式允许时，才会为整批媒体创建重复条目。"
-        alert.addButton(withTitle: "跳过已有媒体")
-        alert.addButton(withTitle: "允许整批重复")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = localization.text("folderImport.duplicates.title")
+        alert.informativeText = localization.text("folderImport.duplicates.message")
+        alert.addButton(withTitle: localization.text("folderImport.duplicates.skip"))
+        alert.addButton(withTitle: localization.text("folderImport.duplicates.allow"))
+        alert.addButton(withTitle: localization.text("action.cancel"))
         alert.beginSheetModal(for: window) { [weak self] response in
             let policy: FolderImportDuplicatePolicy
             switch response {
@@ -400,24 +426,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func showFolderImportResult(_ report: FolderImportReport) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "文件夹导入完成"
-        alert.informativeText = "新增 \(report.addedCount)，跳过 \(report.skippedCount)，失败 \(report.failedCount)。"
-        alert.addButton(withTitle: "好")
+        alert.messageText = localization.text("folderImport.complete.title")
+        alert.informativeText = localization.format(
+            "folderImport.complete.summary",
+            localization.integer(report.addedCount),
+            localization.integer(report.skippedCount),
+            localization.integer(report.failedCount)
+        )
+        alert.addButton(withTitle: localization.text("action.ok"))
         alert.beginSheetModal(for: window)
     }
 
     private func showFolderImportFailure(_ error: any Error) {
         guard let window else { return }
-        let alert = NSAlert(error: error)
-        alert.messageText = "无法导入文件夹"
+        let alert = NSAlert()
+        alert.messageText = localization.text("folderImport.failed.title")
+        alert.informativeText = localization.text("folderImport.failed.message")
+        alert.addButton(withTitle: localization.text("action.ok"))
         alert.beginSheetModal(for: window)
     }
 
     private func relocateMedia(referenceID: LocalMediaReferenceID) {
         guard let window, let coordinator else { return }
         let panel = NSOpenPanel()
-        panel.title = "重新定位本地媒体"
-        panel.prompt = "选择"
+        panel.title = localization.text("panel.relocateMedia.title")
+        panel.prompt = localization.text("action.choose")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = Self.supportedMediaTypes
@@ -476,9 +509,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 at: directory,
                 withIntermediateDirectories: true
             )
-            return try SQLitePlaylistStore(databaseURL: directory.appending(path: "playlists.sqlite"))
+            return try SQLitePlaylistStore(
+                databaseURL: directory.appending(path: "playlists.sqlite"),
+                messages: localization
+            )
         } catch {
-            return UnavailablePlaylistStore(message: "无法打开 Playlist 存储：\(error.localizedDescription)")
+            return UnavailablePlaylistStore(message: localization.text("error.openPlaylistStore"))
         }
     }
 

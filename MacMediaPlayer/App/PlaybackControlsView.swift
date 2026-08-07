@@ -3,30 +3,87 @@ import Foundation
 import SwiftUI
 
 enum PlaybackStatusText {
-    static func status(for state: PlaybackState) -> String {
+    static func status(
+        for state: PlaybackState,
+        localization: AppLocalization = .live
+    ) -> String {
         switch state {
-        case .idle: "尚未打开媒体"
-        case .loading: "正在载入"
-        case .playing: "正在播放"
-        case .paused: "已暂停"
-        case .stopped: "已停止"
-        case let .failed(failure): self.failure(failure)
+        case .idle: localization.text("playback.idle")
+        case .loading: localization.text("playback.loading")
+        case .playing: localization.text("playback.playing")
+        case .paused: localization.text("playback.paused")
+        case .stopped: localization.text("playback.stopped")
+        case let .failed(failure): self.failure(failure, localization: localization)
         }
     }
 
-    static func announcement(for state: PlaybackState) -> String {
-        guard case let .failed(failure) = state else { return status(for: state) }
-        return "播放失败：\(self.failure(failure))"
+    static func announcement(
+        for state: PlaybackState,
+        localization: AppLocalization = .live
+    ) -> String {
+        guard case let .failed(failure) = state else {
+            return status(for: state, localization: localization)
+        }
+        return localization.format(
+            "playback.failed",
+            self.failure(failure, localization: localization)
+        )
     }
 
-    static func failure(_ failure: PlaybackFailure) -> String {
+    static func failure(
+        _ failure: PlaybackFailure,
+        localization: AppLocalization = .live
+    ) -> String {
         switch failure {
-        case .unreadable: "无法读取文件"
-        case .unsupported: "不支持此媒体"
-        case .corrupted: "媒体内容已损坏"
-        case .decoderInitializationFailed: "解码器初始化失败"
-        case .engineUnavailable: "播放引擎不可用"
+        case .unreadable: localization.text("playback.failure.unreadable")
+        case .unsupported: localization.text("playback.failure.unsupported")
+        case .corrupted: localization.text("playback.failure.corrupted")
+        case .decoderInitializationFailed: localization.text("playback.failure.decoder")
+        case .engineUnavailable: localization.text("playback.failure.engine")
         }
+    }
+}
+
+enum PlaybackControlsLayout {
+    static let playbackRates = [0.5, 1.0, 1.25, 1.5, 2.0]
+    static let seekSteps = [5.0, 10.0, 30.0]
+    static let compactContentWidth: CGFloat = 356
+    static let groupSpacing: CGFloat = 12
+    private static let pickerChromeWidth: CGFloat = 44
+
+    static func speedPickerWidth(localization: AppLocalization) -> CGFloat {
+        pickerWidth(
+            title: localization.text("速度"),
+            options: playbackRates.map(localization.playbackRate)
+        )
+    }
+
+    static func seekStepPickerWidth(localization: AppLocalization) -> CGFloat {
+        pickerWidth(
+            title: localization.text("跳转"),
+            options: seekSteps.map { seekStepLabel($0, localization: localization) }
+        )
+    }
+
+    static func seekStepLabel(_ value: Double, localization: AppLocalization) -> String {
+        localization.format("duration.seconds", localization.integer(Int(value)))
+    }
+
+    static func pickerRowMinimumWidth(localization: AppLocalization) -> CGFloat {
+        speedPickerWidth(localization: localization)
+            + seekStepPickerWidth(localization: localization)
+            + groupSpacing
+    }
+
+    private static func pickerWidth(title: String, options: [String]) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+        ]
+        let titleWidth = (title as NSString).size(withAttributes: attributes).width
+        let optionWidth = options
+            .map { ($0 as NSString).size(withAttributes: attributes).width }
+            .max() ?? 0
+        return ceil(titleWidth + optionWidth + pickerChromeWidth)
     }
 }
 
@@ -35,14 +92,29 @@ struct PlaybackControlsView: View {
     let openMedia: () -> Void
     let openExternalSubtitle: () -> Void
     let relocateExternalSubtitle: () -> Void
+    let localization: AppLocalization
 
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Button("后退 \(Int(coordinator.seekStep)) 秒") {
+                Button(localization.format("playback.seekBackward", localization.integer(Int(coordinator.seekStep)))) {
                     Task { await coordinator.skipBackward() }
                 }
-                .accessibilityLabel("后退 \(Int(coordinator.seekStep)) 秒")
+                .accessibilityLabel(localization.format(
+                    "playback.seekBackward",
+                    localization.integer(Int(coordinator.seekStep))
+                ))
+                Spacer()
+                Button(localization.format("playback.seekForward", localization.integer(Int(coordinator.seekStep)))) {
+                    Task { await coordinator.skipForward() }
+                }
+                .accessibilityLabel(localization.format(
+                    "playback.seekForward",
+                    localization.integer(Int(coordinator.seekStep))
+                ))
+            }
+
+            HStack(spacing: 8) {
                 Text(timeText(coordinator.position))
                     .monospacedDigit()
                     .frame(minWidth: 44, alignment: .trailing)
@@ -56,16 +128,16 @@ struct PlaybackControlsView: View {
                 .disabled(coordinator.duration <= 0)
                 .accessibilityLabel("播放位置")
                 .accessibilityValue(
-                    "当前位置 \(accessibilityTimeText(coordinator.position))，总时长 \(accessibilityTimeText(coordinator.duration))"
+                    localization.format(
+                        "accessibility.positionAndDuration",
+                        accessibilityTimeText(coordinator.position),
+                        accessibilityTimeText(coordinator.duration)
+                    )
                 )
                 .accessibilityHint("调高或调低以定位播放位置")
                 Text(timeText(coordinator.duration))
                     .monospacedDigit()
                     .frame(minWidth: 44, alignment: .leading)
-                Button("前进 \(Int(coordinator.seekStep)) 秒") {
-                    Task { await coordinator.skipForward() }
-                }
-                .accessibilityLabel("前进 \(Int(coordinator.seekStep)) 秒")
             }
 
             HStack(spacing: 12) {
@@ -73,33 +145,60 @@ struct PlaybackControlsView: View {
                     .keyboardShortcut("o")
                 Button("播放") { Task { await coordinator.play() } }
                 Button("暂停") { Task { await coordinator.pause() } }
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
                 Button("停止") { Task { await coordinator.stop() } }
                 Button("上一首") { Task { await coordinator.previous() } }
                 Button("下一首") { Task { await coordinator.next() } }
-                Picker("速度", selection: Binding(
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusText)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("播放状态")
+                    .accessibilityValue(statusText)
+                if let noticeText {
+                    Text(noticeText)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("轨道提示")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 12) {
+                Picker(localization.text("速度"), selection: Binding(
                     get: { coordinator.playbackRate },
                     set: { rate in Task { await coordinator.setPlaybackRate(rate) } }
                 )) {
-                    Text("0.5×").tag(0.5)
-                    Text("1×").tag(1.0)
-                    Text("1.25×").tag(1.25)
-                    Text("1.5×").tag(1.5)
-                    Text("2×").tag(2.0)
+                    ForEach(PlaybackControlsLayout.playbackRates, id: \.self) { rate in
+                        Text(localization.playbackRate(rate)).tag(rate)
+                    }
                 }
-                .frame(width: 105)
-                Picker("跳转", selection: Binding(
+                .frame(minWidth: PlaybackControlsLayout.speedPickerWidth(localization: localization))
+                Picker(localization.text("跳转"), selection: Binding(
                     get: { coordinator.seekStep },
                     set: { step in Task { await coordinator.setSeekStep(step) } }
                 )) {
-                    Text("5 秒").tag(5.0)
-                    Text("10 秒").tag(10.0)
-                    Text("30 秒").tag(30.0)
+                    ForEach(PlaybackControlsLayout.seekSteps, id: \.self) { step in
+                        Text(PlaybackControlsLayout.seekStepLabel(step, localization: localization))
+                            .tag(step)
+                    }
                 }
-                .frame(width: 100)
-                Button(coordinator.isMuted ? "取消静音" : "静音") {
+                .frame(minWidth: PlaybackControlsLayout.seekStepPickerWidth(localization: localization))
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
+                Button(localization.text(coordinator.isMuted ? "playback.unmute" : "playback.mute")) {
                     Task { await coordinator.setMuted(!coordinator.isMuted) }
                 }
-                .accessibilityValue(coordinator.isMuted ? "已静音" : "未静音")
+                .accessibilityValue(localization.text(
+                    coordinator.isMuted ? "accessibility.muted" : "accessibility.notMuted"
+                ))
                 Slider(
                     value: Binding(
                         get: { coordinator.playerVolume },
@@ -109,23 +208,18 @@ struct PlaybackControlsView: View {
                 )
                 .frame(width: 90)
                 .accessibilityLabel("播放器音量")
-                .accessibilityValue("\(Int(coordinator.playerVolume * 100))%")
+                .accessibilityValue(localization.format(
+                    "accessibility.volumePercent",
+                    localization.integer(Int(coordinator.playerVolume * 100))
+                ))
                 .accessibilityHint("调高或调低播放器音量，不会修改系统音量")
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
                 audioTrackMenu
                 subtitleMenu
                 Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(statusText)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("播放状态")
-                    .accessibilityValue(statusText)
-                    if let noticeText {
-                        Text(noticeText)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .accessibilityLabel("轨道提示")
-                    }
-                }
             }
 
             playbackFailureRecovery
@@ -137,13 +231,7 @@ struct PlaybackControlsView: View {
     }
 
     private func timeText(_ value: TimeInterval) -> String {
-        let seconds = max(0, Int(value.rounded(.down)))
-        let hours = seconds / 3_600
-        let minutes = (seconds % 3_600) / 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds % 60)
-        }
-        return String(format: "%d:%02d", minutes, seconds % 60)
+        localization.mediaDuration(value)
     }
 
     private func accessibilityTimeText(_ value: TimeInterval) -> String {
@@ -152,9 +240,11 @@ struct PlaybackControlsView: View {
         let minutes = (seconds % 3_600) / 60
         let remainingSeconds = seconds % 60
         return [
-            hours > 0 ? "\(hours) 小时" : nil,
-            minutes > 0 ? "\(minutes) 分钟" : nil,
-            remainingSeconds > 0 || (hours == 0 && minutes == 0) ? "\(remainingSeconds) 秒" : nil,
+            hours > 0 ? localization.format("duration.hours", localization.integer(hours)) : nil,
+            minutes > 0 ? localization.format("duration.minutes", localization.integer(minutes)) : nil,
+            remainingSeconds > 0 || (hours == 0 && minutes == 0)
+                ? localization.format("duration.seconds", localization.integer(remainingSeconds))
+                : nil,
         ]
         .compactMap { $0 }
         .joined(separator: " ")
@@ -170,9 +260,9 @@ struct PlaybackControlsView: View {
                         Task { await coordinator.selectAudioTrack(track.id) }
                     } label: {
                         if coordinator.trackSelection.audioTrackID == track.id {
-                            Label(track.displayName, systemImage: "checkmark")
+                            Label(localization.audioTrackDisplayName(track), systemImage: "checkmark")
                         } else {
-                            Text(track.displayName)
+                            Text(localization.audioTrackDisplayName(track))
                         }
                     }
                 }
@@ -199,18 +289,18 @@ struct PlaybackControlsView: View {
                 Button {
                     Task { await coordinator.selectEmbeddedSubtitle(track.id) }
                 } label: {
-                    if coordinator.trackSelection.subtitle == .embedded(track.id) {
-                        Label(track.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(track.displayName)
+                        if coordinator.trackSelection.subtitle == .embedded(track.id) {
+                            Label(localization.subtitleTrackDisplayName(track), systemImage: "checkmark")
+                        } else {
+                            Text(localization.subtitleTrackDisplayName(track))
                     }
                 }
             }
             if let externalSubtitleName = coordinator.preferredExternalSubtitleName {
                 Label(
                     coordinator.isPreferredExternalSubtitleActive
-                        ? "外部：\(externalSubtitleName)"
-                        : "外部字幕待重新定位：\(externalSubtitleName)",
+                        ? localization.format("subtitle.externalShort", externalSubtitleName)
+                        : localization.format("subtitle.externalRelocationPending", externalSubtitleName),
                     systemImage: coordinator.isPreferredExternalSubtitleActive
                         ? "checkmark"
                         : "exclamationmark.triangle"
@@ -229,21 +319,28 @@ struct PlaybackControlsView: View {
     }
 
     private var selectedAudioTrackName: String {
-        guard let id = coordinator.trackSelection.audioTrackID else { return "自动选择" }
-        return coordinator.availableAudioTracks.first(where: { $0.id == id })?.displayName
-            ?? "所选音轨不可用"
+        guard let id = coordinator.trackSelection.audioTrackID else {
+            return localization.text("track.automatic")
+        }
+        return coordinator.availableAudioTracks.first(where: { $0.id == id }).map(
+            localization.audioTrackDisplayName
+        )
+            ?? localization.text("track.selectedUnavailable")
     }
 
     private var selectedSubtitleName: String {
         switch coordinator.trackSelection.subtitle {
         case .off:
-            "已关闭"
+            localization.text("subtitle.off")
         case let .embedded(id):
-            coordinator.availableEmbeddedSubtitleTracks.first(where: { $0.id == id })?.displayName
-                ?? "所选字幕不可用"
+            coordinator.availableEmbeddedSubtitleTracks.first(where: { $0.id == id }).map(
+                localization.subtitleTrackDisplayName
+            )
+                ?? localization.text("subtitle.selectedUnavailable")
         case .external:
-            coordinator.preferredExternalSubtitleName.map { "外部字幕：\($0)" }
-                ?? "外部字幕"
+            coordinator.preferredExternalSubtitleName.map {
+                localization.format("subtitle.externalNamed", $0)
+            } ?? localization.text("subtitle.external")
         }
     }
 
@@ -254,14 +351,14 @@ struct PlaybackControlsView: View {
         case let .preferenceUnavailable(message), let .selectionFailed(message):
             message
         case let .externalSubtitleMissing(name):
-            "外部字幕“\(name)”缺失；可重新定位或停用字幕"
+            localization.format("subtitle.externalMissing", name)
         case let .externalSubtitleDamaged(name):
-            "外部字幕“\(name)”已损坏；媒体将继续播放"
+            localization.format("subtitle.externalDamaged", name)
         }
     }
 
     private var statusText: String {
-        PlaybackStatusText.status(for: coordinator.state)
+        PlaybackStatusText.status(for: coordinator.state, localization: localization)
     }
 
     @ViewBuilder
@@ -270,41 +367,59 @@ struct PlaybackControlsView: View {
         case .none:
             EmptyView()
         case let .recovery(recovery):
-            HStack(spacing: 8) {
-                Label(PlaybackStatusText.failure(recovery.failure), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                Spacer()
-                if recovery.actions.contains(.retry) {
-                    Button("重试") {
-                        Task { await coordinator.retryPlaybackFailure() }
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    PlaybackStatusText.failure(recovery.failure, localization: localization),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    if recovery.actions.contains(.retry) {
+                        Button("重试") {
+                            Task { await coordinator.retryPlaybackFailure() }
+                        }
                     }
+                    if recovery.actions.contains(.revealInFinder) {
+                        Button("在 Finder 中显示") {
+                            NSWorkspace.shared.activateFileViewerSelecting([recovery.mediaURL])
+                        }
+                    }
+                    Spacer()
                 }
-                if recovery.actions.contains(.revealInFinder) {
-                    Button("在 Finder 中显示") {
-                        NSWorkspace.shared.activateFileViewerSelecting([recovery.mediaURL])
+                HStack(spacing: 8) {
+                    if recovery.actions.contains(.removeEntryFromList) {
+                        Button("从列表移除", role: .destructive) {
+                            Task { try? await coordinator.removeFailedEntry() }
+                        }
+                        .help("只移除应用内条目，不删除源文件")
                     }
-                }
-                if recovery.actions.contains(.removeEntryFromList) {
-                    Button("从列表移除", role: .destructive) {
-                        Task { try? await coordinator.removeFailedEntry() }
+                    if recovery.actions.contains(.skip) {
+                        Button("跳过") {
+                            Task { await coordinator.skipPlaybackFailure() }
+                        }
                     }
-                    .help("只移除应用内条目，不删除源文件")
-                }
-                if recovery.actions.contains(.skip) {
-                    Button("跳过") {
-                        Task { await coordinator.skipPlaybackFailure() }
-                    }
+                    Spacer()
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("播放失败：\(PlaybackStatusText.failure(recovery.failure))")
+            .accessibilityLabel(localization.format(
+                "playback.failed",
+                PlaybackStatusText.failure(recovery.failure, localization: localization)
+            ))
         case let .exhausted(failures):
             Label(
-                "本轮 \(failures.count) 个条目均播放失败，已停止自动推进",
+                localization.format(
+                    "playback.exhausted",
+                    localization.integer(failures.count)
+                ),
                 systemImage: "stop.circle.fill"
             )
             .foregroundStyle(.red)
-            .accessibilityLabel("本轮 \(failures.count) 个条目均播放失败，已停止自动推进")
+            .accessibilityLabel(localization.format(
+                "playback.exhausted",
+                localization.integer(failures.count)
+            ))
         }
     }
 
@@ -340,6 +455,7 @@ struct PlaybackControlsView: View {
 
 struct AudioNowPlayingView: View {
     @ObservedObject var coordinator: PlaybackCoordinator
+    let localization: AppLocalization
 
     var body: some View {
         Group {
@@ -383,9 +499,7 @@ struct AudioNowPlayingView: View {
     }
 
     private func audioAccessibilityLabel(_ presentation: PlaybackMediaPresentation) -> String {
-        [presentation.title, presentation.artist, presentation.album]
-            .compactMap { $0 }
-            .joined(separator: "，")
+        localization.list([presentation.title, presentation.artist, presentation.album].compactMap { $0 })
     }
 }
 
@@ -396,6 +510,7 @@ struct NowPlayingListView: View {
     let relocateMissingMedia: (LocalMediaReferenceID) -> Void
     let confirmMediaReplacement: (LocalMediaReferenceID) -> Void
     let cancelMediaReplacement: () -> Void
+    let localization: AppLocalization
     @State private var playlistName = ""
     @State private var renameName = ""
     @State private var playlistAwaitingDeletion: PlaylistID?
@@ -520,7 +635,7 @@ struct NowPlayingListView: View {
                 }
             }
         }
-        .accessibilityLabel("Playlist：\(playlist.name)")
+        .accessibilityLabel(localization.format("accessibility.playlistNamed", playlist.name))
         .accessibilityValue(playlistAccessibilityValue(playlist))
         .accessibilityAddTraits(
             coordinator.browsingPlaylistID == playlist.id ? .isSelected : []
@@ -536,12 +651,14 @@ struct NowPlayingListView: View {
     private func playlistAccessibilityValue(_ playlist: Playlist) -> String {
         var statuses: [String] = []
         if coordinator.browsingPlaylistID == playlist.id {
-            statuses.append("正在浏览")
+            statuses.append(localization.text("playlist.browsing"))
         }
         if coordinator.activePlaylistID == playlist.id {
-            statuses.append("正在播放")
+            statuses.append(localization.text("playback.playing"))
         }
-        return statuses.isEmpty ? "未选择" : statuses.joined(separator: "，")
+        return statuses.isEmpty
+            ? localization.text("playlist.notSelected")
+            : localization.list(statuses)
     }
 
     private func playlistEditor(_ playlist: Playlist) -> some View {
@@ -626,7 +743,7 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("播放")
-                    .accessibilityLabel("播放 \(mediaName)")
+                    .accessibilityLabel(localization.format("playlist.playItem", mediaName))
                     Button {
                         Task { _ = try? await coordinator.duplicateEntry(entry.id, in: playlist.id) }
                     } label: {
@@ -634,7 +751,7 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("刻意重复添加")
-                    .accessibilityLabel("刻意重复添加 \(mediaName)")
+                    .accessibilityLabel(localization.format("playlist.duplicateItem", mediaName))
                     Button {
                         Task { try? await coordinator.moveEntry(entry.id, in: playlist.id, to: index - 1) }
                     } label: {
@@ -643,7 +760,7 @@ struct NowPlayingListView: View {
                     .buttonStyle(.plain)
                     .disabled(index == 0)
                     .help("上移")
-                    .accessibilityLabel("上移 \(mediaName)")
+                    .accessibilityLabel(localization.format("playlist.moveUpItem", mediaName))
                     Button {
                         Task { try? await coordinator.moveEntry(entry.id, in: playlist.id, to: index + 1) }
                     } label: {
@@ -652,7 +769,7 @@ struct NowPlayingListView: View {
                     .buttonStyle(.plain)
                     .disabled(index == playlist.entries.count - 1)
                     .help("下移")
-                    .accessibilityLabel("下移 \(mediaName)")
+                    .accessibilityLabel(localization.format("playlist.moveDownItem", mediaName))
                     Button(role: .destructive) {
                         Task { try? await coordinator.removeEntry(entry.id, from: playlist.id) }
                     } label: {
@@ -660,7 +777,7 @@ struct NowPlayingListView: View {
                     }
                     .buttonStyle(.plain)
                     .help("从 Playlist 移除；不会删除源文件")
-                    .accessibilityLabel("从 Playlist 移除 \(mediaName)")
+                    .accessibilityLabel(localization.format("playlist.removeItem", mediaName))
                     .accessibilityHint("不会删除源文件")
                 }
                 .tag(entry.id)
@@ -734,11 +851,11 @@ struct NowPlayingListView: View {
                 || playlist.randomRound?.unavailableEntryIDs.contains(entry.id) == true
         )
         var statuses: [String] = []
-        if selectedEntryID == entry.id { statuses.append("已选中") }
-        if isCurrent { statuses.append("当前条目") }
-        if isPlaying { statuses.append("当前播放") }
-        if isMissing { statuses.append("文件缺失") }
-        if isUnavailable { statuses.append("不可用") }
+        if selectedEntryID == entry.id { statuses.append(localization.text("playlist.selected")) }
+        if isCurrent { statuses.append(localization.text("playlist.currentItem")) }
+        if isPlaying { statuses.append(localization.text("playlist.currentPlayback")) }
+        if isMissing { statuses.append(localization.text("playlist.fileMissing")) }
+        if isUnavailable { statuses.append(localization.text("playlist.unavailable")) }
 
         let appearance: (String, Color, Color) = if isMissing {
             ("exclamationmark.triangle.fill", .orange, .primary)
@@ -755,7 +872,7 @@ struct NowPlayingListView: View {
             systemImage: appearance.0,
             color: appearance.1,
             titleColor: appearance.2,
-            accessibilityValue: statuses.joined(separator: "，")
+            accessibilityValue: localization.list(statuses)
         )
     }
 
@@ -782,15 +899,19 @@ struct NowPlayingListView: View {
             let name = coordinator.playlists.lazy.flatMap(\.entries)
                 .first(where: { $0.id == entryID })
                 .map { URL(fileURLWithPath: $0.media.lastKnownPath).lastPathComponent }
-                ?? "所选文件"
+                ?? localization.text("media.selectedFile")
             return MissingMediaAlertPresentation(
-                title: "文件缺失",
-                message: "“\(name)”无法定位。可重新定位文件，或仅从 Playlist 移除该条目；取消不会更改任何数据。"
+                title: localization.text("missingMedia.title"),
+                message: localization.format("missingMedia.message", name)
             )
         case let .replacementConfirmationRequired(impact):
             return MissingMediaAlertPresentation(
-                title: "替换为不同文件？",
-                message: "所选文件与原文件身份明显不同。确认后会更新共享本地媒体引用，并重置 \(impact.affectedPlaylistCount) 个 Playlist 中 \(impact.affectedEntryCount) 个关联条目的续播位置、已播完状态及音轨和字幕偏好。"
+                title: localization.text("replacement.title"),
+                message: localization.format(
+                    "replacement.message",
+                    localization.integer(impact.affectedPlaylistCount),
+                    localization.integer(impact.affectedEntryCount)
+                )
             )
         case .none, .noPlayableEntries:
             return nil
@@ -809,10 +930,10 @@ struct NowPlayingListView: View {
         case .none:
             EmptyView()
         case let .saved(name):
-            Label("已存储为 \(name)", systemImage: "checkmark.circle.fill")
+            Label(localization.format("playlist.savedAs", name), systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
         case let .nameAlreadyExists(name):
-            Label("名称“\(name)”已存在，原数据未更改", systemImage: "exclamationmark.triangle.fill")
+            Label(localization.format("playlist.nameExists", name), systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
         case let .failed(message):
             Label(message, systemImage: "xmark.octagon.fill")
@@ -824,7 +945,10 @@ struct NowPlayingListView: View {
     private var missingMediaStatus: some View {
         if case let .noPlayableEntries(missingCount) = coordinator.missingMediaNotice {
             Label(
-                "没有可播放条目；已跳过 \(missingCount) 个文件缺失条目",
+                localization.format(
+                    "accessibility.noPlayableEntries",
+                    localization.integer(missingCount)
+                ),
                 systemImage: "exclamationmark.triangle.fill"
             )
             .foregroundStyle(.orange)

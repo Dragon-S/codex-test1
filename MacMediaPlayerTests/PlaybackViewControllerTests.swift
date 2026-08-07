@@ -6,7 +6,10 @@ import Testing
 struct PlaybackViewControllerTests {
     @Test("应用菜单提供标准打开与全屏快捷键")
     func applicationMenuProvidesStandardCommandShortcuts() throws {
-        let menu = AppDelegate().makeMainMenu()
+        let menu = AppDelegate(localization: AppLocalization(
+            languageIdentifier: "zh-Hans",
+            locale: Locale(identifier: "zh_CN")
+        )).makeMainMenu()
         let fileMenu = try #require(menu.item(withTitle: "文件")?.submenu)
         let openItem = try #require(fileMenu.item(withTitle: "打开…"))
         #expect(openItem.keyEquivalent == "o")
@@ -16,6 +19,15 @@ struct PlaybackViewControllerTests {
         let fullScreenItem = try #require(viewMenu.item(withTitle: "进入全屏"))
         #expect(fullScreenItem.keyEquivalent == "f")
         #expect(semanticModifiers(fullScreenItem.keyEquivalentModifierMask) == [.control, .command])
+
+        let englishMenu = AppDelegate(localization: AppLocalization(
+            languageIdentifier: "en",
+            locale: Locale(identifier: "en_US")
+        )).makeMainMenu()
+        let englishFileMenu = try #require(englishMenu.item(withTitle: "File")?.submenu)
+        #expect(englishFileMenu.item(withTitle: "Open…")?.keyEquivalent == "o")
+        let englishViewMenu = try #require(englishMenu.item(withTitle: "View")?.submenu)
+        #expect(englishViewMenu.item(withTitle: "Enter Full Screen")?.keyEquivalent == "f")
     }
 
     @Test("根播放区域可接收焦点并显示焦点环")
@@ -35,6 +47,14 @@ struct PlaybackViewControllerTests {
         #expect(controller.videoView.isAccessibilityElement())
         #expect(controller.videoView.accessibilityRole() == .group)
         #expect(controller.videoView.accessibilityLabel() == "当前媒体播放区域")
+
+        let englishController = makeController(localization: AppLocalization(
+            languageIdentifier: "en",
+            locale: Locale(identifier: "en_US")
+        ))
+        englishController.loadViewIfNeeded()
+        #expect(englishController.videoView.accessibilityLabel() == "Current media playback area")
+        #expect(englishController.view.accessibilityLabel() == "Player")
     }
 
     @Test("当前条目、播放状态与静音变化通过播放器元素通知 VoiceOver")
@@ -410,7 +430,11 @@ struct PlaybackViewControllerTests {
 
     private func makeController(
         coordinator: PlaybackCoordinator? = nil,
-        openMedia: @escaping () -> Void = {}
+        openMedia: @escaping () -> Void = {},
+        localization: AppLocalization = AppLocalization(
+            languageIdentifier: "zh-Hans",
+            locale: Locale(identifier: "zh_CN")
+        )
     ) -> PlaybackViewController {
         let coordinator = coordinator ?? PlaybackCoordinator(engine: LayoutFakePlaybackEngine())
         return PlaybackViewController(
@@ -422,7 +446,8 @@ struct PlaybackViewControllerTests {
             relocateMissingMedia: { _ in },
             confirmMediaReplacement: { _ in },
             cancelMediaReplacement: {},
-            videoView: PlaybackCanvasView(frame: .zero)
+            videoView: PlaybackCanvasView(frame: .zero),
+            localization: localization
         )
     }
 
