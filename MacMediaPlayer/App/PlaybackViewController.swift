@@ -10,7 +10,7 @@ final class DisplayAccessibilityPreferences: ObservableObject {
     private var displayOptionsCancellable: AnyCancellable?
 
     init(
-        notificationCenter: NotificationCenter = .default,
+        notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         reduceMotionProvider: @escaping @MainActor () -> Bool = {
             NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         }

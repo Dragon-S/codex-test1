@@ -428,6 +428,23 @@ struct PlaybackViewControllerTests {
         #expect(controller.view.focusRingType == .exterior)
     }
 
+    @Test("生产偏好监听工作区的显示辅助功能通知")
+    func displayPreferencesObserveWorkspaceAccessibilityChanges() {
+        let displayOptions = MutableDisplayOptions()
+        let displayPreferences = DisplayAccessibilityPreferences(
+            reduceMotionProvider: { displayOptions.shouldReduceMotion }
+        )
+        #expect(!displayPreferences.isReduceMotionEnabled)
+
+        displayOptions.shouldReduceMotion = true
+        NSWorkspace.shared.notificationCenter.post(
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: NSWorkspace.shared
+        )
+
+        #expect(displayPreferences.isReduceMotionEnabled)
+    }
+
     @Test("运行中切换外观与减弱动态效果会保留播放上下文和焦点")
     func displayPreferenceChangesPreservePlaybackContextAndFocus() async throws {
         let displayOptions = MutableDisplayOptions()
