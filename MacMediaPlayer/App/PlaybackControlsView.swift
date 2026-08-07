@@ -161,9 +161,9 @@ struct PlaybackControlsView: View {
                     .accessibilityLabel("播放状态")
                     .accessibilityValue(statusText)
                 if let noticeText {
-                    Text(noticeText)
+                    Label(noticeText, systemImage: "info.circle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .labelStyle(SemanticStatusLabelStyle(iconColor: .orange))
                         .accessibilityLabel("轨道提示")
                 }
             }
@@ -372,7 +372,7 @@ struct PlaybackControlsView: View {
                     PlaybackStatusText.failure(recovery.failure, localization: localization),
                     systemImage: "exclamationmark.triangle.fill"
                 )
-                .foregroundStyle(.red)
+                .labelStyle(SemanticStatusLabelStyle(iconColor: .red))
                 .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     if recovery.actions.contains(.retry) {
@@ -415,7 +415,7 @@ struct PlaybackControlsView: View {
                 ),
                 systemImage: "stop.circle.fill"
             )
-            .foregroundStyle(.red)
+            .labelStyle(SemanticStatusLabelStyle(iconColor: .red))
             .accessibilityLabel(localization.format(
                 "playback.exhausted",
                 localization.integer(failures.count)
@@ -434,21 +434,21 @@ struct PlaybackControlsView: View {
                 systemImage: "gauge.with.dots.needle.33percent"
             )
             .font(.caption)
-            .foregroundStyle(.orange)
+            .labelStyle(SemanticStatusLabelStyle(iconColor: .orange))
         case .softwareDecodingFallbackFor4K:
             Label(
                 "硬件解码初始化失败；4K 已明确降级为软件解码，若播放不稳定请跳过或移除。",
                 systemImage: "gauge.with.dots.needle.33percent"
             )
             .font(.caption)
-            .foregroundStyle(.orange)
+            .labelStyle(SemanticStatusLabelStyle(iconColor: .orange))
         case .softwareDecodingFallbackRequiresFullQualityGate:
             Label(
                 "硬件解码初始化失败，已改用软件解码；1080p 及以下仍须通过完整质量门槛。",
                 systemImage: "checkmark.seal"
             )
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .labelStyle(SemanticStatusLabelStyle(iconColor: .secondary))
         }
     }
 }
@@ -490,7 +490,11 @@ struct AudioNowPlayingView: View {
                     .padding(.bottom, 96)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(presentation.hasArtwork ? Color.clear : Color.black)
+                .background(
+                    presentation.hasArtwork
+                        ? Color.clear
+                        : Color(nsColor: .underPageBackgroundColor)
+                )
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(audioAccessibilityLabel(presentation))
             }
@@ -726,13 +730,20 @@ struct NowPlayingListView: View {
                         .accessibilityHidden(true)
                     Text(mediaName)
                         .lineLimit(1)
-                        .foregroundStyle(presentation.titleColor)
+                        .foregroundStyle(.primary)
+                    if selectedEntryID == entry.id {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.primary)
+                            .help(localization.text("playlist.selected"))
+                            .accessibilityLabel(localization.text("playlist.selected"))
+                            .accessibilityIdentifier("playlist.entry.selected")
+                    }
                     if playlist.currentEntryID == entry.id {
                         Text("当前")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(.blue.opacity(0.2), in: Capsule())
+                            .background(.quaternary, in: Capsule())
                     }
                     Spacer()
                     Button {
@@ -835,7 +846,6 @@ struct NowPlayingListView: View {
     private struct PlaylistEntryPresentation {
         let systemImage: String
         let color: Color
-        let titleColor: Color
         let accessibilityValue: String
     }
 
@@ -857,21 +867,20 @@ struct NowPlayingListView: View {
         if isMissing { statuses.append(localization.text("playlist.fileMissing")) }
         if isUnavailable { statuses.append(localization.text("playlist.unavailable")) }
 
-        let appearance: (String, Color, Color) = if isMissing {
-            ("exclamationmark.triangle.fill", .orange, .primary)
+        let appearance: (String, Color) = if isMissing {
+            ("exclamationmark.triangle.fill", .orange)
         } else if isUnavailable {
-            ("xmark.octagon.fill", .red, .red)
+            ("xmark.octagon.fill", .red)
         } else if isPlaying {
-            ("play.fill", .blue, .primary)
+            ("play.fill", .accentColor)
         } else if isCurrent {
-            ("bookmark.fill", .primary, .primary)
+            ("bookmark.fill", .primary)
         } else {
-            ("circle", .primary, .primary)
+            ("circle", .primary)
         }
         return PlaylistEntryPresentation(
             systemImage: appearance.0,
             color: appearance.1,
-            titleColor: appearance.2,
             accessibilityValue: localization.list(statuses)
         )
     }
@@ -931,13 +940,13 @@ struct NowPlayingListView: View {
             EmptyView()
         case let .saved(name):
             Label(localization.format("playlist.savedAs", name), systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .labelStyle(SemanticStatusLabelStyle(iconColor: .green))
         case let .nameAlreadyExists(name):
             Label(localization.format("playlist.nameExists", name), systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .labelStyle(SemanticStatusLabelStyle(iconColor: .orange))
         case let .failed(message):
             Label(message, systemImage: "xmark.octagon.fill")
-                .foregroundStyle(.red)
+                .labelStyle(SemanticStatusLabelStyle(iconColor: .red))
         }
     }
 
@@ -951,7 +960,34 @@ struct NowPlayingListView: View {
                 ),
                 systemImage: "exclamationmark.triangle.fill"
             )
-            .foregroundStyle(.orange)
+            .labelStyle(SemanticStatusLabelStyle(iconColor: .orange))
         }
+    }
+}
+
+private struct SemanticStatusLabelStyle: LabelStyle {
+    let iconColor: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon
+                .foregroundStyle(iconColor)
+            configuration.title
+                .foregroundStyle(.primary)
+        }
+    }
+}
+
+struct DisplayAccessibleRoot<Content: View>: View {
+    let content: Content
+    @ObservedObject var preferences: DisplayAccessibilityPreferences
+
+    var body: some View {
+        content
+            .transaction { transaction in
+                guard preferences.isReduceMotionEnabled else { return }
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
     }
 }

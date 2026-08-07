@@ -2,6 +2,34 @@ import AppKit
 import Combine
 import SwiftUI
 
+@MainActor
+final class DisplayAccessibilityPreferences: ObservableObject {
+    @Published private(set) var isReduceMotionEnabled: Bool
+
+    private let reduceMotionProvider: @MainActor () -> Bool
+    private var displayOptionsCancellable: AnyCancellable?
+
+    init(
+        notificationCenter: NotificationCenter = .default,
+        reduceMotionProvider: @escaping @MainActor () -> Bool = {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        }
+    ) {
+        self.reduceMotionProvider = reduceMotionProvider
+        isReduceMotionEnabled = reduceMotionProvider()
+        displayOptionsCancellable = notificationCenter.publisher(
+            for: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification
+        )
+        .sink { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    private func refresh() {
+        isReduceMotionEnabled = reduceMotionProvider()
+    }
+}
+
 private enum PlaybackKeyCode {
     static let space: UInt16 = 49
     static let escape: UInt16 = 53
@@ -65,12 +93,13 @@ final class PlaybackViewController: NSViewController {
         canvasFullWidthConstraint?.isActive == true
     }
 
-    private let controlsView: NSHostingView<PlaybackControlsView>
-    private let audioNowPlayingView: NSHostingView<AudioNowPlayingView>
-    private let nowPlayingListView: FocusableHostingView<NowPlayingListView>
+    private let controlsView: NSHostingView<DisplayAccessibleRoot<PlaybackControlsView>>
+    private let audioNowPlayingView: NSHostingView<DisplayAccessibleRoot<AudioNowPlayingView>>
+    private let nowPlayingListView: FocusableHostingView<DisplayAccessibleRoot<NowPlayingListView>>
     private let coordinator: PlaybackCoordinator
     private let openMedia: () -> Void
     private let localization: AppLocalization
+    private let displayPreferences: DisplayAccessibilityPreferences
     private let playlistToggleButton = NSButton()
     private var canvasBesidePlaylistConstraint: NSLayoutConstraint?
     private var canvasFullWidthConstraint: NSLayoutConstraint?
@@ -88,37 +117,55 @@ final class PlaybackViewController: NSViewController {
         confirmMediaReplacement: @escaping (LocalMediaReferenceID) -> Void,
         cancelMediaReplacement: @escaping () -> Void,
         videoView: PlaybackCanvasView,
+        displayPreferences: DisplayAccessibilityPreferences = DisplayAccessibilityPreferences(),
         localization: AppLocalization = .live
     ) {
         self.videoView = videoView
         self.coordinator = coordinator
         self.openMedia = openMedia
         self.localization = localization
+        self.displayPreferences = displayPreferences
         controlsView = NSHostingView(
-            rootView: PlaybackControlsView(
-                coordinator: coordinator,
-                openMedia: openMedia,
-                openExternalSubtitle: openExternalSubtitle,
-                relocateExternalSubtitle: relocateExternalSubtitle,
-                localization: localization
+            rootView: DisplayAccessibleRoot(
+                content: PlaybackControlsView(
+                    coordinator: coordinator,
+                    openMedia: openMedia,
+                    openExternalSubtitle: openExternalSubtitle,
+                    relocateExternalSubtitle: relocateExternalSubtitle,
+                    localization: localization
+                ),
+                preferences: displayPreferences
             )
         )
         audioNowPlayingView = NSHostingView(
-            rootView: AudioNowPlayingView(coordinator: coordinator, localization: localization)
+            rootView: DisplayAccessibleRoot(
+                content: AudioNowPlayingView(
+                    coordinator: coordinator,
+                    localization: localization
+                ),
+                preferences: displayPreferences
+            )
         )
         nowPlayingListView = FocusableHostingView(
-            rootView: NowPlayingListView(
-                coordinator: coordinator,
-                addMediaToPlaylist: addMediaToPlaylist,
-                importFolderToPlaylist: importFolderToPlaylist,
-                relocateMissingMedia: relocateMissingMedia,
-                confirmMediaReplacement: confirmMediaReplacement,
-                cancelMediaReplacement: cancelMediaReplacement,
-                localization: localization
+            rootView: DisplayAccessibleRoot(
+                content: NowPlayingListView(
+                    coordinator: coordinator,
+                    addMediaToPlaylist: addMediaToPlaylist,
+                    importFolderToPlaylist: importFolderToPlaylist,
+                    relocateMissingMedia: relocateMissingMedia,
+                    confirmMediaReplacement: confirmMediaReplacement,
+                    cancelMediaReplacement: cancelMediaReplacement,
+                    localization: localization
+                ),
+                preferences: displayPreferences
             )
         )
         super.init(nibName: nil, bundle: nil)
         observeAccessibilityAnnouncements()
+    }
+
+    var isReduceMotionEnabled: Bool {
+        displayPreferences.isReduceMotionEnabled
     }
 
     @available(*, unavailable)
@@ -359,8 +406,13 @@ final class PlaybackViewController: NSViewController {
             : localization.text("playlist.show")
         updatePlaylistToggleAccessibility()
         let overlaysCanvas = isFullScreen || !isPlaylistVisible
-        canvasBesidePlaylistConstraint?.isActive = !overlaysCanvas
-        canvasFullWidthConstraint?.isActive = overlaysCanvas
+        if overlaysCanvas {
+            canvasBesidePlaylistConstraint?.isActive = false
+            canvasFullWidthConstraint?.isActive = true
+        } else {
+            canvasFullWidthConstraint?.isActive = false
+            canvasBesidePlaylistConstraint?.isActive = true
+        }
         view.needsLayout = true
     }
 
