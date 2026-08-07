@@ -183,6 +183,7 @@ public final class PlaybackCoordinator: ObservableObject {
     private let defaultTrackRules: DefaultTrackRules
     private let randomizer: any PlaylistRandomizer
     private let mediaReplacementAssessor: any MediaReplacementAssessing
+    private let messages: any MediaPlayerMessageLocalizing
     private var eventTask: Task<Void, Never>?
     private var isRestoredMediaPendingLoad = false
     private var activeLoadID: PlaybackLoadID?
@@ -205,7 +206,8 @@ public final class PlaybackCoordinator: ObservableObject {
         externalSubtitleAccess: any PersistentExternalSubtitleAccess = LastKnownPathExternalSubtitleAccess(),
         defaultTrackRules: DefaultTrackRules = DefaultTrackRules(),
         randomizer: any PlaylistRandomizer = SystemPlaylistRandomizer(),
-        mediaReplacementAssessor: any MediaReplacementAssessing = DefaultMediaReplacementAssessor()
+        mediaReplacementAssessor: any MediaReplacementAssessing = DefaultMediaReplacementAssessor(),
+        messages: any MediaPlayerMessageLocalizing = SimplifiedChineseMediaPlayerMessages()
     ) {
         self.engine = engine
         self.playlistStore = playlistStore
@@ -217,6 +219,7 @@ public final class PlaybackCoordinator: ObservableObject {
         self.defaultTrackRules = defaultTrackRules
         self.randomizer = randomizer
         self.mediaReplacementAssessor = mediaReplacementAssessor
+        self.messages = messages
         eventTask = Task { [weak self, events = engine.events] in
             for await event in events {
                 guard let self else { return }
@@ -254,7 +257,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func createPlaylist(named requestedName: String) async throws -> Playlist {
         let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            persistenceNotice = .failed("Playlist 名称不能为空")
+            persistenceNotice = .failed(messages.playlistNameEmpty())
             throw PlaylistPersistenceError.emptyName
         }
         let playlist = Playlist(name: name, entries: [])
@@ -267,7 +270,7 @@ public final class PlaybackCoordinator: ObservableObject {
     public func renamePlaylist(id: PlaylistID, to requestedName: String) async throws {
         let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            persistenceNotice = .failed("Playlist 名称不能为空")
+            persistenceNotice = .failed(messages.playlistNameEmpty())
             throw PlaylistPersistenceError.emptyName
         }
         guard let index = playlists.firstIndex(where: { $0.id == id }) else {
@@ -796,17 +799,19 @@ public final class PlaybackCoordinator: ObservableObject {
     public func saveNowPlayingList(as requestedName: String) async throws -> Playlist {
         let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            persistenceNotice = .failed("Playlist 名称不能为空")
+            persistenceNotice = .failed(messages.playlistNameEmpty())
             throw PlaylistPersistenceError.emptyName
         }
         guard !nowPlayingList.entries.isEmpty else {
-            persistenceNotice = .failed("没有可存储的正在播放列表")
+            persistenceNotice = .failed(messages.noNowPlayingListToSave())
             throw PlaylistPersistenceError.emptyNowPlayingList
         }
 
         let entries = try nowPlayingList.entries.map { entry in
             guard let bookmark = entry.media.bookmark else {
-                persistenceNotice = .failed("无法持久保存 \(entry.media.url.lastPathComponent) 的只读访问权限")
+                persistenceNotice = .failed(messages.cannotPersistReadOnlyAccess(
+                    fileName: entry.media.url.lastPathComponent
+                ))
                 throw PlaylistPersistenceError.missingBookmark(entry.media.url.path)
             }
             return PlaylistEntry(
@@ -849,7 +854,7 @@ public final class PlaybackCoordinator: ObservableObject {
             }
             throw error
         } catch {
-            persistenceNotice = .failed(error.localizedDescription)
+            persistenceNotice = .failed(messages.unexpectedPersistenceError())
             throw error
         }
     }
@@ -943,7 +948,7 @@ public final class PlaybackCoordinator: ObservableObject {
             }
             throw error
         } catch {
-            persistenceNotice = .failed(error.localizedDescription)
+            persistenceNotice = .failed(messages.unexpectedPersistenceError())
             throw error
         }
     }
@@ -1170,7 +1175,9 @@ public final class PlaybackCoordinator: ObservableObject {
     public func selectAudioTrack(_ id: AudioTrackID) async {
         guard let option = availableAudioTracks.first(where: { $0.id == id }) else { return }
         guard await engine.selectAudioTrack(id) else {
-            trackNotice = .selectionFailed("无法切换到 \(option.displayName)")
+            trackNotice = .selectionFailed(messages.cannotSwitchTrack(
+                displayName: messages.audioTrackDisplayName(option)
+            ))
             return
         }
         trackSelection = TrackSelectionState(
@@ -1188,7 +1195,9 @@ public final class PlaybackCoordinator: ObservableObject {
             return
         }
         guard await engine.selectSubtitle(.embedded(id)) else {
-            trackNotice = .selectionFailed("无法切换到 \(option.displayName)")
+            trackNotice = .selectionFailed(messages.cannotSwitchTrack(
+                displayName: messages.subtitleTrackDisplayName(option)
+            ))
             return
         }
         trackSelection = TrackSelectionState(
@@ -1210,7 +1219,7 @@ public final class PlaybackCoordinator: ObservableObject {
 
     public func relocateExternalSubtitle(_ subtitle: LocalExternalSubtitle) async {
         guard let referenceID = currentExternalSubtitleReferenceID else {
-            trackNotice = .selectionFailed("没有可重新定位的外部字幕")
+            trackNotice = .selectionFailed(messages.noExternalSubtitleToRelocate())
             return
         }
         await applyExternalSubtitle(
@@ -1231,7 +1240,7 @@ public final class PlaybackCoordinator: ObservableObject {
         switch await engine.loadExternalSubtitle(subtitle) {
         case .loaded:
             guard let bookmark = subtitle.bookmark else {
-                trackNotice = .selectionFailed("无法持久保存外部字幕的只读访问权限")
+                trackNotice = .selectionFailed(messages.cannotPersistExternalSubtitleAccess())
                 return
             }
             let referenceID = switch action {
@@ -1283,7 +1292,7 @@ public final class PlaybackCoordinator: ObservableObject {
 
     public func disableSubtitles() async {
         guard await engine.selectSubtitle(.off) else {
-            trackNotice = .selectionFailed("无法停用字幕")
+            trackNotice = .selectionFailed(messages.cannotDisableSubtitles())
             return
         }
         trackSelection = TrackSelectionState(
@@ -1821,7 +1830,7 @@ public final class PlaybackCoordinator: ObservableObject {
             }
             return false
         } catch {
-            persistenceNotice = .failed(error.localizedDescription)
+            persistenceNotice = .failed(messages.unexpectedPersistenceError())
             return false
         }
     }
@@ -1854,11 +1863,13 @@ public final class PlaybackCoordinator: ObservableObject {
             selectedAudio = defaultAudio
             if preferences.audioTrack != nil {
                 trackNotice = .preferenceUnavailable(
-                    "原音轨不可用，已改用 \(defaultAudio.displayName)"
+                    messages.audioTrackFallback(
+                        displayName: messages.audioTrackDisplayName(defaultAudio)
+                    )
                 )
             }
         } else if preferences.audioTrack != nil {
-            trackNotice = .preferenceUnavailable("原音轨不可用，且没有可用回退音轨")
+            trackNotice = .preferenceUnavailable(messages.noAudioTrackFallback())
         }
         if let selectedAudio {
             trackSelection = TrackSelectionState(
@@ -1875,8 +1886,10 @@ public final class PlaybackCoordinator: ObservableObject {
                 setSelectedSubtitle(.embedded(preferred.id))
             } else {
                 await applyDefaultSubtitle(catalog, selectedAudio: selectedAudio)
-                let fallbackName = selectedSubtitleName(in: catalog) ?? "关闭字幕"
-                trackNotice = .preferenceUnavailable("原字幕不可用，已改用 \(fallbackName)")
+                let fallbackName = selectedSubtitleName(in: catalog) ?? messages.subtitlesOff()
+                trackNotice = .preferenceUnavailable(messages.subtitleFallback(
+                    displayName: fallbackName
+                ))
             }
         case let .external(reference):
             do {
@@ -1913,7 +1926,7 @@ public final class PlaybackCoordinator: ObservableObject {
             if await engine.selectSubtitle(.off) {
                 setSelectedSubtitle(.off)
             } else {
-                trackNotice = .selectionFailed("无法恢复关闭字幕偏好")
+                trackNotice = .selectionFailed(messages.cannotRestoreSubtitlesOff())
             }
         }
     }
@@ -2066,7 +2079,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 )
             } catch {
                 trackNotice = .selectionFailed(
-                    "选择已应用，但条目偏好未能保存：\(error.localizedDescription)"
+                    messages.cannotSaveEntryPreference()
                 )
                 return false
             }
@@ -2110,7 +2123,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 try await playlistStore.updateExternalSubtitleReferences([reference])
             } catch {
                 trackNotice = .selectionFailed(
-                    "字幕已切换，但重新定位未能保存：\(error.localizedDescription)"
+                    messages.cannotSaveSubtitleRelocation()
                 )
                 return false
             }
@@ -2177,7 +2190,9 @@ public final class PlaybackCoordinator: ObservableObject {
 
     private func selectedSubtitleName(in catalog: TrackCatalog) -> String? {
         guard case let .embedded(id) = trackSelection.subtitle else { return nil }
-        return catalog.embeddedSubtitleTracks.first(where: { $0.id == id })?.displayName
+        return catalog.embeddedSubtitleTracks.first(where: { $0.id == id }).map(
+            messages.subtitleTrackDisplayName
+        )
     }
 
     private func appendMedia(
@@ -2195,7 +2210,9 @@ public final class PlaybackCoordinator: ObservableObject {
         var refreshedReferencesByID: [LocalMediaReferenceID: PersistentLocalMediaReference] = [:]
         func refreshedReference(for media: LocalMedia) throws -> PersistentLocalMediaReference {
             guard let bookmark = media.bookmark else {
-                persistenceNotice = .failed("无法持久保存 \(media.url.lastPathComponent) 的只读访问权限")
+                persistenceNotice = .failed(messages.cannotPersistReadOnlyAccess(
+                    fileName: media.url.lastPathComponent
+                ))
                 throw PlaylistPersistenceError.missingBookmark(media.url.path)
             }
             let sharedReference = referenceIndex.reference(matching: media)

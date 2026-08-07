@@ -70,6 +70,7 @@ final class PlaybackViewController: NSViewController {
     private let nowPlayingListView: FocusableHostingView<NowPlayingListView>
     private let coordinator: PlaybackCoordinator
     private let openMedia: () -> Void
+    private let localization: AppLocalization
     private let playlistToggleButton = NSButton()
     private var canvasBesidePlaylistConstraint: NSLayoutConstraint?
     private var canvasFullWidthConstraint: NSLayoutConstraint?
@@ -86,21 +87,24 @@ final class PlaybackViewController: NSViewController {
         relocateMissingMedia: @escaping (LocalMediaReferenceID) -> Void,
         confirmMediaReplacement: @escaping (LocalMediaReferenceID) -> Void,
         cancelMediaReplacement: @escaping () -> Void,
-        videoView: PlaybackCanvasView
+        videoView: PlaybackCanvasView,
+        localization: AppLocalization = .live
     ) {
         self.videoView = videoView
         self.coordinator = coordinator
         self.openMedia = openMedia
+        self.localization = localization
         controlsView = NSHostingView(
             rootView: PlaybackControlsView(
                 coordinator: coordinator,
                 openMedia: openMedia,
                 openExternalSubtitle: openExternalSubtitle,
-                relocateExternalSubtitle: relocateExternalSubtitle
+                relocateExternalSubtitle: relocateExternalSubtitle,
+                localization: localization
             )
         )
         audioNowPlayingView = NSHostingView(
-            rootView: AudioNowPlayingView(coordinator: coordinator)
+            rootView: AudioNowPlayingView(coordinator: coordinator, localization: localization)
         )
         nowPlayingListView = FocusableHostingView(
             rootView: NowPlayingListView(
@@ -109,7 +113,8 @@ final class PlaybackViewController: NSViewController {
                 importFolderToPlaylist: importFolderToPlaylist,
                 relocateMissingMedia: relocateMissingMedia,
                 confirmMediaReplacement: confirmMediaReplacement,
-                cancelMediaReplacement: cancelMediaReplacement
+                cancelMediaReplacement: cancelMediaReplacement,
+                localization: localization
             )
         )
         super.init(nibName: nil, bundle: nil)
@@ -122,7 +127,7 @@ final class PlaybackViewController: NSViewController {
     }
 
     override func loadView() {
-        let container = TheaterContainerView()
+        let container = TheaterContainerView(localization: localization)
         container.pointerActivity = { [weak self] in self?.handlePointerActivity() }
         container.escapeKeyDown = { [weak self] in
             guard let self else { return false }
@@ -136,13 +141,14 @@ final class PlaybackViewController: NSViewController {
         audioNowPlayingView.translatesAutoresizingMaskIntoConstraints = false
         nowPlayingListView.translatesAutoresizingMaskIntoConstraints = false
         playlistToggleButton.translatesAutoresizingMaskIntoConstraints = false
-        playlistToggleButton.title = "隐藏 Playlist"
+        playlistToggleButton.title = localization.text("playlist.hide")
         playlistToggleButton.bezelStyle = .texturedRounded
         playlistToggleButton.target = self
         playlistToggleButton.action = #selector(togglePlaylist)
         updatePlaylistToggleAccessibility()
         nowPlayingListView.setAccessibilityRole(.group)
-        nowPlayingListView.setAccessibilityLabel("Playlist 侧栏")
+        nowPlayingListView.setAccessibilityLabel(localization.text("accessibility.playlistSidebar"))
+        videoView.setAccessibilityLabel(localization.text("accessibility.playbackCanvas"))
         container.addSubview(videoView)
         container.addSubview(audioNowPlayingView)
         container.addSubview(controlsView)
@@ -348,7 +354,9 @@ final class PlaybackViewController: NSViewController {
 
     private func updateTheaterLayout() {
         nowPlayingListView.isHidden = !isPlaylistVisible
-        playlistToggleButton.title = isPlaylistVisible ? "隐藏 Playlist" : "显示 Playlist"
+        playlistToggleButton.title = isPlaylistVisible
+            ? localization.text("playlist.hide")
+            : localization.text("playlist.show")
         updatePlaylistToggleAccessibility()
         let overlaysCanvas = isFullScreen || !isPlaylistVisible
         canvasBesidePlaylistConstraint?.isActive = !overlaysCanvas
@@ -361,7 +369,9 @@ final class PlaybackViewController: NSViewController {
             .map { $0.currentMedia?.url.lastPathComponent }
             .removeDuplicates()
             .sink { [weak self] name in
-                self?.videoView.setAccessibilityValue(name ?? "无当前媒体")
+                self?.videoView.setAccessibilityValue(
+                    name ?? self?.localization.text("accessibility.noCurrentMedia")
+                )
             }
             .store(in: &accessibilityCancellables)
 
@@ -371,7 +381,12 @@ final class PlaybackViewController: NSViewController {
                       list.entries.indices.contains(index) else { return nil }
                 let entry = list.entries[index]
                 guard entry.media.availability != .missing else { return nil }
-                return "当前条目：\(entry.media.url.lastPathComponent)，第 \(index + 1) 项，共 \(list.entries.count) 项"
+                return self.localization.format(
+                    "accessibility.currentEntry",
+                    entry.media.url.lastPathComponent,
+                    index + 1,
+                    list.entries.count
+                )
             }
             .removeDuplicates()
             .dropFirst()
@@ -382,14 +397,18 @@ final class PlaybackViewController: NSViewController {
         coordinator.$state
             .removeDuplicates()
             .dropFirst()
-            .map(PlaybackStatusText.announcement(for:))
+            .map { [localization] in
+                PlaybackStatusText.announcement(for: $0, localization: localization)
+            }
             .sink { [weak self] message in self?.announceForAccessibility(message) }
             .store(in: &accessibilityCancellables)
 
         coordinator.$isMuted
             .removeDuplicates()
             .dropFirst()
-            .map { $0 ? "已静音" : "已取消静音" }
+            .map { [localization] in
+                localization.text($0 ? "accessibility.muted" : "accessibility.unmuted")
+            }
             .sink { [weak self] message in self?.announceForAccessibility(message) }
             .store(in: &accessibilityCancellables)
 
@@ -398,14 +417,20 @@ final class PlaybackViewController: NSViewController {
             .dropFirst()
             .compactMap { notice -> String? in
                 guard case let .failed(message) = notice else { return nil }
-                return "存储失败：\(message)"
+                return self.localization.format("accessibility.storageFailed", message)
             }
             .sink { [weak self] message in self?.announceForAccessibility(message) }
             .store(in: &accessibilityCancellables)
 
         coordinator.$missingMediaNotice
             .combineLatest(coordinator.$playlists)
-            .map(Self.accessibilityAnnouncement(for:playlists:))
+            .map { [localization] notice, playlists in
+                Self.accessibilityAnnouncement(
+                    for: notice,
+                    playlists: playlists,
+                    localization: localization
+                )
+            }
             .removeDuplicates()
             .compactMap { $0 }
             .sink { [weak self] message in self?.announceForAccessibility(message) }
@@ -418,7 +443,8 @@ final class PlaybackViewController: NSViewController {
 
     private static func accessibilityAnnouncement(
         for notice: MissingMediaNotice,
-        playlists: [Playlist]
+        playlists: [Playlist],
+        localization: AppLocalization
     ) -> String? {
         switch notice {
         case .none:
@@ -427,19 +453,28 @@ final class PlaybackViewController: NSViewController {
             let name = playlists.lazy.flatMap(\.entries)
                 .first(where: { $0.id == entryID })
                 .map { URL(fileURLWithPath: $0.media.lastKnownPath).lastPathComponent }
-                ?? "所选文件"
-            return "文件缺失：\(name)"
+                ?? localization.text("media.selectedFile")
+            return localization.format("accessibility.fileMissing", name)
         case let .noPlayableEntries(missingCount):
-            return "没有可播放条目；已跳过 \(missingCount) 个文件缺失条目"
+            return localization.format(
+                "accessibility.noPlayableEntries",
+                localization.integer(missingCount)
+            )
         case let .replacementConfirmationRequired(impact):
-            return "需要确认媒体替换；将影响 \(impact.affectedPlaylistCount) 个 Playlist 中的 \(impact.affectedEntryCount) 个条目"
+            return localization.format(
+                "accessibility.confirmReplacement",
+                localization.integer(impact.affectedPlaylistCount),
+                localization.integer(impact.affectedEntryCount)
+            )
         }
     }
 
     private func updatePlaylistToggleAccessibility() {
-        let action = isPlaylistVisible ? "隐藏 Playlist" : "显示 Playlist"
+        let action = localization.text(isPlaylistVisible ? "playlist.hide" : "playlist.show")
         playlistToggleButton.setAccessibilityLabel(action)
-        playlistToggleButton.setAccessibilityValue(isPlaylistVisible ? "已展开" : "已折叠")
+        playlistToggleButton.setAccessibilityValue(localization.text(
+            isPlaylistVisible ? "accessibility.expanded" : "accessibility.collapsed"
+        ))
     }
 
     @objc private func togglePlaylist() {
@@ -469,12 +504,12 @@ private final class TheaterContainerView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
+    init(localization: AppLocalization) {
+        super.init(frame: .zero)
         focusRingType = .exterior
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("播放器")
+        setAccessibilityLabel(localization.text("accessibility.player"))
     }
 
     @available(*, unavailable)

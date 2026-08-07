@@ -126,7 +126,18 @@ public struct TrackPreference: Equatable, Codable, Sendable {
     }
 }
 
-public struct AudioTrackOption: Equatable, Identifiable, Sendable {
+public protocol MediaTrackOptionNaming {
+    var title: String? { get }
+    var languageCode: String? { get }
+}
+
+public extension MediaTrackOptionNaming {
+    func displayName(fallback: @autoclosure () -> String) -> String {
+        title ?? languageCode ?? fallback()
+    }
+}
+
+public struct AudioTrackOption: Equatable, Identifiable, Sendable, MediaTrackOptionNaming {
     public let id: AudioTrackID
     public let languageCode: String?
     public let title: String?
@@ -135,10 +146,6 @@ public struct AudioTrackOption: Equatable, Identifiable, Sendable {
 
     public var preference: TrackPreference {
         TrackPreference(languageCode: languageCode, title: title, ordinal: ordinal)
-    }
-
-    public var displayName: String {
-        title ?? languageCode ?? "音轨 \(ordinal)"
     }
 
     public init(
@@ -156,7 +163,7 @@ public struct AudioTrackOption: Equatable, Identifiable, Sendable {
     }
 }
 
-public struct EmbeddedSubtitleTrackOption: Equatable, Identifiable, Sendable {
+public struct EmbeddedSubtitleTrackOption: Equatable, Identifiable, Sendable, MediaTrackOptionNaming {
     public let id: EmbeddedSubtitleTrackID
     public let languageCode: String?
     public let title: String?
@@ -166,10 +173,6 @@ public struct EmbeddedSubtitleTrackOption: Equatable, Identifiable, Sendable {
 
     public var preference: TrackPreference {
         TrackPreference(languageCode: languageCode, title: title, ordinal: ordinal)
-    }
-
-    public var displayName: String {
-        title ?? languageCode ?? "字幕 \(ordinal)"
     }
 
     public init(

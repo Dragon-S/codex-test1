@@ -27,6 +27,10 @@
 		A10000000000000000000012 /* FolderImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000118 /* FolderImport.swift */; };
 		A10000000000000000000013 /* SystemMediaKeyControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000119 /* SystemMediaKeyControllerTests.swift */; };
 		A10000000000000000000014 /* SystemMediaKeyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000011A /* SystemMediaKeyController.swift */; };
+		A10000000000000000000015 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000011B /* LocalizationTests.swift */; };
+		A10000000000000000000016 /* AppLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000011C /* AppLocalization.swift */; };
+		A10000000000000000000017 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000011F /* Localizable.strings */; };
+		A10000000000000000000018 /* MediaPlayerLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000120 /* MediaPlayerLocalization.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +71,11 @@
 		A10000000000000000000118 /* FolderImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FolderImport.swift; path = ../Sources/MediaPlayerCore/FolderImport.swift; sourceTree = "<group>"; };
 		A10000000000000000000119 /* SystemMediaKeyControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SystemMediaKeyControllerTests.swift; path = ../MacMediaPlayerTests/SystemMediaKeyControllerTests.swift; sourceTree = "<group>"; };
 		A1000000000000000000011A /* SystemMediaKeyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMediaKeyController.swift; sourceTree = "<group>"; };
+		A1000000000000000000011B /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalizationTests.swift; path = ../MacMediaPlayerTests/LocalizationTests.swift; sourceTree = "<group>"; };
+		A1000000000000000000011C /* AppLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalization.swift; sourceTree = "<group>"; };
+		A1000000000000000000011D /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		A1000000000000000000011E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		A10000000000000000000120 /* MediaPlayerLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MediaPlayerLocalization.swift; path = ../Sources/MediaPlayerCore/MediaPlayerLocalization.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +98,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000103 /* ApplicationMain.swift */,
+				A1000000000000000000011C /* AppLocalization.swift */,
 				A10000000000000000000104 /* AppDelegate.swift */,
 				A10000000000000000000105 /* PlaybackCanvasView.m */,
 				A1000000000000000000010F /* PlaybackCanvasView.h */,
@@ -102,12 +112,13 @@
 				A1000000000000000000010D /* Info.plist */,
 				A1000000000000000000010E /* MacMediaPlayer.entitlements */,
 				A1000000000000000000011A /* SystemMediaKeyController.swift */,
+				A1000000000000000000011F /* Localizable.strings */,
 			);
 			path = App;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */, A10000000000000000000118 /* FolderImport.swift */, A10000000000000000000116 /* MediaReplacementAssessor.swift */, A10000000000000000000112 /* PlaylistModels.swift */, A10000000000000000000113 /* PlaylistStore.swift */); name = Core; sourceTree = "<group>"; };
-		A10000000000000000000303 /* Tests */ = {isa = PBXGroup; children = (A1000000000000000000010A /* PlaybackEngineContractTests.swift */, A10000000000000000000111 /* PlaybackEngineContract.swift */, A10000000000000000000117 /* PlaybackViewControllerTests.swift */, A10000000000000000000119 /* SystemMediaKeyControllerTests.swift */, A10000000000000000000115 /* SecurityScopedMediaAccessTests.swift */); name = Tests; sourceTree = "<group>"; };
+		A10000000000000000000302 /* Core */ = {isa = PBXGroup; children = (A10000000000000000000120 /* MediaPlayerLocalization.swift */, A10000000000000000000101 /* PlaybackEngine.swift */, A10000000000000000000102 /* PlaybackCoordinator.swift */, A10000000000000000000118 /* FolderImport.swift */, A10000000000000000000116 /* MediaReplacementAssessor.swift */, A10000000000000000000112 /* PlaylistModels.swift */, A10000000000000000000113 /* PlaylistStore.swift */); name = Core; sourceTree = "<group>"; };
+		A10000000000000000000303 /* Tests */ = {isa = PBXGroup; children = (A1000000000000000000010A /* PlaybackEngineContractTests.swift */, A10000000000000000000111 /* PlaybackEngineContract.swift */, A10000000000000000000117 /* PlaybackViewControllerTests.swift */, A10000000000000000000119 /* SystemMediaKeyControllerTests.swift */, A10000000000000000000115 /* SecurityScopedMediaAccessTests.swift */, A1000000000000000000011B /* LocalizationTests.swift */); name = Tests; sourceTree = "<group>"; };
 		A10000000000000000000304 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000100 /* MacMediaPlayer.app */, A10000000000000000000110 /* MacMediaPlayerTests.xctest */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -115,7 +126,7 @@
 		A10000000000000000000400 /* MacMediaPlayer */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10000000000000000000801 /* Build configuration list for PBXNativeTarget "MacMediaPlayer" */;
-			buildPhases = (A10000000000000000000221 /* Sources */, A10000000000000000000210 /* Frameworks */, A10000000000000000000220 /* Embed engine dylibs */);
+			buildPhases = (A10000000000000000000221 /* Sources */, A10000000000000000000210 /* Frameworks */, A10000000000000000000223 /* Resources */, A10000000000000000000220 /* Embed engine dylibs */);
 			buildRules = ();
 			dependencies = ();
 			name = MacMediaPlayer;
@@ -144,9 +155,9 @@
 			attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2660; TargetAttributes = {A10000000000000000000400 = {CreatedOnToolsVersion = 26.6;}; A10000000000000000000401 = {CreatedOnToolsVersion = 26.6; TestTargetID = A10000000000000000000400;};};};
 			buildConfigurationList = A10000000000000000000800 /* Build configuration list for PBXProject "MacMediaPlayer" */;
 			compatibilityVersion = "Xcode 16.0";
-			developmentRegion = zh_CN;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			knownRegions = (Base, zh_CN);
+			knownRegions = (Base, en, "zh-Hans");
 			mainGroup = A10000000000000000000300;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
@@ -175,9 +186,17 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E, A10000000000000000000010, A10000000000000000000012, A10000000000000000000014); runOnlyForDeploymentPostprocessing = 0; };
-		A10000000000000000000222 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A1000000000000000000000B, A10000000000000000000011, A10000000000000000000013, A1000000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000221 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000018, A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000C, A1000000000000000000000D, A1000000000000000000000E, A10000000000000000000010, A10000000000000000000012, A10000000000000000000014, A10000000000000000000016); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000222 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A1000000000000000000000B, A10000000000000000000011, A10000000000000000000013, A1000000000000000000000F, A10000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000223 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000017 /* Localizable.strings in Resources */); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		A1000000000000000000011F /* Localizable.strings */ = {isa = PBXVariantGroup; children = (A1000000000000000000011D /* en */, A1000000000000000000011E /* zh-Hans */); name = Localizable.strings; sourceTree = "<group>"; };
+/* End PBXVariantGroup section */
 
 /* Begin PBXTargetDependency section */
 		A10000000000000000000202 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A10000000000000000000400 /* MacMediaPlayer */; targetProxy = A10000000000000000000201 /* PBXContainerItemProxy */; };
