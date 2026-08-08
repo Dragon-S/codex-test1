@@ -91,11 +91,17 @@ struct LibMPVPlaybackEngineContractTests {
             let loadID = PlaybackLoadID(rawValue: UInt64(100 + iteration))
 
             await engine?.load(LocalMedia(url: mediaURL), loadID: loadID)
-            try await recorder.waitForState(.loading, loadID: loadID)
+            try await recorder.waitForState(.playing, loadID: loadID)
+            _ = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
             engine = nil
 
             #expect(releasedEngine == nil)
-            try await Task.sleep(for: .milliseconds(150))
+            try await recorder.waitForCompletion()
+            let completionMark = recorder.eventMark()
+            try await recorder.expectNoEvents(
+                after: completionMark,
+                during: .milliseconds(150)
+            )
         }
     }
 
@@ -124,20 +130,16 @@ struct LibMPVPlaybackEngineContractTests {
     func realAdapterKeepsEventsAssociatedWithTheirLoad() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
-        let recorder = ContractEventRecorder(events: engine.events)
         let availableURL = try makeSilentWAV()
         defer { try? FileManager.default.removeItem(at: availableURL) }
-        let oldLoadID = PlaybackLoadID(rawValue: 41)
-        let newLoadID = PlaybackLoadID(rawValue: 42)
 
-        await engine.load(
-            LocalMedia(url: URL(fileURLWithPath: "/tmp/replaced-missing-media.mp4")),
-            loadID: oldLoadID
+        try await verifyLoadReplacementContract(
+            engine: engine,
+            interruptedMedia: LocalMedia(
+                url: URL(fileURLWithPath: "/tmp/replaced-missing-media.mp4")
+            ),
+            replacementMedia: LocalMedia(url: availableURL)
         )
-        await engine.load(LocalMedia(url: availableURL), loadID: newLoadID)
-        try await recorder.waitForState(.playing, loadID: newLoadID)
-
-        #expect(!recorder.hasFailure(loadID: newLoadID))
     }
 
     @Test("真实适配器发布领域轨道目录并支持音轨与外部字幕选择")

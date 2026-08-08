@@ -13,6 +13,13 @@ func fakeEngineFulfillsBasicPlaybackContract() async throws {
     let media = LocalMedia(url: URL(fileURLWithPath: "/tmp/fake-media.mp4"))
 
     try await verifyBasicPlaybackEngineContract(engine: engine, media: media)
+
+    let replacementEngine = ContractFakePlaybackEngine()
+    try await verifyLoadReplacementContract(
+        engine: replacementEngine,
+        interruptedMedia: LocalMedia(url: URL(fileURLWithPath: "/tmp/interrupted-media.mp4")),
+        replacementMedia: media
+    )
 }
 
 func verifyBasicPlaybackEngineContract(
@@ -64,10 +71,32 @@ func verifyBasicPlaybackEngineContract(
     try await recorder.wait(for: .stopped, after: stopMark)
 }
 
+func verifyLoadReplacementContract(
+    engine: some PlaybackEngine,
+    interruptedMedia: LocalMedia,
+    replacementMedia: LocalMedia
+) async throws {
+    let recorder = ContractEventRecorder(events: engine.events)
+    let interruptedLoadID = PlaybackLoadID(rawValue: 41)
+    let replacementLoadID = PlaybackLoadID(rawValue: 42)
+
+    await engine.load(interruptedMedia, loadID: interruptedLoadID)
+    try await recorder.waitForState(.loading, loadID: interruptedLoadID)
+
+    await engine.load(replacementMedia, loadID: replacementLoadID)
+    try await recorder.waitForState(.loading, loadID: replacementLoadID)
+    try await recorder.waitForState(.playing, loadID: replacementLoadID)
+    try await recorder.expectNoFailure(
+        loadID: replacementLoadID,
+        during: .milliseconds(250)
+    )
+}
+
 final class ContractEventRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [PlaybackState] = []
     private var observedEvents: [PlaybackEngineEvent] = []
+    private var streamFinished = false
     private var eventTask: Task<Void, Never>?
 
     init(events: AsyncStream<PlaybackEngineEvent>) {
@@ -76,6 +105,7 @@ final class ContractEventRecorder: @unchecked Sendable {
                 guard let self else { return }
                 append(event)
             }
+            self?.markStreamFinished()
         }
     }
 
@@ -116,6 +146,45 @@ final class ContractEventRecorder: @unchecked Sendable {
                 return eventLoadID == loadID
             }
             return false
+        }
+    }
+
+    func expectNoFailure(
+        loadID: PlaybackLoadID,
+        during duration: Duration
+    ) async throws {
+        let deadline = ContinuousClock.now + duration
+        while ContinuousClock.now < deadline {
+            if hasFailure(loadID: loadID) {
+                throw UnexpectedContractFailure(loadID: loadID, observed: eventSnapshot())
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    func waitForCompletion() async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if lock.withLock({ streamFinished }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw ContractStreamCompletionTimeout(observed: eventSnapshot())
+    }
+
+    func eventMark() -> Int {
+        eventSnapshot().count
+    }
+
+    func expectNoEvents(after index: Int, during duration: Duration) async throws {
+        let deadline = ContinuousClock.now + duration
+        while ContinuousClock.now < deadline {
+            let events = eventSnapshot()
+            if events.count > index {
+                throw UnexpectedContractEvent(observed: Array(events.dropFirst(index)))
+            }
+            try await Task.sleep(for: .milliseconds(20))
         }
     }
 
@@ -208,12 +277,43 @@ final class ContractEventRecorder: @unchecked Sendable {
         }
     }
 
+    private func markStreamFinished() {
+        lock.withLock {
+            streamFinished = true
+        }
+    }
+
     private func snapshot() -> [PlaybackState] {
         lock.withLock { states }
     }
 
     private func eventSnapshot() -> [PlaybackEngineEvent] {
         lock.withLock { observedEvents }
+    }
+}
+
+private struct UnexpectedContractFailure: Error, CustomStringConvertible {
+    let loadID: PlaybackLoadID
+    let observed: [PlaybackEngineEvent]
+
+    var description: String {
+        "加载 \(loadID) 不应失败，已观察事件：\(observed)"
+    }
+}
+
+private struct ContractStreamCompletionTimeout: Error, CustomStringConvertible {
+    let observed: [PlaybackEngineEvent]
+
+    var description: String {
+        "等待 PlaybackEngine 事件流结束超时，已观察事件：\(observed)"
+    }
+}
+
+private struct UnexpectedContractEvent: Error, CustomStringConvertible {
+    let observed: [PlaybackEngineEvent]
+
+    var description: String {
+        "PlaybackEngine 事件流结束后不应再发布事件，迟到事件：\(observed)"
     }
 }
 
