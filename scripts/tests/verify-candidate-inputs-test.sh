@@ -122,13 +122,29 @@ PATH="$fake_tools:/usr/bin:/bin" \
 import struct
 import sys
 
-header = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 6, 2, 48, 0, 0)
-strings = b"\0module.swiftmodule\0"
-symtab = struct.pack("<IIIIII", 0x02, 24, 80, 1, 96, len(strings))
-for target, uuid_byte, timestamp in zip(sys.argv[1:], (b"a", b"b"), (123, 456)):
+def slice_bytes(cpu_type, uuid_byte, timestamp):
+    header = struct.pack("<IIIIIIII", 0xFEEDFACF, cpu_type, 0, 6, 2, 48, 0, 0)
+    strings = b"\0module.swiftmodule\0"
+    symtab = struct.pack("<IIIIII", 0x02, 24, 80, 1, 96, len(strings))
     symbol = struct.pack("<IBBHQ", 1, 0x02, 0, 0, timestamp)
+    return header + struct.pack("<II", 0x1B, 24) + uuid_byte * 16 + symtab + symbol + strings
+
+def fat_binary(uuid_byte, timestamp):
+    arm64 = slice_bytes(0x0100000C, uuid_byte, timestamp)
+    x86_64 = slice_bytes(0x01000007, uuid_byte, timestamp)
+    first_offset = 64
+    second_offset = first_offset + len(arm64)
+    fat_header = struct.pack(
+        ">II" "IIIII" "IIIII",
+        0xCAFEBABE, 2,
+        0x0100000C, 0, first_offset, len(arm64), 0,
+        0x01000007, 0, second_offset, len(x86_64), 0,
+    )
+    return fat_header + bytes(first_offset - len(fat_header)) + arm64 + x86_64
+
+for target, uuid_byte, timestamp in zip(sys.argv[1:], (b"a", b"b"), (123, 456)):
     with open(target, "wb") as output:
-        output.write(header + struct.pack("<II", 0x1B, 24) + uuid_byte * 16 + symtab + symbol + strings)
+        output.write(fat_binary(uuid_byte, timestamp))
 PY
 /usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-a"
 /usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-b"
@@ -145,6 +161,42 @@ then
   exit 1
 fi
 : > "$engine_root/include/mpv/render.h"
+
+print -r -- "tampered" > "$engine_root/lib/libmpv.2.dylib"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了被篡改的动态库"
+  exit 1
+fi
+: > "$engine_root/lib/libmpv.2.dylib"
+
+print -r -- "tampered" > "$engine_root/notices/mpv-Copyright.txt"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了被篡改的许可材料"
+  exit 1
+fi
+print -r -- "fixture license" > "$engine_root/notices/mpv-Copyright.txt"
+
+print -r -- "unexpected" > "$engine_root/notices/unexpected-LICENSE.txt"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了锁外许可材料"
+  exit 1
+fi
+rm "$engine_root/notices/unexpected-LICENSE.txt"
 
 touch "$engine_root/lib/libgpl-plugin.dylib"
 if PATH="$fake_tools:/usr/bin:/bin" \

@@ -97,6 +97,11 @@ expected_dylibs="$(printf '%s\n' $required_dylibs | LC_ALL=C sort)"
 required_notices=("${(@f)$(awk 'NF == 2 { print $2 }' "$notice_lock")}")
 (( ${#required_notices} == 9 )) || fail "许可材料哈希锁必须精确列出 9 个文件"
 
+actual_notices="$(find "$engine_root/notices" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)"
+expected_notices="$(printf '%s\n' $required_notices | LC_ALL=C sort)"
+[[ "$actual_notices" == "$expected_notices" ]] \
+  || fail "许可材料目录必须精确包含锁定的 9 个文件"
+
 [[ -f "$engine_root/include/mpv/client.h" ]] || fail "缺少 mpv/client.h"
 [[ -f "$engine_root/include/mpv/render.h" ]] || fail "缺少 mpv/render.h"
 [[ -f "$engine_root/include/mpv/render_gl.h" ]] || fail "缺少 mpv/render_gl.h"

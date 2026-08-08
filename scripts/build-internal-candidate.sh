@@ -14,10 +14,8 @@ fail() {
 [[ -n "$development_team" ]] || fail "必须通过 DEVELOPMENT_TEAM 指定可用的 Apple 开发团队"
 
 cd "$repository_root"
-[[ -z "$(git status --porcelain)" ]] \
-  || fail "工作区含未提交或未跟踪内容；候选记录只能绑定干净提交"
-
 commit_sha="$(git rev-parse HEAD)"
+"$repository_root/scripts/verify-build-state.sh" "$repository_root" "$commit_sha"
 short_sha="$(git rev-parse --short=12 HEAD)"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 output_parent="${CANDIDATE_OUTPUT_ROOT:-$repository_root/.build/internal-candidate}"
@@ -42,6 +40,7 @@ source_lock="$repository_root/prototypes/lgpl-packaging-proof/sources.lock"
   "$source_lock" \
   "$repository_root"
 "$repository_root/scripts/tests/verify-candidate-inputs-test.sh"
+"$repository_root/scripts/tests/verify-build-state-test.sh"
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   swift test
@@ -125,6 +124,8 @@ closure_sha256="$(shasum -a 256 "$closure_manifest" | awk '{print $1}')"
 minimum_macos="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app_path/Contents/Info.plist")"
 xcode_version="$(xcodebuild -version | paste -sd ' ' -)"
 macos_version="$(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+
+"$repository_root/scripts/verify-build-state.sh" "$repository_root" "$commit_sha"
 
 jq -n \
   --arg status "AUTOMATED_PASS_PHYSICAL_PENDING" \
