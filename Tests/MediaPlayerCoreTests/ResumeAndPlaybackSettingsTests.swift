@@ -80,6 +80,33 @@ struct ResumeAndPlaybackSettingsTests {
         #expect(fixture.coordinator.position == 48)
     }
 
+    @Test("停止后定位不会向已卸载引擎发送命令，恢复播放会重新加载媒体")
+    func stoppedSeekWaitsForReloadInsteadOfFailingAsCorrupted() async throws {
+        let engine = ProgressFakePlaybackEngine(failsSeekAfterStop: true)
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let media = LocalMedia(url: URL(fileURLWithPath: "/tmp/stopped-seek.mp4"))
+        await coordinator.open(media)
+        await engine.sendTimeline(position: 39, duration: 60)
+        try await waitUntil { coordinator.position == 39 }
+
+        await coordinator.stop()
+        await engine.sendState(.stopped)
+        try await waitUntil { coordinator.state == .stopped }
+        await coordinator.skipForward()
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(coordinator.state == .stopped)
+        #expect(coordinator.position == 49)
+        #expect(await engine.commands.last == .stop)
+
+        await coordinator.play()
+
+        let commands = await engine.commands
+        #expect(commands.filter { $0 == .load }.count == 2)
+        #expect(commands.last == .seek(to: 49))
+        #expect(!commands.suffix(2).contains(.play))
+    }
+
     @Test("播放中途失败会保存最后有效续播位置")
     func playbackFailurePersistsLastConfirmedPosition() async throws {
         let fixture = try await makePersistentFixture(entryCount: 1)
@@ -341,20 +368,32 @@ private actor ProgressFakePlaybackEngine: PlaybackEngine {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private var loadID: PlaybackLoadID?
+    private let failsSeekAfterStop: Bool
+    private var isStopped = false
 
-    init() {
+    init(failsSeekAfterStop: Bool = false) {
+        self.failsSeekAfterStop = failsSeekAfterStop
         (events, continuation) = AsyncStream.makeStream()
     }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
         self.loadID = loadID
+        isStopped = false
         commands.append(.load)
     }
 
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
-    func stop() { commands.append(.stop) }
-    func seek(to position: TimeInterval) { commands.append(.seek(to: position)) }
+    func stop() {
+        isStopped = true
+        commands.append(.stop)
+    }
+    func seek(to position: TimeInterval) {
+        commands.append(.seek(to: position))
+        if failsSeekAfterStop, isStopped, let loadID {
+            continuation.yield(.playbackStateChanged(.failed(.corrupted), loadID: loadID))
+        }
+    }
     func setPlaybackRate(_ rate: Double) { commands.append(.setRate(rate)) }
     func setPlayerVolume(_ volume: Double) { commands.append(.setVolume(volume)) }
     func setMuted(_ isMuted: Bool) { commands.append(.setMuted(isMuted)) }
