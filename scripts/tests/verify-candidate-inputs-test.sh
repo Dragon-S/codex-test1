@@ -6,12 +6,23 @@ repository_root="${0:A:h:h:h}"
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
 
+expected_headers=$'mpv/client.h\nmpv/render.h\nmpv/render_gl.h'
+actual_headers="$(awk 'NF == 2 { print $2 }' \
+  "$repository_root/prototypes/lgpl-packaging-proof/headers.sha256" | LC_ALL=C sort)"
+if [[ "$actual_headers" != "$expected_headers" ]]; then
+  print -u2 "生产头文件锁未精确覆盖三个编译输入"
+  exit 1
+fi
+
 engine_root="$fixture_root/engine"
 fake_tools="$fixture_root/tools"
 fixture_repository="$fixture_root/repository"
 mkdir -p "$engine_root/include/mpv" "$engine_root/lib" "$engine_root/notices" "$fake_tools"
 
-touch "$engine_root/include/mpv/client.h" "$engine_root/include/mpv/render_gl.h"
+touch \
+  "$engine_root/include/mpv/client.h" \
+  "$engine_root/include/mpv/render.h" \
+  "$engine_root/include/mpv/render_gl.h"
 
 for dylib in \
   libmpv.2.dylib \
@@ -97,7 +108,7 @@ ditto \
 )
 (
   cd "$engine_root/include"
-  shasum -a 256 mpv/client.h mpv/render_gl.h \
+  shasum -a 256 mpv/client.h mpv/render.h mpv/render_gl.h \
     > "$fixture_repository/prototypes/lgpl-packaging-proof/headers.sha256"
 )
 
@@ -122,6 +133,18 @@ PY
 /usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-a"
 /usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-b"
 cmp "$fixture_root/uuid-a" "$fixture_root/uuid-b"
+
+print -r -- "tampered" > "$engine_root/include/mpv/render.h"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了被篡改的 mpv/render.h"
+  exit 1
+fi
+: > "$engine_root/include/mpv/render.h"
 
 touch "$engine_root/lib/libgpl-plugin.dylib"
 if PATH="$fake_tools:/usr/bin:/bin" \
