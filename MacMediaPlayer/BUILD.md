@@ -44,3 +44,21 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 当前锁定的 libmpv 闭包只提供 OpenGL 渲染后端，因此产品画布使用
 `NSOpenGLView` 接入 render API。该平台 API 已弃用，但在迁移到经资格验证的
 Metal/libplacebo 构建前，它是本切片与现有 LGPL 打包证明一致的静态装配路径。
+
+## 离线内部 MVP 候选
+
+候选构建必须从干净提交运行，并使用锁定的双架构引擎闭包和可用的 Apple
+开发团队签名：
+
+```sh
+ENGINE_ROOT=/path/to/universal \
+DEVELOPMENT_TEAM=YOUR_TEAM_ID \
+scripts/build-internal-candidate.sh
+```
+
+该入口验证锁文件、LGPL-only 功能开关、动态闭包、许可材料、安全权限和禁止项，
+运行 SwiftPM 与 Xcode 全套契约测试，生成并启动通用 Release 归档。输出位于
+`.build/internal-candidate/<commit>-<timestamp>/`，其中
+`candidate-record.json` 绑定提交、构建身份、最低 macOS 版本和自动化结果，
+`PHYSICAL-ACCEPTANCE.md` 保持未完成物理机清单。自动化通过只表示
+`AUTOMATED_PASS_PHYSICAL_PENDING`，不代表公开发布或 App Store 资格。

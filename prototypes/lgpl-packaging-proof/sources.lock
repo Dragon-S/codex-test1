@@ -16,5 +16,5 @@ markupsafe|https://github.com/pallets/markupsafe.git|-|c0254f0cfe51720ecc9e72e88
 
 # 仅构建工具，不进入应用运行时闭包。
 pkgconf|https://github.com/pkgconf/pkgconf.git|pkgconf-2.5.1|4fc570f91d9d8d843ab32d2198a5c064538d8ffd
-meson|https://pypi.org/project/meson/|1.10.1|-
-ninja|https://pypi.org/project/ninja/|1.13.0|-
+meson|https://files.pythonhosted.org/packages/1b/d3/8c43e758cf456273c32652bb8b7a4ec2d74327d8849856b0b714ad671da7/meson-1.10.1.tar.gz|1.10.1|c42296f12db316a4515b9375a5df330f2e751ccdd4f608430d41d7d6210e4317
+ninja|https://files.pythonhosted.org/packages/43/73/79a0b22fc731989c708068427579e840a6cf4e937fe7ae5c5d0b7356ac22/ninja-1.13.0.tar.gz|1.13.0|4a40ce995ded54d9dc24f8ea37ff3bf62ad192b547f6c7126e7e25045e76f978
