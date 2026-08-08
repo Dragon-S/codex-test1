@@ -208,3 +208,28 @@ then
   print -u2 "验证器错误接受了闭包外动态库"
   exit 1
 fi
+rm "$engine_root/lib/libgpl-plugin.dylib"
+
+ln -s mpv-Copyright.txt "$engine_root/notices/unexpected-LICENSE.txt"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了锁外许可材料符号链接"
+  exit 1
+fi
+rm "$engine_root/notices/unexpected-LICENSE.txt"
+
+mv "$engine_root/notices/mpv-Copyright.txt" "$engine_root/mpv-Copyright.target"
+ln -s ../mpv-Copyright.target "$engine_root/notices/mpv-Copyright.txt"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了以符号链接替代的锁定许可材料"
+  exit 1
+fi

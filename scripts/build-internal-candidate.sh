@@ -26,13 +26,16 @@ mkdir -p "$candidate_root"
 
 engine_built_from_source=false
 if [[ -n "$engine_root" ]]; then
-  engine_root="${engine_root:A}"
+  engine_input_root="${engine_root:A}"
 else
   engine_build_root="$candidate_root/LockedEngine"
   "$repository_root/scripts/build-locked-engine.sh" "$engine_build_root"
-  engine_root="$engine_build_root/universal"
+  engine_input_root="$engine_build_root/universal"
   engine_built_from_source=true
 fi
+
+engine_root="$candidate_root/VerifiedEngine"
+"$repository_root/scripts/snapshot-engine-input.sh" "$engine_input_root" "$engine_root"
 
 source_lock="$repository_root/prototypes/lgpl-packaging-proof/sources.lock"
 "$repository_root/scripts/verify-candidate-inputs.sh" \
@@ -41,6 +44,7 @@ source_lock="$repository_root/prototypes/lgpl-packaging-proof/sources.lock"
   "$repository_root"
 "$repository_root/scripts/tests/verify-candidate-inputs-test.sh"
 "$repository_root/scripts/tests/verify-build-state-test.sh"
+"$repository_root/scripts/tests/snapshot-engine-input-test.sh"
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   swift test
@@ -92,14 +96,16 @@ if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$entit
   fail "候选签名意外包含网络客户端权限"
 fi
 
-actual_frameworks="$(find "$frameworks" -maxdepth 1 -type f -name '*.dylib' -exec basename {} \; | LC_ALL=C sort)"
-expected_frameworks="$(find "$engine_root/lib" -maxdepth 1 -type f -name '*.dylib' -exec basename {} \; | LC_ALL=C sort)"
+actual_frameworks="$(find "$frameworks" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
+expected_frameworks="$(find "$engine_root/lib" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
 [[ "$actual_frameworks" == "$expected_frameworks" ]] || fail "归档未嵌入精确动态依赖闭包"
 
-while IFS= read -r dylib; do
+while IFS= read -r dylib_name; do
+  dylib="$frameworks/$dylib_name"
+  [[ -f "$dylib" && ! -L "$dylib" ]] || fail "$dylib_name 必须是普通文件而非符号链接"
   [[ "$(lipo -archs "$dylib")" == *arm64* && "$(lipo -archs "$dylib")" == *x86_64* ]] \
-    || fail "${dylib:t} 不是双架构"
-done < <(find "$frameworks" -maxdepth 1 -type f -name '*.dylib' | LC_ALL=C sort)
+    || fail "$dylib_name 不是双架构"
+done < <(print -r -- "$expected_frameworks")
 
 open -n "$app_path"
 candidate_pid=""

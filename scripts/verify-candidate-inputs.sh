@@ -89,25 +89,32 @@ fi
 required_dylibs=("${(@f)$(awk 'NF == 2 { print $2 }' "$runtime_lock")}")
 (( ${#required_dylibs} == 12 )) || fail "运行时闭包哈希锁必须精确列出 12 个 dylib"
 
-actual_dylibs="$(find "$engine_root/lib" -maxdepth 1 -type f -name '*.dylib' -exec basename {} \; | LC_ALL=C sort)"
+actual_dylibs="$(find "$engine_root/lib" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
 expected_dylibs="$(printf '%s\n' $required_dylibs | LC_ALL=C sort)"
 [[ "$actual_dylibs" == "$expected_dylibs" ]] \
   || fail "动态闭包必须精确包含锁定的 12 个 dylib"
 
+for dylib_name in $required_dylibs; do
+  [[ -f "$engine_root/lib/$dylib_name" && ! -L "$engine_root/lib/$dylib_name" ]] \
+    || fail "$dylib_name 必须是普通文件而非符号链接"
+done
+
 required_notices=("${(@f)$(awk 'NF == 2 { print $2 }' "$notice_lock")}")
 (( ${#required_notices} == 9 )) || fail "许可材料哈希锁必须精确列出 9 个文件"
 
-actual_notices="$(find "$engine_root/notices" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)"
+actual_notices="$(find "$engine_root/notices" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
 expected_notices="$(printf '%s\n' $required_notices | LC_ALL=C sort)"
 [[ "$actual_notices" == "$expected_notices" ]] \
   || fail "许可材料目录必须精确包含锁定的 9 个文件"
 
-[[ -f "$engine_root/include/mpv/client.h" ]] || fail "缺少 mpv/client.h"
-[[ -f "$engine_root/include/mpv/render.h" ]] || fail "缺少 mpv/render.h"
-[[ -f "$engine_root/include/mpv/render_gl.h" ]] || fail "缺少 mpv/render_gl.h"
+for header in mpv/client.h mpv/render.h mpv/render_gl.h; do
+  [[ -f "$engine_root/include/$header" && ! -L "$engine_root/include/$header" ]] \
+    || fail "$header 必须是普通文件而非符号链接"
+done
 
 for notice in $required_notices; do
-  [[ -s "$engine_root/notices/$notice" ]] || fail "缺少完整许可材料 $notice"
+  [[ -s "$engine_root/notices/$notice" && ! -L "$engine_root/notices/$notice" ]] \
+    || fail "$notice 必须是非空普通文件而非符号链接"
 done
 
 canonical_root="$(mktemp -d)"
