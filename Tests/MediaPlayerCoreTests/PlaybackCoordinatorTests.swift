@@ -312,6 +312,7 @@ struct PlaybackCoordinatorTests {
         await retryCoordinator.open(retryMedia)
         await retryEngine.sendState(.failed(.corrupted))
         try await wait(for: .failed(.corrupted), coordinator: retryCoordinator)
+        try await waitForRecoveryAction(.retry, coordinator: retryCoordinator)
 
         await retryCoordinator.retryPlaybackFailure()
 
@@ -324,6 +325,7 @@ struct PlaybackCoordinatorTests {
         await skipCoordinator.open(skipMedia)
         await skipEngine.sendState(.failed(.unsupported))
         try await wait(for: .failed(.unsupported), coordinator: skipCoordinator)
+        try await waitForRecoveryAction(.skip, coordinator: skipCoordinator)
 
         await skipCoordinator.skipPlaybackFailure()
 
@@ -336,6 +338,7 @@ struct PlaybackCoordinatorTests {
         await removeCoordinator.open(removeMedia)
         await removeEngine.sendState(.failed(.corrupted))
         try await wait(for: .failed(.corrupted), coordinator: removeCoordinator)
+        try await waitForRecoveryAction(.removeEntryFromList, coordinator: removeCoordinator)
 
         try await removeCoordinator.removeFailedEntry()
 
@@ -400,6 +403,21 @@ struct PlaybackCoordinatorTests {
             try await Task.sleep(for: .milliseconds(1))
         }
         Issue.record("等待播放引擎命令超时")
+    }
+
+    private func waitForRecoveryAction(
+        _ action: PlaybackFailureRecoveryAction,
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if case let .recovery(recovery) = coordinator.playbackFailureNotice,
+               recovery.actions.contains(action) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("等待播放失败恢复操作超时")
     }
 
     private func wait(
