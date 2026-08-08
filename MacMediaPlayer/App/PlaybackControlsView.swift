@@ -792,6 +792,7 @@ struct NowPlayingListView: View {
                     .accessibilityHint("不会删除源文件")
                 }
                 .tag(entry.id)
+                .accessibilityElement(children: .contain)
                 .accessibilityLabel(mediaName)
                 .accessibilityValue(presentation.accessibilityValue)
             }

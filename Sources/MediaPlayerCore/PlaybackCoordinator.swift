@@ -988,6 +988,7 @@ public final class PlaybackCoordinator: ObservableObject {
 
     public func stop() async {
         await persistCurrentState(force: true)
+        isRestoredMediaPendingLoad = nowPlayingList.currentMedia != nil
         await engine.stop()
     }
 
@@ -1116,6 +1117,10 @@ public final class PlaybackCoordinator: ObservableObject {
     public func seek(to requestedPosition: TimeInterval) async {
         let upperBound = duration > 0 ? duration : .greatestFiniteMagnitude
         position = min(max(0, requestedPosition), upperBound)
+        if isRestoredMediaPendingLoad {
+            pendingSeekTarget = nil
+            return
+        }
         pendingSeekTarget = position
         await engine.seek(to: position)
     }
@@ -1409,7 +1414,7 @@ public final class PlaybackCoordinator: ObservableObject {
         await engine.setPlaybackRate(playbackRate)
         await engine.setPlayerVolume(playerVolume)
         await engine.setMuted(isMuted)
-        await engine.seek(to: currentEntry?.isCompleted == true ? 0 : (currentEntry?.resumePosition ?? 0))
+        await engine.seek(to: position)
     }
 
     private func receive(_ event: PlaybackEngineEvent) async {
@@ -1470,6 +1475,7 @@ public final class PlaybackCoordinator: ObservableObject {
                 return
             }
             if state == .stopped {
+                isRestoredMediaPendingLoad = nowPlayingList.currentMedia != nil
                 detachedNowPlayingEntry = nil
                 detachedSuccessorEntryIDs = []
             }

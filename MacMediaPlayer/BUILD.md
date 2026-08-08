@@ -44,3 +44,31 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 当前锁定的 libmpv 闭包只提供 OpenGL 渲染后端，因此产品画布使用
 `NSOpenGLView` 接入 render API。该平台 API 已弃用，但在迁移到经资格验证的
 Metal/libplacebo 构建前，它是本切片与现有 LGPL 打包证明一致的静态装配路径。
+
+## 离线内部 MVP 候选
+
+候选构建必须从干净提交运行，并使用可用的 Apple 开发团队签名。默认入口会
+从 `sources.lock` 下载并构建锁定的双架构引擎闭包：
+
+```sh
+DEVELOPMENT_TEAM=YOUR_TEAM_ID \
+scripts/build-internal-candidate.sh
+```
+
+若要复用已经由同一流程构建且逐文件哈希相符的闭包，可额外传入
+`ENGINE_ROOT=/path/to/universal`。单独生成闭包可运行
+`scripts/build-locked-engine.sh /path/to/output`，产物位于输出目录的
+`universal/`。
+
+该入口验证源码、头文件、已验证动态闭包与许可材料的 SHA-256 锁、LGPL-only 功能
+开关、安全权限和禁止项，
+运行 SwiftPM 与 Xcode 全套契约测试，生成并启动通用 Release 归档。输出位于
+`.build/internal-candidate/<commit>-<timestamp>/`，其中
+`candidate-record.json` 绑定提交、构建身份、最低 macOS 版本和自动化结果，
+`PHYSICAL-ACCEPTANCE.md` 保持未完成物理机清单。自动化通过只表示
+`AUTOMATED_PASS_PHYSICAL_PENDING`，不代表公开发布或 App Store 资格。
+候选记录中的 mpv 与 FFmpeg 版本直接取自 `sources.lock`，该文件是版本、来源与
+修订的唯一数据源。
+动态库输入锁在计算哈希前会移除代码签名，并清零链接器生成的 `LC_UUID` 与 Swift
+模块时间戳符号；候选记录仍另外保存实际签名产物的闭包清单哈希，以绑定本次可执行
+构建。
