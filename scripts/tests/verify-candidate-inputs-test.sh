@@ -95,6 +95,11 @@ ditto \
   shasum -a 256 *.txt | LC_ALL=C sort -k2 \
     > "$fixture_repository/prototypes/lgpl-packaging-proof/notices.sha256"
 )
+(
+  cd "$engine_root/include"
+  shasum -a 256 mpv/client.h mpv/render_gl.h \
+    > "$fixture_repository/prototypes/lgpl-packaging-proof/headers.sha256"
+)
 
 PATH="$fake_tools:/usr/bin:/bin" \
   "$repository_root/scripts/verify-candidate-inputs.sh" \

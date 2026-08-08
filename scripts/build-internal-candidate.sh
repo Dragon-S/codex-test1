@@ -11,9 +11,7 @@ fail() {
   exit 1
 }
 
-[[ -n "$engine_root" ]] || fail "必须通过 ENGINE_ROOT 指定锁定的通用 libmpv 闭包"
 [[ -n "$development_team" ]] || fail "必须通过 DEVELOPMENT_TEAM 指定可用的 Apple 开发团队"
-engine_root="${engine_root:A}"
 
 cd "$repository_root"
 [[ -z "$(git status --porcelain)" ]] \
@@ -27,6 +25,16 @@ candidate_root="$output_parent/$short_sha-$timestamp"
 derived_data="$candidate_root/DerivedData"
 archive_path="$candidate_root/MacMediaPlayer.xcarchive"
 mkdir -p "$candidate_root"
+
+engine_built_from_source=false
+if [[ -n "$engine_root" ]]; then
+  engine_root="${engine_root:A}"
+else
+  engine_build_root="$candidate_root/LockedEngine"
+  "$repository_root/scripts/build-locked-engine.sh" "$engine_build_root"
+  engine_root="$engine_build_root/universal"
+  engine_built_from_source=true
+fi
 
 source_lock="$repository_root/prototypes/lgpl-packaging-proof/sources.lock"
 "$repository_root/scripts/verify-candidate-inputs.sh" \
@@ -108,6 +116,7 @@ binary_sha256="$(shasum -a 256 "$executable" | awk '{print $1}')"
 source_lock_sha256="$(shasum -a 256 "$source_lock" | awk '{print $1}')"
 runtime_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256" | awk '{print $1}')"
 notice_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/notices.sha256" | awk '{print $1}')"
+header_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/headers.sha256" | awk '{print $1}')"
 closure_manifest="$candidate_root/dynamic-closure.sha256"
 while IFS= read -r dylib; do
   shasum -a 256 "$dylib"
@@ -127,6 +136,8 @@ jq -n \
   --arg sourceLockSHA256 "$source_lock_sha256" \
   --arg runtimeLockSHA256 "$runtime_lock_sha256" \
   --arg noticeLockSHA256 "$notice_lock_sha256" \
+  --arg headerLockSHA256 "$header_lock_sha256" \
+  --argjson engineBuiltFromSource "$engine_built_from_source" \
   --arg closureSHA256 "$closure_sha256" \
   --arg minimumMacOS "$minimum_macos" \
   --arg xcode "$xcode_version" \
@@ -146,6 +157,8 @@ jq -n \
       sourceLockSHA256: $sourceLockSHA256,
       runtimeInputLockSHA256: $runtimeLockSHA256,
       noticeLockSHA256: $noticeLockSHA256,
+      headerLockSHA256: $headerLockSHA256,
+      engineBuiltFromSource: $engineBuiltFromSource,
       xcode: $xcode,
       hostMacOS: $macOS
     },

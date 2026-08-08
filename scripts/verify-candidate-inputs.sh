@@ -43,6 +43,7 @@ grep -q '^ffmpeg|https://github.com/FFmpeg/FFmpeg.git|n8.1.2|38b88335f99e76ed89f
 build_proof="$repository_root/prototypes/lgpl-packaging-proof/BUILD.md"
 runtime_lock="$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256"
 notice_lock="$repository_root/prototypes/lgpl-packaging-proof/notices.sha256"
+header_lock="$repository_root/prototypes/lgpl-packaging-proof/headers.sha256"
 project_file="$repository_root/MacMediaPlayer/MacMediaPlayer.xcodeproj/project.pbxproj"
 entitlements="$repository_root/MacMediaPlayer/App/MacMediaPlayer.entitlements"
 client_header="$repository_root/MacMediaPlayer/App/MPVClient.h"
@@ -80,37 +81,20 @@ if find "$repository_root/MacMediaPlayer/App" -type f \( -name '*.swift' -o -nam
   fail "离线目标源码不得包含网络服务入口"
 fi
 
-required_dylibs=(
-  libmpv.2.dylib
-  libass.9.dylib
-  libavcodec.62.dylib
-  libavfilter.11.dylib
-  libavformat.62.dylib
-  libavutil.60.dylib
-  libplacebo.338.dylib
-  libswresample.6.dylib
-  libswscale.9.dylib
-  libfreetype.6.dylib
-  libfribidi.0.dylib
-  libharfbuzz.0.dylib
-)
+[[ -f "$runtime_lock" ]] || fail "缺少运行时闭包哈希锁"
+[[ -f "$notice_lock" ]] || fail "缺少许可材料哈希锁"
+[[ -f "$header_lock" ]] || fail "缺少 libmpv 头文件哈希锁"
+
+required_dylibs=("${(@f)$(awk 'NF == 2 { print $2 }' "$runtime_lock")}")
+(( ${#required_dylibs} == 12 )) || fail "运行时闭包哈希锁必须精确列出 12 个 dylib"
 
 actual_dylibs="$(find "$engine_root/lib" -maxdepth 1 -type f -name '*.dylib' -exec basename {} \; | LC_ALL=C sort)"
 expected_dylibs="$(printf '%s\n' $required_dylibs | LC_ALL=C sort)"
 [[ "$actual_dylibs" == "$expected_dylibs" ]] \
   || fail "动态闭包必须精确包含锁定的 12 个 dylib"
 
-required_notices=(
-  mpv-Copyright.txt
-  mpv-LGPL-2.1.txt
-  FFmpeg-LICENSE.txt
-  FFmpeg-LGPL-2.1.txt
-  libplacebo-LICENSE.txt
-  libass-COPYING.txt
-  FreeType-LICENSE.txt
-  FriBidi-COPYING.txt
-  HarfBuzz-COPYING.txt
-)
+required_notices=("${(@f)$(awk 'NF == 2 { print $2 }' "$notice_lock")}")
+(( ${#required_notices} == 9 )) || fail "许可材料哈希锁必须精确列出 9 个文件"
 
 [[ -f "$engine_root/include/mpv/client.h" ]] || fail "缺少 mpv/client.h"
 [[ -f "$engine_root/include/mpv/render_gl.h" ]] || fail "缺少 mpv/render_gl.h"
@@ -119,12 +103,18 @@ for notice in $required_notices; do
   [[ -s "$engine_root/notices/$notice" ]] || fail "缺少完整许可材料 $notice"
 done
 
-[[ -f "$runtime_lock" ]] || fail "缺少运行时闭包哈希锁"
-[[ -f "$notice_lock" ]] || fail "缺少许可材料哈希锁"
-(cd "$engine_root/lib" && shasum -a 256 -c "$runtime_lock" >/dev/null) \
+canonical_root="$(mktemp -d)"
+trap 'rm -rf "$canonical_root"' EXIT
+for dylib_name in $required_dylibs; do
+  ditto "$engine_root/lib/$dylib_name" "$canonical_root/$dylib_name"
+  codesign --remove-signature "$canonical_root/$dylib_name" >/dev/null 2>&1 || true
+done
+(cd "$canonical_root" && shasum -a 256 -c "$runtime_lock" >/dev/null) \
   || fail "动态闭包内容与已验证哈希不一致"
 (cd "$engine_root/notices" && shasum -a 256 -c "$notice_lock" >/dev/null) \
   || fail "许可材料内容与已验证哈希不一致"
+(cd "$engine_root/include" && shasum -a 256 -c "$header_lock" >/dev/null) \
+  || fail "libmpv 头文件内容与已验证哈希不一致"
 
 for dylib_name in $required_dylibs; do
   dylib="$engine_root/lib/$dylib_name"

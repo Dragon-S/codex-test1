@@ -47,16 +47,20 @@ Metal/libplacebo 构建前，它是本切片与现有 LGPL 打包证明一致的
 
 ## 离线内部 MVP 候选
 
-候选构建必须从干净提交运行，并使用锁定的双架构引擎闭包和可用的 Apple
-开发团队签名：
+候选构建必须从干净提交运行，并使用可用的 Apple 开发团队签名。默认入口会
+从 `sources.lock` 下载并构建锁定的双架构引擎闭包：
 
 ```sh
-ENGINE_ROOT=/path/to/universal \
 DEVELOPMENT_TEAM=YOUR_TEAM_ID \
 scripts/build-internal-candidate.sh
 ```
 
-该入口验证源码锁、已验证动态闭包与许可材料的 SHA-256 锁、LGPL-only 功能
+若要复用已经由同一流程构建且逐文件哈希相符的闭包，可额外传入
+`ENGINE_ROOT=/path/to/universal`。单独生成闭包可运行
+`scripts/build-locked-engine.sh /path/to/output`，产物位于输出目录的
+`universal/`。
+
+该入口验证源码、头文件、已验证动态闭包与许可材料的 SHA-256 锁、LGPL-only 功能
 开关、安全权限和禁止项，
 运行 SwiftPM 与 Xcode 全套契约测试，生成并启动通用 Release 归档。输出位于
 `.build/internal-candidate/<commit>-<timestamp>/`，其中
