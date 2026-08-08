@@ -76,7 +76,7 @@ signature_details="$(codesign -dv --verbose=4 "$app_path" 2>&1)"
 [[ "$signature_details" == *"library-validation"* ]] || fail "候选应用未启用 library validation"
 
 entitlements_plist="$candidate_root/entitlements.plist"
-codesign -d --entitlements "$entitlements_plist" "$app_path"
+codesign -d --entitlements :- "$app_path" > "$entitlements_plist" 2>/dev/null
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$entitlements_plist")" == true ]] \
   || fail "候选签名缺少 App Sandbox"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.user-selected.read-only' "$entitlements_plist")" == true ]] \
