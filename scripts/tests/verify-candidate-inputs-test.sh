@@ -107,6 +107,22 @@ PATH="$fake_tools:/usr/bin:/bin" \
   "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
   "$fixture_repository"
 
+/usr/bin/python3 - "$fixture_root/uuid-a" "$fixture_root/uuid-b" <<'PY'
+import struct
+import sys
+
+header = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 6, 2, 48, 0, 0)
+strings = b"\0module.swiftmodule\0"
+symtab = struct.pack("<IIIIII", 0x02, 24, 80, 1, 96, len(strings))
+for target, uuid_byte, timestamp in zip(sys.argv[1:], (b"a", b"b"), (123, 456)):
+    symbol = struct.pack("<IBBHQ", 1, 0x02, 0, 0, timestamp)
+    with open(target, "wb") as output:
+        output.write(header + struct.pack("<II", 0x1B, 24) + uuid_byte * 16 + symtab + symbol + strings)
+PY
+/usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-a"
+/usr/bin/python3 "$repository_root/scripts/canonicalize-macho-for-hash.py" "$fixture_root/uuid-b"
+cmp "$fixture_root/uuid-a" "$fixture_root/uuid-b"
+
 touch "$engine_root/lib/libgpl-plugin.dylib"
 if PATH="$fake_tools:/usr/bin:/bin" \
   "$repository_root/scripts/verify-candidate-inputs.sh" \

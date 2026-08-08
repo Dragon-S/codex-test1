@@ -10,6 +10,7 @@ fi
 engine_root="${1:A}"
 source_lock="${2:A}"
 repository_root="${3:A}"
+canonicalizer="${0:A:h}/canonicalize-macho-for-hash.py"
 
 fail() {
   print -u2 "候选输入无效：$1"
@@ -108,6 +109,8 @@ trap 'rm -rf "$canonical_root"' EXIT
 for dylib_name in $required_dylibs; do
   ditto "$engine_root/lib/$dylib_name" "$canonical_root/$dylib_name"
   codesign --remove-signature "$canonical_root/$dylib_name" >/dev/null 2>&1 || true
+  /usr/bin/python3 "$canonicalizer" \
+    "$canonical_root/$dylib_name"
 done
 (cd "$canonical_root" && shasum -a 256 -c "$runtime_lock" >/dev/null) \
   || fail "动态闭包内容与已验证哈希不一致"

@@ -67,3 +67,6 @@ scripts/build-internal-candidate.sh
 `candidate-record.json` 绑定提交、构建身份、最低 macOS 版本和自动化结果，
 `PHYSICAL-ACCEPTANCE.md` 保持未完成物理机清单。自动化通过只表示
 `AUTOMATED_PASS_PHYSICAL_PENDING`，不代表公开发布或 App Store 资格。
+动态库输入锁在计算哈希前会移除代码签名，并清零链接器生成的 `LC_UUID` 与 Swift
+模块时间戳符号；候选记录仍另外保存实际签名产物的闭包清单哈希，以绑定本次可执行
+构建。
