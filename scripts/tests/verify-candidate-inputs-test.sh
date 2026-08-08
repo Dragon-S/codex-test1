@@ -4,7 +4,7 @@ set -euo pipefail
 
 repository_root="${0:A:h:h:h}"
 fixture_root="$(mktemp -d)"
-trap 'rm -rf "$fixture_root"' EXIT
+trap 'chmod -R u+w "$fixture_root" 2>/dev/null || true; rm -rf "$fixture_root"' EXIT
 
 expected_headers=$'mpv/client.h\nmpv/render.h\nmpv/render_gl.h'
 actual_headers="$(awk 'NF == 2 { print $2 }' \
@@ -40,6 +40,16 @@ for dylib in \
 do
   touch "$engine_root/lib/$dylib"
 done
+
+/usr/bin/python3 - "$engine_root/lib" <<'PY'
+import struct
+import sys
+from pathlib import Path
+
+header = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 6, 0, 0, 0, 0)
+for dylib in Path(sys.argv[1]).glob("*.dylib"):
+    dylib.write_bytes(header)
+PY
 
 for notice in \
   mpv-Copyright.txt \
@@ -117,6 +127,18 @@ PATH="$fake_tools:/usr/bin:/bin" \
   "$engine_root" \
   "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
   "$fixture_repository"
+
+chmod -R a-w "$engine_root"
+if ! PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器无法校验只读引擎输入快照"
+  exit 1
+fi
+chmod -R u+w "$engine_root"
 
 /usr/bin/python3 - "$fixture_root/uuid-a" "$fixture_root/uuid-b" <<'PY'
 import struct

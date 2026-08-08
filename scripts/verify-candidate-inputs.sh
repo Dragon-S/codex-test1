@@ -121,6 +121,7 @@ canonical_root="$(mktemp -d)"
 trap 'rm -rf "$canonical_root"' EXIT
 for dylib_name in $required_dylibs; do
   ditto "$engine_root/lib/$dylib_name" "$canonical_root/$dylib_name"
+  chmod u+w "$canonical_root/$dylib_name"
   codesign --remove-signature "$canonical_root/$dylib_name" >/dev/null 2>&1 || true
   /usr/bin/python3 "$canonicalizer" \
     "$canonical_root/$dylib_name"
