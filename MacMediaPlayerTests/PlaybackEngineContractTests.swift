@@ -5,6 +5,7 @@ import Testing
 @testable import MacMediaPlayer
 
 @MainActor
+@Suite(.serialized)
 struct LibMPVPlaybackEngineContractTests {
     @Test("真实适配器将 libmpv 失败映射为稳定领域错误")
     func realAdapterMapsFailuresToDomainErrors() {
@@ -49,10 +50,13 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(presentation.kind == .video)
         #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
         #expect(!recorder.hasFailure(loadID: loadID))
+
+        await engine.stop()
+        try await recorder.waitForState(.stopped, loadID: loadID)
     }
 
-    @Test("真实适配器在 VideoToolbox 未启用时报告解码器初始化失败")
-    func realAdapterReportsVideoToolboxInitializationFailure() async throws {
+    @Test("真实适配器通过 VideoToolbox 硬件解码加载视频")
+    func realAdapterLoadsVideoUsingVideoToolboxHardwareDecoding() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
@@ -62,10 +66,34 @@ struct LibMPVPlaybackEngineContractTests {
 
         await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
 
-        try await recorder.waitForState(
-            .failed(.decoderInitializationFailed),
-            loadID: loadID
-        )
+        try await recorder.waitForState(.playing, loadID: loadID)
+        let presentation = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        #expect(presentation.kind == .video)
+        #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(!recorder.hasFailure(loadID: loadID))
+
+        await engine.stop()
+        try await recorder.waitForState(.stopped, loadID: loadID)
+    }
+
+    @Test("真实适配器关闭后不执行迟到的硬件解码探测")
+    func realAdapterCancelsDelayedHardwareProbeOnShutdown() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 19)
+
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+        try await recorder.waitForState(.playing, loadID: loadID)
+        _ = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+
+        await engine.stop()
+        try await recorder.waitForState(.stopped, loadID: loadID)
+        engine.shutdown()
+        try await Task.sleep(for: .milliseconds(200))
     }
 
     @Test("真实 libmpv 适配器把首帧输出到 AppKit 画布")

@@ -88,8 +88,7 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     }
 
     deinit {
-        client.shutdown()
-        continuation.finish()
+        shutdown()
     }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) async {
@@ -110,6 +109,11 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
 
     func stop() async {
         client.stop()
+    }
+
+    func shutdown() {
+        client.shutdown()
+        continuation.finish()
     }
 
     func seek(to position: TimeInterval) async {

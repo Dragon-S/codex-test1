@@ -113,7 +113,7 @@ static void MPVRenderUpdate(void *context);
 
     mpv_set_option_string(_handle, "config", "no");
     mpv_set_option_string(_handle, "terminal", "no");
-    mpv_set_option_string(_handle, "hwdec", "videotoolbox");
+    mpv_set_option_string(_handle, "hwdec", "videotoolbox-copy");
     mpv_set_option_string(_handle, "hwdec-software-fallback", "no");
     mpv_set_option_string(_handle, "keep-open", "yes");
     mpv_set_option_string(_handle, "vo", "libmpv");
@@ -354,7 +354,7 @@ static void MPVRenderUpdate(void *context);
         result = mpv_set_property_string(
             self->_handle,
             "hwdec",
-            hardwareDecoding ? "videotoolbox" : "no"
+            hardwareDecoding ? "videotoolbox-copy" : "no"
         );
         if (result < 0) {
             [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID];
@@ -459,6 +459,12 @@ static void MPVRenderUpdate(void *context);
     if (activeHardwareDecoder == nil) {
         [_reportedHardwareFallbackLoadIDs addObject:loadID];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), _queue, ^{
+            if (self->_handle == NULL
+                || self->_eventLoadID != loadID.unsignedLongLongValue
+                || ![self->_hardwareDecodingByLoadID[loadID] boolValue]) {
+                [self->_reportedHardwareFallbackLoadIDs removeObject:loadID];
+                return;
+            }
             NSString *delayedHardwareDecoder = [self stringProperty:@"hwdec-current"];
             if (delayedHardwareDecoder == nil || [delayedHardwareDecoder isEqualToString:@"no"]) {
                 [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID.unsignedLongLongValue];
