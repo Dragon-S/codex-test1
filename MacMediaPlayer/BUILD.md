@@ -56,7 +56,8 @@ DEVELOPMENT_TEAM=YOUR_TEAM_ID \
 scripts/build-internal-candidate.sh
 ```
 
-该入口验证锁文件、LGPL-only 功能开关、动态闭包、许可材料、安全权限和禁止项，
+该入口验证源码锁、已验证动态闭包与许可材料的 SHA-256 锁、LGPL-only 功能
+开关、安全权限和禁止项，
 运行 SwiftPM 与 Xcode 全套契约测试，生成并启动通用 Release 归档。输出位于
 `.build/internal-candidate/<commit>-<timestamp>/`，其中
 `candidate-record.json` 绑定提交、构建身份、最低 macOS 版本和自动化结果，

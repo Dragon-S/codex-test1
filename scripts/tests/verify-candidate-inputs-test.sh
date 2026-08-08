@@ -8,6 +8,7 @@ trap 'rm -rf "$fixture_root"' EXIT
 
 engine_root="$fixture_root/engine"
 fake_tools="$fixture_root/tools"
+fixture_repository="$fixture_root/repository"
 mkdir -p "$engine_root/include/mpv" "$engine_root/lib" "$engine_root/notices" "$fake_tools"
 
 touch "$engine_root/include/mpv/client.h" "$engine_root/include/mpv/render_gl.h"
@@ -64,18 +65,49 @@ fi
 EOF
 chmod +x "$fake_tools/otool"
 
+mkdir -p \
+  "$fixture_repository/.git" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof" \
+  "$fixture_repository/MacMediaPlayer/MacMediaPlayer.xcodeproj" \
+  "$fixture_repository/MacMediaPlayer/App"
+ditto \
+  "$repository_root/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock"
+ditto \
+  "$repository_root/prototypes/lgpl-packaging-proof/BUILD.md" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/BUILD.md"
+ditto \
+  "$repository_root/MacMediaPlayer/MacMediaPlayer.xcodeproj/project.pbxproj" \
+  "$fixture_repository/MacMediaPlayer/MacMediaPlayer.xcodeproj/project.pbxproj"
+ditto \
+  "$repository_root/MacMediaPlayer/App/MacMediaPlayer.entitlements" \
+  "$fixture_repository/MacMediaPlayer/App/MacMediaPlayer.entitlements"
+ditto \
+  "$repository_root/MacMediaPlayer/App/MPVClient.h" \
+  "$fixture_repository/MacMediaPlayer/App/MPVClient.h"
+(
+  cd "$engine_root/lib"
+  shasum -a 256 *.dylib | LC_ALL=C sort -k2 \
+    > "$fixture_repository/prototypes/lgpl-packaging-proof/runtime-closure.sha256"
+)
+(
+  cd "$engine_root/notices"
+  shasum -a 256 *.txt | LC_ALL=C sort -k2 \
+    > "$fixture_repository/prototypes/lgpl-packaging-proof/notices.sha256"
+)
+
 PATH="$fake_tools:/usr/bin:/bin" \
   "$repository_root/scripts/verify-candidate-inputs.sh" \
   "$engine_root" \
-  "$repository_root/prototypes/lgpl-packaging-proof/sources.lock" \
-  "$repository_root"
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository"
 
 touch "$engine_root/lib/libgpl-plugin.dylib"
 if PATH="$fake_tools:/usr/bin:/bin" \
   "$repository_root/scripts/verify-candidate-inputs.sh" \
   "$engine_root" \
-  "$repository_root/prototypes/lgpl-packaging-proof/sources.lock" \
-  "$repository_root" >/dev/null 2>&1
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
 then
   print -u2 "验证器错误接受了闭包外动态库"
   exit 1

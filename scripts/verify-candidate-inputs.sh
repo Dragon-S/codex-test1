@@ -41,6 +41,8 @@ grep -q '^ffmpeg|https://github.com/FFmpeg/FFmpeg.git|n8.1.2|38b88335f99e76ed89f
   || fail "FFmpeg 必须锁定 n8.1.2"
 
 build_proof="$repository_root/prototypes/lgpl-packaging-proof/BUILD.md"
+runtime_lock="$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256"
+notice_lock="$repository_root/prototypes/lgpl-packaging-proof/notices.sha256"
 project_file="$repository_root/MacMediaPlayer/MacMediaPlayer.xcodeproj/project.pbxproj"
 entitlements="$repository_root/MacMediaPlayer/App/MacMediaPlayer.entitlements"
 client_header="$repository_root/MacMediaPlayer/App/MPVClient.h"
@@ -116,6 +118,13 @@ required_notices=(
 for notice in $required_notices; do
   [[ -s "$engine_root/notices/$notice" ]] || fail "缺少完整许可材料 $notice"
 done
+
+[[ -f "$runtime_lock" ]] || fail "缺少运行时闭包哈希锁"
+[[ -f "$notice_lock" ]] || fail "缺少许可材料哈希锁"
+(cd "$engine_root/lib" && shasum -a 256 -c "$runtime_lock" >/dev/null) \
+  || fail "动态闭包内容与已验证哈希不一致"
+(cd "$engine_root/notices" && shasum -a 256 -c "$notice_lock" >/dev/null) \
+  || fail "许可材料内容与已验证哈希不一致"
 
 for dylib_name in $required_dylibs; do
   dylib="$engine_root/lib/$dylib_name"

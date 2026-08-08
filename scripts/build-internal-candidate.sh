@@ -16,8 +16,8 @@ fail() {
 engine_root="${engine_root:A}"
 
 cd "$repository_root"
-[[ -z "$(git status --porcelain --untracked-files=no)" ]] \
-  || fail "工作区含已跟踪改动；请先提交，候选记录只能绑定干净提交"
+[[ -z "$(git status --porcelain)" ]] \
+  || fail "工作区含未提交或未跟踪内容；候选记录只能绑定干净提交"
 
 commit_sha="$(git rev-parse HEAD)"
 short_sha="$(git rev-parse --short=12 HEAD)"
@@ -106,6 +106,8 @@ kill -TERM "$candidate_pid"
 
 binary_sha256="$(shasum -a 256 "$executable" | awk '{print $1}')"
 source_lock_sha256="$(shasum -a 256 "$source_lock" | awk '{print $1}')"
+runtime_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256" | awk '{print $1}')"
+notice_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/notices.sha256" | awk '{print $1}')"
 closure_manifest="$candidate_root/dynamic-closure.sha256"
 while IFS= read -r dylib; do
   shasum -a 256 "$dylib"
@@ -123,6 +125,8 @@ jq -n \
   --arg app "$app_path" \
   --arg binarySHA256 "$binary_sha256" \
   --arg sourceLockSHA256 "$source_lock_sha256" \
+  --arg runtimeLockSHA256 "$runtime_lock_sha256" \
+  --arg noticeLockSHA256 "$notice_lock_sha256" \
   --arg closureSHA256 "$closure_sha256" \
   --arg minimumMacOS "$minimum_macos" \
   --arg xcode "$xcode_version" \
@@ -140,6 +144,8 @@ jq -n \
       executableSHA256: $binarySHA256,
       dynamicClosureSHA256: $closureSHA256,
       sourceLockSHA256: $sourceLockSHA256,
+      runtimeInputLockSHA256: $runtimeLockSHA256,
+      noticeLockSHA256: $noticeLockSHA256,
       xcode: $xcode,
       hostMacOS: $macOS
     },
