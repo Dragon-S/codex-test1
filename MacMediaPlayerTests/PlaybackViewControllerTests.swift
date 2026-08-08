@@ -428,9 +428,73 @@ struct PlaybackViewControllerTests {
         #expect(controller.view.focusRingType == .exterior)
     }
 
+    @Test("生产偏好监听工作区的显示辅助功能通知")
+    func displayPreferencesObserveWorkspaceAccessibilityChanges() {
+        let displayOptions = MutableDisplayOptions()
+        let displayPreferences = DisplayAccessibilityPreferences(
+            reduceMotionProvider: { displayOptions.shouldReduceMotion }
+        )
+        #expect(!displayPreferences.isReduceMotionEnabled)
+
+        displayOptions.shouldReduceMotion = true
+        NSWorkspace.shared.notificationCenter.post(
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: NSWorkspace.shared
+        )
+
+        #expect(displayPreferences.isReduceMotionEnabled)
+    }
+
+    @Test("运行中切换外观与减弱动态效果会保留播放上下文和焦点")
+    func displayPreferenceChangesPreservePlaybackContextAndFocus() async throws {
+        let displayOptions = MutableDisplayOptions()
+        let notifications = NotificationCenter()
+        let displayPreferences = DisplayAccessibilityPreferences(
+            notificationCenter: notifications,
+            reduceMotionProvider: { displayOptions.shouldReduceMotion }
+        )
+        let engine = LayoutFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let controller = makeController(
+            coordinator: coordinator,
+            displayPreferences: displayPreferences
+        )
+        let window = host(controller, size: NSSize(width: 1_000, height: 700))
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView?.layoutSubtreeIfNeeded()
+        #expect(controller.view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .aqua)
+        await coordinator.open(LocalMedia(url: URL(fileURLWithPath: "/tmp/appearance.mp4")))
+        await engine.sendState(.playing)
+        await engine.sendTimeline(position: 42, duration: 120)
+        try await expectPlaybackContext(
+            state: .playing,
+            position: 42,
+            coordinator: coordinator
+        )
+        controller.setPlaylistVisible(false)
+        #expect(window.makeFirstResponder(controller.view))
+        let commandsBeforeChanges = await engine.commands
+
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView?.layoutSubtreeIfNeeded()
+        #expect(controller.view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+
+        displayOptions.shouldReduceMotion = true
+        notifications.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+
+        #expect(controller.isReduceMotionEnabled)
+        #expect(coordinator.state == .playing)
+        #expect(coordinator.position == 42)
+        #expect(!controller.isPlaylistVisible)
+        #expect(window.firstResponder === controller.view)
+        #expect(await engine.commands == commandsBeforeChanges)
+        #expect(controller.videoView.appearance == nil)
+    }
+
     private func makeController(
         coordinator: PlaybackCoordinator? = nil,
         openMedia: @escaping () -> Void = {},
+        displayPreferences: DisplayAccessibilityPreferences = DisplayAccessibilityPreferences(),
         localization: AppLocalization = AppLocalization(
             languageIdentifier: "zh-Hans",
             locale: Locale(identifier: "zh_CN")
@@ -447,6 +511,7 @@ struct PlaybackViewControllerTests {
             confirmMediaReplacement: { _ in },
             cancelMediaReplacement: {},
             videoView: PlaybackCanvasView(frame: .zero),
+            displayPreferences: displayPreferences,
             localization: localization
         )
     }
@@ -515,6 +580,23 @@ struct PlaybackViewControllerTests {
         #expect(controller.view.accessibilityValue() as? String == expected)
     }
 
+    private func expectPlaybackContext(
+        state: PlaybackState,
+        position: TimeInterval,
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        for _ in 0..<100 where coordinator.state != state || coordinator.position != position {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        #expect(coordinator.state == state)
+        #expect(coordinator.position == position)
+    }
+
+}
+
+@MainActor
+private final class MutableDisplayOptions {
+    var shouldReduceMotion = false
 }
 
 private final class ShortcutSwallowingView: NSView {
@@ -565,5 +647,10 @@ private actor LayoutFakePlaybackEngine: PlaybackEngine {
     func sendState(_ state: PlaybackState) {
         guard let loadID else { return }
         continuation.yield(.playbackStateChanged(state, loadID: loadID))
+    }
+
+    func sendTimeline(position: TimeInterval, duration: TimeInterval) {
+        guard let loadID else { return }
+        continuation.yield(.timelineChanged(position: position, duration: duration, loadID: loadID))
     }
 }
