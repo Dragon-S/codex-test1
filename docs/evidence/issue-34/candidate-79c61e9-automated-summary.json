@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUTC": "2026-08-08T13:54:51Z",
+  "scope": "Issue #34 候选 79c61e9 的脱敏自动化结果摘要",
+  "candidate": {
+    "commit": "79c61e9cf6baa0a5978ac053b197cb0d17a42c74",
+    "builtAtUTC": "20260808T125642Z",
+    "executableSHA256": "f55c4a1a938605a5c8d391d9aa37dbe58f6a87f35834430a1678d15a9bbdaa97",
+    "dynamicClosureSHA256": "21cd2bbb967653e0bfeac06cd3de2e7ad08380c56f0e21e35e5664c758ed92a6",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2"
+  },
+  "environment": {
+    "deviceModel": "Apple M5 MacBook Pro",
+    "memoryGiB": 24,
+    "macOS": "26.6 (25G72)",
+    "xcode": "Xcode 26.6 (17F113)"
+  },
+  "results": {
+    "swiftContracts": {
+      "passed": 93,
+      "failed": 0,
+      "result": "PASS"
+    },
+    "xcodeAndRealEngineContracts": {
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS"
+    },
+    "freshUserData": "PASS",
+    "populatedUserData": "PASS",
+    "signedLaunch": "PASS"
+  },
+  "sourceFingerprints": {
+    "localCandidateRecordSHA256": "0f4216cc431f8840fdc4cec4f99fd72c008cfe4a64e56dfe3b7eaaf68b963827",
+    "localXcodeSummarySHA256": "39609c6674219dcb5ce60295c1c59baa4e76c65a06d21ab1f53d6b252d7dcecd"
+  },
+  "privacy": {
+    "rawArtifactsCommitted": false,
+    "removedFields": [
+      "deviceId",
+      "absolute build paths"
+    ],
+    "note": "原始 candidate-record 与 xcresult 仅保存在本机；它们含设备标识或绝对路径，不得直接提交或分享。"
+  },
+  "limitations": [
+    "本摘要只证明 R03 自动化结果，不证明 R01 或 R02 的物理现场观察。",
+    "候选仍为 FAIL；完整物理资格矩阵尚未完成。"
+  ]
+}

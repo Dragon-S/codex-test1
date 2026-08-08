@@ -80,20 +80,25 @@ struct LibMPVPlaybackEngineContractTests {
     @Test("真实适配器关闭后不执行迟到的硬件解码探测")
     func realAdapterCancelsDelayedHardwareProbeOnShutdown() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let hardwareDecoderProbe = HardwareDecoderProbe()
+        let engine = LibMPVPlaybackEngine(
+            videoView: videoView,
+            hardwareDecoderReader: hardwareDecoderProbe.read
+        )
         let recorder = ContractEventRecorder(events: engine.events)
         let mediaURL = try makeRedMP4()
         defer { try? FileManager.default.removeItem(at: mediaURL) }
         let loadID = PlaybackLoadID(rawValue: 19)
 
         await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
-        try await recorder.waitForState(.playing, loadID: loadID)
-        _ = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        try await waitForHardwareDecoderProbe(hardwareDecoderProbe)
+        #expect(hardwareDecoderProbe.readCount == 1)
+        #expect(!recorder.hasFailure(loadID: loadID))
 
-        await engine.stop()
-        try await recorder.waitForState(.stopped, loadID: loadID)
         engine.shutdown()
         try await Task.sleep(for: .milliseconds(200))
+
+        #expect(hardwareDecoderProbe.readCount == 1)
     }
 
     @Test("真实 libmpv 适配器把首帧输出到 AppKit 画布")
@@ -215,6 +220,17 @@ struct LibMPVPlaybackEngineContractTests {
         return url
     }
 
+    private func waitForHardwareDecoderProbe(_ probe: HardwareDecoderProbe) async throws {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if probe.readCount > 0 {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        throw HardwareDecoderProbeTimeout()
+    }
+
     private func expectRedCenterPixel(in videoView: PlaybackCanvasView) async throws {
         let deadline = ContinuousClock.now + .seconds(2)
         while ContinuousClock.now < deadline {
@@ -280,6 +296,26 @@ struct LibMPVPlaybackEngineContractTests {
             .appendingPathComponent("playback-frame-\(UUID().uuidString).mp4")
         try data.write(to: url, options: .atomic)
         return url
+    }
+}
+
+private struct HardwareDecoderProbeTimeout: Error {}
+
+private final class HardwareDecoderProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedReadCount = 0
+
+    var readCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedReadCount
+    }
+
+    func read() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        storedReadCount += 1
+        return storedReadCount == 1 ? nil : "videotoolbox-copy"
     }
 }
 

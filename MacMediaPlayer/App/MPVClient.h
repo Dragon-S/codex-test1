@@ -28,6 +28,8 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
     MPVClientMediaKindVideo,
 };
 
+typedef NSString * _Nullable (^MPVClientHardwareDecoderReader)(void);
+
 @interface MPVClientTrack : NSObject
 
 @property (nonatomic, readonly) NSUUID *identifier;
@@ -77,6 +79,8 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
 @property (nonatomic, copy, nullable) void (^mediaPresentationHandler)(MPVClientMediaPresentation *presentation, uint64_t loadID);
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
+- (instancetype)initWithVideoView:(NSView *)videoView
+             hardwareDecoderReader:(nullable MPVClientHardwareDecoderReader)hardwareDecoderReader;
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID;
 - (void)loadURLUsingSoftwareDecoding:(NSURL *)url loadID:(uint64_t)loadID;
 - (void)play;

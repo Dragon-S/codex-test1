@@ -5,12 +5,14 @@
 #import <mpv/client.h>
 #import <mpv/render_gl.h>
 #import <dlfcn.h>
+#import <stdatomic.h>
 
 static void *MPVGetOpenGLProcAddress(void *context, const char *name) {
     return dlsym(RTLD_DEFAULT, name);
 }
 
 static void MPVRenderUpdate(void *context);
+static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
 
 @implementation MPVClientTrack
 
@@ -82,16 +84,24 @@ static void MPVRenderUpdate(void *context);
     double _playbackRate;
     double _playerVolume;
     BOOL _muted;
+    MPVClientHardwareDecoderReader _hardwareDecoderReader;
+    atomic_bool _shuttingDown;
 }
 @end
 
 @implementation MPVClient
 
 - (instancetype)initWithVideoView:(NSView *)videoView {
+    return [self initWithVideoView:videoView hardwareDecoderReader:nil];
+}
+
+- (instancetype)initWithVideoView:(NSView *)videoView
+             hardwareDecoderReader:(MPVClientHardwareDecoderReader)hardwareDecoderReader {
     self = [super init];
     if (self == nil) {
         return nil;
     }
+    atomic_init(&_shuttingDown, false);
 
     if (![videoView isKindOfClass:NSOpenGLView.class]) {
         return self;
@@ -106,6 +116,7 @@ static void MPVRenderUpdate(void *context);
     _audioIdentifiers = [NSMutableDictionary dictionary];
     _subtitleIdentifiers = [NSMutableDictionary dictionary];
     _videoView = (NSOpenGLView *)videoView;
+    _hardwareDecoderReader = [hardwareDecoderReader copy];
     _handle = mpv_create();
     if (_handle == NULL) {
         return self;
@@ -113,7 +124,7 @@ static void MPVRenderUpdate(void *context);
 
     mpv_set_option_string(_handle, "config", "no");
     mpv_set_option_string(_handle, "terminal", "no");
-    mpv_set_option_string(_handle, "hwdec", "videotoolbox-copy");
+    mpv_set_option_string(_handle, "hwdec", MPVHardwareDecoder.UTF8String);
     mpv_set_option_string(_handle, "hwdec-software-fallback", "no");
     mpv_set_option_string(_handle, "keep-open", "yes");
     mpv_set_option_string(_handle, "vo", "libmpv");
@@ -250,6 +261,7 @@ static void MPVRenderUpdate(void *context);
 }
 
 - (void)shutdown {
+    atomic_store_explicit(&_shuttingDown, true, memory_order_release);
     if (_handle == NULL && _eventTimer == nil) {
         return;
     }
@@ -354,7 +366,7 @@ static void MPVRenderUpdate(void *context);
         result = mpv_set_property_string(
             self->_handle,
             "hwdec",
-            hardwareDecoding ? "videotoolbox-copy" : "no"
+            hardwareDecoding ? MPVHardwareDecoder.UTF8String : "no"
         );
         if (result < 0) {
             [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID];
@@ -455,17 +467,18 @@ static void MPVRenderUpdate(void *context);
         || [_reportedHardwareFallbackLoadIDs containsObject:loadID]) {
         return;
     }
-    NSString *activeHardwareDecoder = [self stringProperty:@"hwdec-current"];
+    NSString *activeHardwareDecoder = [self currentHardwareDecoder];
     if (activeHardwareDecoder == nil) {
         [_reportedHardwareFallbackLoadIDs addObject:loadID];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), _queue, ^{
-            if (self->_handle == NULL
+            if (atomic_load_explicit(&self->_shuttingDown, memory_order_acquire)
+                || self->_handle == NULL
                 || self->_eventLoadID != loadID.unsignedLongLongValue
                 || ![self->_hardwareDecodingByLoadID[loadID] boolValue]) {
                 [self->_reportedHardwareFallbackLoadIDs removeObject:loadID];
                 return;
             }
-            NSString *delayedHardwareDecoder = [self stringProperty:@"hwdec-current"];
+            NSString *delayedHardwareDecoder = [self currentHardwareDecoder];
             if (delayedHardwareDecoder == nil || [delayedHardwareDecoder isEqualToString:@"no"]) {
                 [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID.unsignedLongLongValue];
             } else {
@@ -479,6 +492,13 @@ static void MPVRenderUpdate(void *context);
     }
     [_reportedHardwareFallbackLoadIDs addObject:loadID];
     [self reportFailure:MPVClientFailureDecoderInitialization loadID:_eventLoadID];
+}
+
+- (NSString *)currentHardwareDecoder {
+    if (_hardwareDecoderReader != nil) {
+        return _hardwareDecoderReader();
+    }
+    return [self stringProperty:@"hwdec-current"];
 }
 
 - (void)handleStartFile:(mpv_event *)event {

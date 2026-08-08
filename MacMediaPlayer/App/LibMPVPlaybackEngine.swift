@@ -6,9 +6,15 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private let client: MPVClient
 
-    init(videoView: PlaybackCanvasView) {
+    init(
+        videoView: PlaybackCanvasView,
+        hardwareDecoderReader: (() -> String?)? = nil
+    ) {
         (events, continuation) = AsyncStream.makeStream()
-        client = MPVClient(videoView: videoView)
+        client = MPVClient(
+            videoView: videoView,
+            hardwareDecoderReader: hardwareDecoderReader
+        )
         client.stateHandler = { [continuation] state, rawLoadID in
             let loadID = PlaybackLoadID(rawValue: rawLoadID)
             continuation.yield(.playbackStateChanged(Self.state(for: state), loadID: loadID))
