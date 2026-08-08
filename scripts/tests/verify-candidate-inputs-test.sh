@@ -103,6 +103,9 @@ ditto \
 ditto \
   "$repository_root/MacMediaPlayer/App/MacMediaPlayer.entitlements" \
   "$fixture_repository/MacMediaPlayer/App/MacMediaPlayer.entitlements"
+/usr/libexec/PlistBuddy \
+  -c 'Set :com.apple.security.files.bookmarks.app-scope true' \
+  "$fixture_repository/MacMediaPlayer/App/MacMediaPlayer.entitlements"
 ditto \
   "$repository_root/MacMediaPlayer/App/MPVClient.h" \
   "$fixture_repository/MacMediaPlayer/App/MPVClient.h"
@@ -127,6 +130,22 @@ PATH="$fake_tools:/usr/bin:/bin" \
   "$engine_root" \
   "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
   "$fixture_repository"
+
+/usr/libexec/PlistBuddy \
+  -c 'Delete :com.apple.security.files.bookmarks.app-scope' \
+  "$fixture_repository/MacMediaPlayer/App/MacMediaPlayer.entitlements"
+if PATH="$fake_tools:/usr/bin:/bin" \
+  "$repository_root/scripts/verify-candidate-inputs.sh" \
+  "$engine_root" \
+  "$fixture_repository/prototypes/lgpl-packaging-proof/sources.lock" \
+  "$fixture_repository" >/dev/null 2>&1
+then
+  print -u2 "验证器错误接受了缺少 app-scoped bookmark 的签名权限"
+  exit 1
+fi
+/usr/libexec/PlistBuddy \
+  -c 'Add :com.apple.security.files.bookmarks.app-scope bool true' \
+  "$fixture_repository/MacMediaPlayer/App/MacMediaPlayer.entitlements"
 
 chmod -R a-w "$engine_root"
 if ! PATH="$fake_tools:/usr/bin:/bin" \

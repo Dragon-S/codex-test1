@@ -92,6 +92,8 @@ codesign -d --entitlements :- "$app_path" > "$entitlements_plist" 2>/dev/null
   || fail "候选签名缺少 App Sandbox"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.user-selected.read-only' "$entitlements_plist")" == true ]] \
   || fail "候选签名缺少只读文件权限"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.bookmarks.app-scope' "$entitlements_plist")" == true ]] \
+  || fail "候选签名缺少 app-scoped bookmark"
 if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$entitlements_plist" >/dev/null 2>&1; then
   fail "候选签名意外包含网络客户端权限"
 fi
@@ -119,6 +121,8 @@ kill -TERM "$candidate_pid"
 
 binary_sha256="$(shasum -a 256 "$executable" | awk '{print $1}')"
 source_lock_sha256="$(shasum -a 256 "$source_lock" | awk '{print $1}')"
+mpv_version="$(awk -F '|' '$1 == "mpv" { print $3; exit }' "$source_lock")"
+ffmpeg_version="$(awk -F '|' '$1 == "ffmpeg" { print $3; exit }' "$source_lock")"
 runtime_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256" | awk '{print $1}')"
 notice_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/notices.sha256" | awk '{print $1}')"
 header_lock_sha256="$(shasum -a 256 "$repository_root/prototypes/lgpl-packaging-proof/headers.sha256" | awk '{print $1}')"
@@ -140,6 +144,8 @@ jq -n \
   --arg builtAt "$timestamp" \
   --arg app "$app_path" \
   --arg binarySHA256 "$binary_sha256" \
+  --arg mpvVersion "$mpv_version" \
+  --arg ffmpegVersion "$ffmpeg_version" \
   --arg sourceLockSHA256 "$source_lock_sha256" \
   --arg runtimeLockSHA256 "$runtime_lock_sha256" \
   --arg noticeLockSHA256 "$notice_lock_sha256" \
@@ -161,6 +167,8 @@ jq -n \
       appPath: $app,
       executableSHA256: $binarySHA256,
       dynamicClosureSHA256: $closureSHA256,
+      mpvVersion: $mpvVersion,
+      ffmpegVersion: $ffmpegVersion,
       sourceLockSHA256: $sourceLockSHA256,
       runtimeInputLockSHA256: $runtimeLockSHA256,
       noticeLockSHA256: $noticeLockSHA256,

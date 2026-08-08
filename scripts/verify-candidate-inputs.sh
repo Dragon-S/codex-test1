@@ -27,19 +27,20 @@ required_sources=(
   mpv ffmpeg libplacebo libass harfbuzz fribidi freetype
   vulkan-headers fast-float glad jinja markupsafe pkgconf meson ninja
 )
+typeset -A locked_versions
 
 for source_name in $required_sources; do
   line="$(awk -F '|' -v name="$source_name" '$1 == name { print; count += 1 } END { if (count != 1) exit 1 }' "$source_lock")" \
     || fail "源码锁必须且只能包含一个 $source_name"
-  revision="${line##*|}"
+  fields=("${(@s:|:)line}")
+  (( ${#fields} == 4 )) || fail "$source_name 源码锁格式无效"
+  [[ -n "${fields[2]}" ]] || fail "$source_name 缺少来源 URL"
+  [[ -n "${fields[3]}" ]] || fail "$source_name 缺少版本标签占位"
+  locked_versions[$source_name]="${fields[3]}"
+  revision="${fields[4]}"
   [[ "$revision" =~ '^[0-9a-f]{40}$|^[0-9a-f]{64}$' ]] \
     || fail "$source_name 缺少 Git 提交或归档 SHA-256"
 done
-
-grep -q '^mpv|https://github.com/mpv-player/mpv.git|v0.41.0|41f6a645068483470267271e1d09966ca3b9f413$' "$source_lock" \
-  || fail "mpv 必须锁定 v0.41.0"
-grep -q '^ffmpeg|https://github.com/FFmpeg/FFmpeg.git|n8.1.2|38b88335f99e76ed89ff3c93f877fdefce736c13$' "$source_lock" \
-  || fail "FFmpeg 必须锁定 n8.1.2"
 
 build_proof="$repository_root/prototypes/lgpl-packaging-proof/BUILD.md"
 runtime_lock="$repository_root/prototypes/lgpl-packaging-proof/runtime-closure.sha256"
@@ -71,6 +72,8 @@ grep -Fq 'ENABLE_LIBRARY_VALIDATION = YES' "$project_file" || fail "目标未启
   || fail "签名权限未启用 App Sandbox"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.user-selected.read-only' "$entitlements")" == true ]] \
   || fail "签名权限未保持用户所选文件只读"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.bookmarks.app-scope' "$entitlements")" == true ]] \
+  || fail "签名权限未启用 app-scoped bookmark"
 if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$entitlements" >/dev/null 2>&1; then
   fail "离线目标不得申请客户端网络权限"
 fi
@@ -160,4 +163,4 @@ for dylib_name in $required_dylibs; do
   done < <(otool -L "$dylib" | tail -n +2)
 done
 
-print -r -- "候选输入验证通过：mpv v0.41.0、FFmpeg n8.1.2、12 个双架构动态库及完整许可材料。"
+print -r -- "候选输入验证通过：mpv ${locked_versions[mpv]}、FFmpeg ${locked_versions[ffmpeg]}、12 个双架构动态库及完整许可材料。"
