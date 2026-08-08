@@ -84,7 +84,6 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
     double _playbackRate;
     double _playerVolume;
     BOOL _muted;
-    MPVClientHardwareDecoderReader _hardwareDecoderReader;
     atomic_bool _shuttingDown;
 }
 @end
@@ -92,11 +91,6 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
 @implementation MPVClient
 
 - (instancetype)initWithVideoView:(NSView *)videoView {
-    return [self initWithVideoView:videoView hardwareDecoderReader:nil];
-}
-
-- (instancetype)initWithVideoView:(NSView *)videoView
-             hardwareDecoderReader:(MPVClientHardwareDecoderReader)hardwareDecoderReader {
     self = [super init];
     if (self == nil) {
         return nil;
@@ -116,7 +110,6 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
     _audioIdentifiers = [NSMutableDictionary dictionary];
     _subtitleIdentifiers = [NSMutableDictionary dictionary];
     _videoView = (NSOpenGLView *)videoView;
-    _hardwareDecoderReader = [hardwareDecoderReader copy];
     _handle = mpv_create();
     if (_handle == NULL) {
         return self;
@@ -467,7 +460,7 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
         || [_reportedHardwareFallbackLoadIDs containsObject:loadID]) {
         return;
     }
-    NSString *activeHardwareDecoder = [self currentHardwareDecoder];
+    NSString *activeHardwareDecoder = [self stringProperty:@"hwdec-current"];
     if (activeHardwareDecoder == nil) {
         [_reportedHardwareFallbackLoadIDs addObject:loadID];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), _queue, ^{
@@ -478,7 +471,7 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
                 [self->_reportedHardwareFallbackLoadIDs removeObject:loadID];
                 return;
             }
-            NSString *delayedHardwareDecoder = [self currentHardwareDecoder];
+            NSString *delayedHardwareDecoder = [self stringProperty:@"hwdec-current"];
             if (delayedHardwareDecoder == nil || [delayedHardwareDecoder isEqualToString:@"no"]) {
                 [self reportFailure:MPVClientFailureDecoderInitialization loadID:loadID.unsignedLongLongValue];
             } else {
@@ -492,13 +485,6 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
     }
     [_reportedHardwareFallbackLoadIDs addObject:loadID];
     [self reportFailure:MPVClientFailureDecoderInitialization loadID:_eventLoadID];
-}
-
-- (NSString *)currentHardwareDecoder {
-    if (_hardwareDecoderReader != nil) {
-        return _hardwareDecoderReader();
-    }
-    return [self stringProperty:@"hwdec-current"];
 }
 
 - (void)handleStartFile:(mpv_event *)event {

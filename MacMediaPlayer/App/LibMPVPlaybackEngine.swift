@@ -6,15 +6,9 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private let client: MPVClient
 
-    init(
-        videoView: PlaybackCanvasView,
-        hardwareDecoderReader: (() -> String?)? = nil
-    ) {
+    init(videoView: PlaybackCanvasView) {
         (events, continuation) = AsyncStream.makeStream()
-        client = MPVClient(
-            videoView: videoView,
-            hardwareDecoderReader: hardwareDecoderReader
-        )
+        client = MPVClient(videoView: videoView)
         client.stateHandler = { [continuation] state, rawLoadID in
             let loadID = PlaybackLoadID(rawValue: rawLoadID)
             continuation.yield(.playbackStateChanged(Self.state(for: state), loadID: loadID))
@@ -94,7 +88,8 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     }
 
     deinit {
-        shutdown()
+        client.shutdown()
+        continuation.finish()
     }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) async {
@@ -115,11 +110,6 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
 
     func stop() async {
         client.stop()
-    }
-
-    func shutdown() {
-        client.shutdown()
-        continuation.finish()
     }
 
     func seek(to position: TimeInterval) async {
