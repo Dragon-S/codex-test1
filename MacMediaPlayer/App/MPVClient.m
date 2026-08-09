@@ -287,6 +287,17 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     });
 }
 
+- (void)captureScreenshotToURL:(NSURL *)url completion:(void (^)(BOOL))completion {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), _queue, ^{
+        if (self->_handle == NULL) {
+            completion(NO);
+            return;
+        }
+        int result = [self executeCommand:@[ @"screenshot-to-file", url.path, @"video" ]];
+        completion(result >= 0);
+    });
+}
+
 - (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult, NSUUID *))completion {
     dispatch_async(_queue, ^{
         if (!MPVFileIsReadable(url)) {

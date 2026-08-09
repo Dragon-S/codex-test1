@@ -112,6 +112,7 @@ typedef NS_ENUM(NSInteger, MPVClientQualificationEventKind) {
 - (void)setMuted:(BOOL)muted;
 - (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL success))completion;
 - (void)selectSubtitleTrack:(nullable NSUUID *)identifier completion:(void (^)(BOOL success))completion;
+- (void)captureScreenshotToURL:(NSURL *)url completion:(void (^)(BOOL success))completion;
 - (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult result, NSUUID * _Nullable identifier))completion;
 - (void)shutdown;
 

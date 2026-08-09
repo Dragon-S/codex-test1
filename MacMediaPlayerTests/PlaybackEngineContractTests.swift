@@ -69,6 +69,15 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(log.contains("\"kind\":\"steady_state_sample\""))
         #expect(!log.contains(mediaURL.lastPathComponent))
         #expect(!log.contains(mediaURL.path))
+
+        let frameURL = recorder.nextSubtitleFrameURL()
+        #expect(frameURL.deletingLastPathComponent() == recorderDirectory)
+        #expect(frameURL.lastPathComponent == "qualification-subtitle-frame-0001.png")
+        recorder.recordSubtitleFrame(fileName: frameURL.lastPathComponent, succeeded: true)
+        let updatedLog = try String(contentsOf: logURL, encoding: .utf8)
+        #expect(updatedLog.contains("\"kind\":\"subtitle_frame_captured\""))
+        #expect(updatedLog.contains("\"fileName\":\"qualification-subtitle-frame-0001.png\""))
+        #expect(!updatedLog.contains(supportDirectory.path))
     }
 
     @Test("真实适配器将 libmpv 失败映射为稳定领域错误")

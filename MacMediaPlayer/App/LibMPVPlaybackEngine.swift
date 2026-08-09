@@ -3,9 +3,12 @@ import AppKit
 final class InternalQualificationRecorder: @unchecked Sendable {
     static let enableMarkerName = "EnableInternalQualificationEvidence"
     static let logName = "internal-qualification.jsonl"
+    static let subtitleFramePrefix = "qualification-subtitle-frame"
 
     private let fileHandle: FileHandle
+    private let directory: URL
     private let lock = NSLock()
+    private var subtitleFrameSequence = 0
 
     static func enabledRecorder(
         fileManager: FileManager = .default,
@@ -33,6 +36,7 @@ final class InternalQualificationRecorder: @unchecked Sendable {
             _ = fileManager.createFile(atPath: fileURL.path, contents: nil)
         }
         fileHandle = try FileHandle(forWritingTo: fileURL)
+        directory = fileURL.deletingLastPathComponent()
         try fileHandle.seekToEnd()
         write([
             "schemaVersion": 1,
@@ -57,6 +61,24 @@ final class InternalQualificationRecorder: @unchecked Sendable {
             "outputDroppedFrames": event.outputDroppedFrames,
             "mistimedFrames": event.mistimedFrames,
             "avSyncSeconds": event.avSyncSeconds.isFinite ? event.avSyncSeconds : NSNull(),
+        ])
+    }
+
+    func nextSubtitleFrameURL() -> URL {
+        lock.lock()
+        defer { lock.unlock() }
+        subtitleFrameSequence += 1
+        let name = String(format: "%@-%04d.png", Self.subtitleFramePrefix, subtitleFrameSequence)
+        return directory.appending(path: name)
+    }
+
+    func recordSubtitleFrame(fileName: String, succeeded: Bool) {
+        write([
+            "schemaVersion": 1,
+            "kind": "subtitle_frame_captured",
+            "fileName": fileName,
+            "succeeded": succeeded,
+            "monotonicMilliseconds": ProcessInfo.processInfo.systemUptime * 1_000,
         ])
     }
 
@@ -233,11 +255,22 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         case let .embedded(id):
             identifier = id.rawValue
         }
-        return await withCheckedContinuation { continuation in
+        let success = await withCheckedContinuation { continuation in
             client.selectSubtitleTrack(identifier) { success in
                 continuation.resume(returning: success)
             }
         }
+        if success,
+           case .embedded = selection,
+           let screenshotURL = qualificationRecorder?.nextSubtitleFrameURL() {
+            client.captureScreenshot(to: screenshotURL) { [qualificationRecorder] succeeded in
+                qualificationRecorder?.recordSubtitleFrame(
+                    fileName: screenshotURL.lastPathComponent,
+                    succeeded: succeeded
+                )
+            }
+        }
+        return success
     }
 
     func loadExternalSubtitle(_ subtitle: LocalExternalSubtitle) async -> ExternalSubtitleLoadResult {
