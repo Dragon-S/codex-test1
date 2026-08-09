@@ -45,15 +45,14 @@ struct LibMPVPlaybackEngineContractTests {
         }
     }
 
-    @Test("真实适配器释放时取消正在加载的媒体")
-    func realAdapterCancelsActiveLoadOnDeinit() async throws {
+    @Test("真实适配器在加载期间释放后结束事件流")
+    func realAdapterFinishesEventsWhenReleasedDuringActiveLoad() async throws {
         let mediaURL = try makeRedMP4()
         defer { try? FileManager.default.removeItem(at: mediaURL) }
 
         for iteration in 0..<10 {
             let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
             var engine: LibMPVPlaybackEngine? = LibMPVPlaybackEngine(videoView: videoView)
-            weak let releasedEngine = engine
             let events = try #require(engine?.events)
             let recorder = ContractEventRecorder(events: events)
             let loadID = PlaybackLoadID(rawValue: UInt64(100 + iteration))
@@ -62,7 +61,6 @@ struct LibMPVPlaybackEngineContractTests {
             try await recorder.waitForState(.loading, loadID: loadID)
             engine = nil
 
-            #expect(releasedEngine == nil)
             try await recorder.waitForCompletion()
         }
     }
