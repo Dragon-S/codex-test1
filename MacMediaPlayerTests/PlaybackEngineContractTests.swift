@@ -143,6 +143,33 @@ struct LibMPVPlaybackEngineContractTests {
         try await recorder.waitForState(.failed(.unreadable), loadID: revokedLoadID)
     }
 
+    @Test("真实适配器接受由 ACL 授权读取的本地媒体")
+    func realAdapterLoadsFileReadableThroughACL() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeSilentWAV()
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: mediaURL.path
+            )
+            try? FileManager.default.removeItem(at: mediaURL)
+        }
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0],
+            ofItemAtPath: mediaURL.path
+        )
+        try grantCurrentUserReadACL(to: mediaURL)
+        let loadID = PlaybackLoadID(rawValue: 19)
+
+        #expect(FileManager.default.isReadableFile(atPath: mediaURL.path))
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+
+        try await recorder.waitForState(.playing, loadID: loadID)
+        try await recorder.expectNoFailure(loadID: loadID, during: .milliseconds(150))
+    }
+
     @Test("真实 libmpv 适配器履行基础 PlaybackEngine 契约")
     func realAdapterFulfillsBasicPlaybackContract() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 640, height: 360))
@@ -327,6 +354,17 @@ struct LibMPVPlaybackEngineContractTests {
         return url
     }
 
+    private func grantCurrentUserReadACL(to url: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        process.arguments = ["+a", "user:\(NSUserName()) allow read", url.path]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw ACLTestSetupFailure(status: process.terminationStatus)
+        }
+    }
+
     private func expectRedCenterPixel(in videoView: PlaybackCanvasView) async throws {
         let deadline = ContinuousClock.now + .seconds(2)
         while ContinuousClock.now < deadline {
@@ -392,6 +430,14 @@ struct LibMPVPlaybackEngineContractTests {
             .appendingPathComponent("playback-frame-\(UUID().uuidString).mp4")
         try data.write(to: url, options: .atomic)
         return url
+    }
+}
+
+private struct ACLTestSetupFailure: Error, CustomStringConvertible {
+    let status: Int32
+
+    var description: String {
+        "为测试媒体添加当前用户读取 ACL 失败，chmod 退出码：\(status)"
     }
 }
 

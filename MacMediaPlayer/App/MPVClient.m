@@ -16,16 +16,12 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
 
 static BOOL MPVFileIsReadable(NSURL *url) {
     NSError *error = nil;
-    NSDictionary<NSFileAttributeKey, id> *attributes = [
-        [NSFileManager defaultManager] attributesOfItemAtPath:url.path
-                                                       error:&error
-    ];
-    NSNumber *permissions = attributes[NSFilePosixPermissions];
-    BOOL hasPOSIXReadPermission = permissions == nil
-        || (permissions.unsignedLongValue & 0444) != 0;
-    return error == nil
-        && hasPOSIXReadPermission
-        && [[NSFileManager defaultManager] isReadableFileAtPath:url.path];
+    NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:&error];
+    if (fileHandle == nil) {
+        return NO;
+    }
+    [fileHandle closeAndReturnError:nil];
+    return YES;
 }
 
 @implementation MPVClientTrack

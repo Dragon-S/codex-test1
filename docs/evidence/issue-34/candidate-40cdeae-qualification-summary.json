@@ -35,7 +35,7 @@
     },
     "populatedUserData": {
       "scenario": "Q34-A02",
-      "initialState": "新的临时 SQLite；构造两个 Playlist、共享媒体重复项和缺失 FLAC",
+      "initialState": "新的临时 SQLite；构造两个 Playlist、引用同一本地媒体的重复播放列表条目和缺失 FLAC",
       "operation": "提交后用新的 SQLitePlaylistStore 实例重开读取",
       "expected": {
         "playlistNames": ["周末电影", "通勤音乐"],
