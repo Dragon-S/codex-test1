@@ -39,6 +39,29 @@ func fakeEngineFulfillsBasicPlaybackContract() async throws {
     )
 }
 
+@Test("共享契约拒绝已停止的旧加载继续发布事件")
+func replacementContractRejectsEventsAfterInterruptedLoadStops() async {
+    let interruptedMedia = LocalMedia(url: URL(fileURLWithPath: "/tmp/interrupted-media.mp4"))
+    let replacementMedia = LocalMedia(url: URL(fileURLWithPath: "/tmp/replacement-media.mp4"))
+    let engine = ContractFakePlaybackEngine(
+        mediaHeldPending: interruptedMedia,
+        emitsLateEventForReplacedLoad: true
+    )
+
+    do {
+        try await verifyLoadReplacementContract(
+            engine: engine,
+            interruptedMedia: interruptedMedia,
+            replacementMedia: replacementMedia
+        )
+        Issue.record("共享契约本应拒绝停止后继续发布旧加载事件的引擎")
+    } catch is UnexpectedContractEvent {
+        // 负向控制证明共享契约能捕获取消后迟到的旧加载事件。
+    } catch {
+        Issue.record("共享契约抛出了非预期错误：\(error)")
+    }
+}
+
 func verifyBasicPlaybackEngineContract(
     engine: some PlaybackEngine,
     media: LocalMedia
@@ -103,13 +126,18 @@ func verifyLoadReplacementContract(
 
     let replacementMark = recorder.eventMark()
     await engine.load(replacementMedia, loadID: replacementLoadID)
-    try await recorder.waitForState(
+    let eventsAfterInterruptedStop = try await recorder.waitForState(
         .stopped,
         loadID: interruptedLoadID,
         after: replacementMark
     )
     try await recorder.waitForState(.loading, loadID: replacementLoadID)
     try await recorder.waitForState(.playing, loadID: replacementLoadID)
+    try await recorder.expectNoEvent(
+        loadID: interruptedLoadID,
+        after: eventsAfterInterruptedStop,
+        during: .milliseconds(250)
+    )
     try await recorder.expectNoFailure(
         loadID: replacementLoadID,
         during: .milliseconds(250)
@@ -152,20 +180,37 @@ final class ContractEventRecorder: @unchecked Sendable {
         snapshot().dropFirst(index).contains(state)
     }
 
+    @discardableResult
     func waitForState(
         _ state: PlaybackState,
         loadID: PlaybackLoadID,
         after index: Int = 0
-    ) async throws {
+    ) async throws -> Int {
         let expected = PlaybackEngineEvent.playbackStateChanged(state, loadID: loadID)
         if try await waitUntilTestCondition(
             for: .seconds(5),
             pollingEvery: .milliseconds(20),
-            condition: { self.eventSnapshot().dropFirst(index).contains(expected) }
-        ) {
-            return
+            condition: { self.indexAfterEvent(expected, after: index) != nil }
+        ), let indexAfterEvent = indexAfterEvent(expected, after: index) {
+            return indexAfterEvent
         }
         throw ContractEventTimeout(expected: expected, observed: eventSnapshot())
+    }
+
+    func expectNoEvent(
+        loadID: PlaybackLoadID,
+        after index: Int,
+        during duration: Duration
+    ) async throws {
+        if try await waitUntilTestCondition(
+            for: duration,
+            pollingEvery: .milliseconds(20),
+            condition: {
+                self.eventSnapshot().dropFirst(index).contains { $0.loadID == loadID }
+            }
+        ) {
+            throw UnexpectedContractEvent(loadID: loadID, observed: eventSnapshot())
+        }
     }
 
     func hasFailure(loadID: PlaybackLoadID) -> Bool {
@@ -309,6 +354,17 @@ final class ContractEventRecorder: @unchecked Sendable {
         lock.withLock { observedEvents }
     }
 
+    private func indexAfterEvent(
+        _ expected: PlaybackEngineEvent,
+        after index: Int
+    ) -> Int? {
+        let events = eventSnapshot()
+        guard let eventIndex = events.dropFirst(index).firstIndex(of: expected) else {
+            return nil
+        }
+        return events.index(after: eventIndex)
+    }
+
     private func trackCatalog(loadID: PlaybackLoadID) -> TrackCatalog? {
         firstEventValue { event -> TrackCatalog? in
             guard case let .trackCatalogChanged(catalog, eventLoadID) = event,
@@ -359,6 +415,29 @@ private struct UnexpectedContractFailure: Error, CustomStringConvertible {
     }
 }
 
+private struct UnexpectedContractEvent: Error, CustomStringConvertible {
+    let loadID: PlaybackLoadID
+    let observed: [PlaybackEngineEvent]
+
+    var description: String {
+        "加载 \(loadID) 停止后不应再发布事件，已观察事件：\(observed)"
+    }
+}
+
+private extension PlaybackEngineEvent {
+    var loadID: PlaybackLoadID {
+        switch self {
+        case let .playbackStateChanged(_, loadID),
+             let .timelineChanged(_, _, loadID),
+             let .settingsChanged(_, loadID),
+             let .playbackEnded(loadID),
+             let .trackCatalogChanged(_, loadID),
+             let .mediaPresentationChanged(_, loadID):
+            return loadID
+        }
+    }
+}
+
 private struct ContractStreamCompletionTimeout: Error, CustomStringConvertible {
     let observed: [PlaybackEngineEvent]
 
@@ -371,17 +450,25 @@ private actor ContractFakePlaybackEngine: PlaybackEngine {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private let mediaHeldPending: LocalMedia?
+    private let emitsLateEventForReplacedLoad: Bool
     private var currentLoadID: PlaybackLoadID?
     private var settings = PlaybackSettings(rate: 1, volume: 1, isMuted: false)
 
-    init(mediaHeldPending: LocalMedia? = nil) {
+    init(
+        mediaHeldPending: LocalMedia? = nil,
+        emitsLateEventForReplacedLoad: Bool = false
+    ) {
         (events, continuation) = AsyncStream.makeStream()
         self.mediaHeldPending = mediaHeldPending
+        self.emitsLateEventForReplacedLoad = emitsLateEventForReplacedLoad
     }
 
     func load(_ media: LocalMedia, loadID: PlaybackLoadID) {
         if let currentLoadID {
             continuation.yield(.playbackStateChanged(.stopped, loadID: currentLoadID))
+            if emitsLateEventForReplacedLoad {
+                continuation.yield(.playbackStateChanged(.playing, loadID: currentLoadID))
+            }
         }
         currentLoadID = loadID
         continuation.yield(.playbackStateChanged(.loading, loadID: loadID))
