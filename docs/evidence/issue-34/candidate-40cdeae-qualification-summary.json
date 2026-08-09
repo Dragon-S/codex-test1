@@ -81,7 +81,15 @@
       ],
       "observed": "17/17 进入播放态且媒体名、时长与音轨符合语料；多音轨样本选择中文 Opus",
       "recovery": "任一样本出错即停止并记录领域错误；未删除源文件",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": [
+        "expected",
+        "candidateBuild",
+        "macOS",
+        "device",
+        "evidence"
+      ],
+      "result": "PARTIAL"
     },
     "longDuration": {
       "scenario": "Q34-P02",
@@ -177,8 +185,9 @@
   },
   "privacy": {
     "rawArtifactsCommitted": false,
+    "rawArtifactsLocatedDuringReview": false,
     "removedFields": ["device identifiers", "absolute user paths", "private Playlist names"],
-    "note": "原始 candidate-record、xcresult、JSONL 与 UI 截图只保存在本机 .build；本文件只保留脱敏数值和哈希。"
+    "note": "原始 candidate-record、xcresult、JSONL 与 UI 截图未提交；本轮审查未在现有本地 .build 中找到这些原始产物。本文件只保留脱敏数值和历史记录的哈希，不能替代原始证据。"
   },
   "blockingGaps": [
     "未用真实硬件媒体键完成播放暂停、上一首和下一首；当前 Computer Use 输入层拒绝媒体键键码。",
@@ -186,7 +195,8 @@
     "启动反馈、首帧音频、定位 P95、稳态掉帧和音画同步没有同一候选的可核验测量。",
     "ASS、SSA、PGS 尚未形成同一候选可分享且可辨识的像素帧证据。",
     "Q34-P03 仅覆盖无权限文件和无效内容；截断、异常时间戳、伪造扩展名、不支持编码和损坏字幕未执行或未留存可核验证据。",
-    "Q34-P02–P07 缺少逐场景必需元数据；现有现场观察仅为 PARTIAL，缺失字段见各场景 missingRequiredFields。"
+    "Q34-P01–P07 缺少逐场景必需元数据；现有现场观察仅为 PARTIAL，缺失字段见各场景 missingRequiredFields。",
+    "本轮审查未在现有本地 .build 中找到摘要所指的原始 candidate-record、xcresult、能耗 JSONL 与 UI 截图；历史哈希不能替代原始证据。"
   ],
   "qualification": "FAIL"
 }

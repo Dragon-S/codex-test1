@@ -380,7 +380,7 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     NSOpenGLContext *openGLContext = videoView.openGLContext;
     [openGLContext makeCurrentContext];
     [openGLContext update];
-    mpv_render_context_update(_renderContext);
+    uint64_t updateFlags = mpv_render_context_update(_renderContext);
     NSSize backingSize = [videoView convertSizeToBacking:videoView.bounds.size];
     mpv_opengl_fbo framebuffer = {
         .fbo = 0,
@@ -397,14 +397,16 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     mpv_render_context_render(_renderContext, parameters);
     [openGLContext flushBuffer];
     mpv_render_context_report_swap(_renderContext);
-    dispatch_async(_queue, ^{
-        if (self->_hasLoadedFile
-            && self->_qualificationFirstFrameLoadID == self->_eventLoadID) {
-            self->_qualificationFirstFrameLoadID = 0;
-            [self reportQualificationEvent:MPVClientQualificationEventKindFirstFrameRendered
-                                    loadID:self->_eventLoadID];
-        }
-    });
+    if ((updateFlags & MPV_RENDER_UPDATE_FRAME) != 0) {
+        dispatch_async(_queue, ^{
+            if (self->_hasLoadedFile
+                && self->_qualificationFirstFrameLoadID == self->_eventLoadID) {
+                self->_qualificationFirstFrameLoadID = 0;
+                [self reportQualificationEvent:MPVClientQualificationEventKindFirstFrameRendered
+                                        loadID:self->_eventLoadID];
+            }
+        });
+    }
 }
 
 - (void)performLoadURL:(NSURL *)url
