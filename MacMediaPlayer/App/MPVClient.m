@@ -340,6 +340,12 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
     dispatch_async(_queue, ^{
         self->_requestedLoadID = loadID;
         self->_hardwareDecodingByLoadID[@(loadID)] = @(hardwareDecoding);
+        if (![[NSFileManager defaultManager] isReadableFileAtPath:url.path]) {
+            [self reportState:MPVClientPlaybackStateLoading loadID:loadID];
+            [self reportFailure:MPVClientFailureUnreadable loadID:loadID];
+            [self->_hardwareDecodingByLoadID removeObjectForKey:@(loadID)];
+            return;
+        }
         if (self->_handle == NULL) {
             [self reportFailure:MPVClientFailureEngineUnavailable loadID:loadID];
             return;

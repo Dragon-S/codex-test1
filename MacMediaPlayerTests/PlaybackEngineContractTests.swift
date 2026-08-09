@@ -16,6 +16,31 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(LibMPVPlaybackEngine.failure(for: .engineUnavailable) == .engineUnavailable)
     }
 
+    @Test("真实适配器在交给 libmpv 前把不可读文件分类为无法读取")
+    func realAdapterClassifiesUnreadableFileBeforeLoading() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeSilentWAV()
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0],
+            ofItemAtPath: mediaURL.path
+        )
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: mediaURL.path
+            )
+            try? FileManager.default.removeItem(at: mediaURL)
+        }
+        let loadID = PlaybackLoadID(rawValue: 16)
+
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+
+        try await recorder.waitForState(.loading, loadID: loadID)
+        try await recorder.waitForState(.failed(.unreadable), loadID: loadID)
+    }
+
     @Test("真实 libmpv 适配器履行基础 PlaybackEngine 契约")
     func realAdapterFulfillsBasicPlaybackContract() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 640, height: 360))
