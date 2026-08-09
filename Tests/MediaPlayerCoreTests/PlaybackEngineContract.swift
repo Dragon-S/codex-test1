@@ -72,12 +72,12 @@ func verifyBasicPlaybackEngineContract(
     #expect(!recorder.hasObserved(.playing))
 
     let initialLoadID = PlaybackLoadID(rawValue: 1)
-    let initialLoadMark = recorder.mark()
+    let initialLoadMark = recorder.stateMark()
     await engine.load(media, loadID: initialLoadID)
     try await recorder.wait(for: .loading, after: initialLoadMark)
     try await recorder.wait(for: .playing, after: initialLoadMark)
 
-    let firstPauseMark = recorder.mark()
+    let firstPauseMark = recorder.stateMark()
     await engine.pause()
     try await recorder.wait(for: .paused, after: firstPauseMark)
 
@@ -92,11 +92,11 @@ func verifyBasicPlaybackEngineContract(
         loadID: initialLoadID
     )
 
-    let playMark = recorder.mark()
+    let playMark = recorder.stateMark()
     await engine.play()
     try await recorder.wait(for: .playing, after: playMark)
 
-    let secondPauseMark = recorder.mark()
+    let secondPauseMark = recorder.stateMark()
     await engine.pause()
     try await recorder.wait(for: .paused, after: secondPauseMark)
 
@@ -107,7 +107,7 @@ func verifyBasicPlaybackEngineContract(
     try await recorder.waitForState(.playing, loadID: reloadLoadID, after: reloadMark)
     #expect(!recorder.hasState(.stopped, loadID: reloadLoadID, after: reloadMark))
 
-    let stopMark = recorder.mark()
+    let stopMark = recorder.stateMark()
     await engine.stop()
     try await recorder.wait(for: .stopped, after: stopMark)
 }
@@ -126,7 +126,7 @@ func verifyLoadReplacementContract(
 
     let replacementMark = recorder.eventMark()
     await engine.load(replacementMedia, loadID: replacementLoadID)
-    let eventsAfterInterruptedStop = try await recorder.waitForState(
+    let markAfterInterruptedStop = try await recorder.waitForState(
         .stopped,
         loadID: interruptedLoadID,
         after: replacementMark
@@ -135,13 +135,25 @@ func verifyLoadReplacementContract(
     try await recorder.waitForState(.playing, loadID: replacementLoadID)
     try await recorder.expectNoEvent(
         loadID: interruptedLoadID,
-        after: eventsAfterInterruptedStop,
+        after: markAfterInterruptedStop,
         during: .milliseconds(250)
     )
     try await recorder.expectNoFailure(
         loadID: replacementLoadID,
         during: .milliseconds(250)
     )
+}
+
+struct ContractStateMark: Sendable {
+    let index: Int
+
+    static let beginning = ContractStateMark(index: 0)
+}
+
+struct ContractEventMark: Sendable {
+    let index: Int
+
+    static let beginning = ContractEventMark(index: 0)
 }
 
 final class ContractEventRecorder: @unchecked Sendable {
@@ -161,52 +173,58 @@ final class ContractEventRecorder: @unchecked Sendable {
         }
     }
 
-    func wait(for expected: PlaybackState, after index: Int = 0) async throws {
+    func wait(
+        for expected: PlaybackState,
+        after mark: ContractStateMark = .beginning
+    ) async throws {
         if try await waitUntilTestCondition(
             for: .seconds(5),
             pollingEvery: .milliseconds(20),
-            condition: { self.snapshot().dropFirst(index).contains(expected) }
+            condition: { self.snapshot().dropFirst(mark.index).contains(expected) }
         ) {
             return
         }
         throw ContractTimeout(expected: expected, observed: snapshot())
     }
 
-    func mark() -> Int {
-        snapshot().count
+    func stateMark() -> ContractStateMark {
+        ContractStateMark(index: snapshot().count)
     }
 
-    func hasObserved(_ state: PlaybackState, after index: Int = 0) -> Bool {
-        snapshot().dropFirst(index).contains(state)
+    func hasObserved(
+        _ state: PlaybackState,
+        after mark: ContractStateMark = .beginning
+    ) -> Bool {
+        snapshot().dropFirst(mark.index).contains(state)
     }
 
     @discardableResult
     func waitForState(
         _ state: PlaybackState,
         loadID: PlaybackLoadID,
-        after index: Int = 0
-    ) async throws -> Int {
+        after mark: ContractEventMark = .beginning
+    ) async throws -> ContractEventMark {
         let expected = PlaybackEngineEvent.playbackStateChanged(state, loadID: loadID)
         if try await waitUntilTestCondition(
             for: .seconds(5),
             pollingEvery: .milliseconds(20),
-            condition: { self.indexAfterEvent(expected, after: index) != nil }
-        ), let indexAfterEvent = indexAfterEvent(expected, after: index) {
-            return indexAfterEvent
+            condition: { self.markAfterEvent(expected, after: mark) != nil }
+        ), let markAfterEvent = markAfterEvent(expected, after: mark) {
+            return markAfterEvent
         }
         throw ContractEventTimeout(expected: expected, observed: eventSnapshot())
     }
 
     func expectNoEvent(
         loadID: PlaybackLoadID,
-        after index: Int,
+        after mark: ContractEventMark,
         during duration: Duration
     ) async throws {
         if try await waitUntilTestCondition(
             for: duration,
             pollingEvery: .milliseconds(20),
             condition: {
-                self.eventSnapshot().dropFirst(index).contains { $0.loadID == loadID }
+                self.eventSnapshot().dropFirst(mark.index).contains { $0.loadID == loadID }
             }
         ) {
             throw UnexpectedContractEvent(loadID: loadID, observed: eventSnapshot())
@@ -225,9 +243,9 @@ final class ContractEventRecorder: @unchecked Sendable {
     func hasState(
         _ state: PlaybackState,
         loadID: PlaybackLoadID,
-        after index: Int = 0
+        after mark: ContractEventMark = .beginning
     ) -> Bool {
-        eventSnapshot().dropFirst(index).contains(.playbackStateChanged(state, loadID: loadID))
+        eventSnapshot().dropFirst(mark.index).contains(.playbackStateChanged(state, loadID: loadID))
     }
 
     func expectNoFailure(
@@ -254,8 +272,8 @@ final class ContractEventRecorder: @unchecked Sendable {
         throw ContractStreamCompletionTimeout(observed: eventSnapshot())
     }
 
-    func eventMark() -> Int {
-        eventSnapshot().count
+    func eventMark() -> ContractEventMark {
+        ContractEventMark(index: eventSnapshot().count)
     }
 
     func waitForPosition(_ position: TimeInterval, loadID: PlaybackLoadID) async throws {
@@ -354,15 +372,15 @@ final class ContractEventRecorder: @unchecked Sendable {
         lock.withLock { observedEvents }
     }
 
-    private func indexAfterEvent(
+    private func markAfterEvent(
         _ expected: PlaybackEngineEvent,
-        after index: Int
-    ) -> Int? {
+        after mark: ContractEventMark
+    ) -> ContractEventMark? {
         let events = eventSnapshot()
-        guard let eventIndex = events.dropFirst(index).firstIndex(of: expected) else {
+        guard let eventIndex = events.dropFirst(mark.index).firstIndex(of: expected) else {
             return nil
         }
-        return events.index(after: eventIndex)
+        return ContractEventMark(index: events.index(after: eventIndex))
     }
 
     private func trackCatalog(loadID: PlaybackLoadID) -> TrackCatalog? {
