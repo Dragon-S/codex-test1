@@ -293,7 +293,7 @@ static BOOL MPVFileIsReadable(NSURL *url) {
             completion(NO);
             return;
         }
-        int result = [self executeCommand:@[ @"screenshot-to-file", url.path, @"video" ]];
+        int result = [self executeCommand:@[ @"screenshot-to-file", url.path, @"subtitles" ]];
         completion(result >= 0);
     });
 }
