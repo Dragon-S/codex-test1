@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 2,
+  "generatedAtUTC": "2026-08-09T04:05:00Z",
+  "scope": "Issue #34 候选 40cdeae 的脱敏自动化与 M5 物理机结果摘要",
+  "candidate": {
+    "commit": "40cdeaee6edcd9d3f5be871e87f79db554ad1393",
+    "builtAtUTC": "20260809T022455Z",
+    "configuration": "Release",
+    "executableSHA256": "f16782999bb3a11ecb31d1f6881597f1b6fc1fb88c8c1f3a039d184aa1b300b0",
+    "dynamicClosureSHA256": "6b37c4f0f71c142778c6877662440779179e1a1dee824a15f887f284f9d7a802",
+    "architectures": ["arm64", "x86_64"],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2"
+  },
+  "environment": {
+    "deviceModel": "MacBook Pro",
+    "chip": "Apple M5",
+    "memoryGiB": 24,
+    "macOS": "26.6 (25G72)",
+    "xcode": "Xcode 26.6 (17F113)"
+  },
+  "automatedResults": {
+    "swiftContracts": {"passed": 94, "failed": 0, "result": "PASS"},
+    "xcodeAndRealEngineContracts": {"passed": 43, "failed": 0, "skipped": 0, "result": "PASS"},
+    "freshUserData": {
+      "scenario": "Q34-A01",
+      "initialState": "新的临时 SQLite 路径，不存在数据库文件",
+      "operation": "创建 SQLitePlaylistStore 并读取 PlaylistLibrary",
+      "expected": "零个 Playlist、无活动 Playlist、音量 1、未静音",
+      "observed": "全部字段与期望相等",
+      "recovery": "任一断言失败即候选构建失败；测试结束删除临时数据库",
+      "source": "InternalMVPCandidateAcceptanceTests.freshUserDataStartsEmpty",
+      "result": "PASS"
+    },
+    "populatedUserData": {
+      "scenario": "Q34-A02",
+      "initialState": "新的临时 SQLite；构造两个 Playlist、共享媒体重复项和缺失 FLAC",
+      "operation": "提交后用新的 SQLitePlaylistStore 实例重开读取",
+      "expected": {
+        "playlistNames": ["周末电影", "通勤音乐"],
+        "sharedMediaReferenceCount": 2,
+        "resumePositionsSeconds": [84, 12],
+        "preferredAudio": {"language": "ja", "title": "日本語", "ordinal": 2},
+        "preferredSubtitle": {"language": "zh-Hans", "title": "简体中文", "ordinal": 3},
+        "missingMedia": "missing.flac",
+        "playerVolume": 0.65,
+        "seekStepSeconds": 15
+      },
+      "observed": "重开后的 PlaylistLibrary 与提交对象逐字段相等",
+      "recovery": "任一断言失败即候选构建失败；测试结束删除临时数据库",
+      "source": "InternalMVPCandidateAcceptanceTests.populatedUserDataSurvivesRestart",
+      "result": "PASS"
+    },
+    "signedLaunch": "PASS"
+  },
+  "physicalResults": {
+    "coreCorpus": {
+      "scenario": "Q34-P01",
+      "initialState": "简体中文、深色、VoiceOver 关闭、减弱动态效果关闭；系统打开面板位于生成语料目录",
+      "operation": "逐一打开并观察播放态、媒体名、时长、音轨、字幕和错误",
+      "passedSamples": [
+        "mp4-h264-aac-2997.mp4",
+        "mov-hevc10-aac-25.mov",
+        "mkv-h264-multiaudio-ass.mkv",
+        "mkv-h264-ssa.mkv",
+        "mp4-h264-movtext.mp4",
+        "video-hevc-4k30.mp4",
+        "webm-vp9-opus-1080p5994.webm",
+        "video-vfr-h264.mkv",
+        "video-long-gop-h264.mkv",
+        "pgs-supsample.mkv",
+        "audio-mp3.mp3",
+        "audio-aac.m4a",
+        "audio-alac.m4a",
+        "audio-flac.flac",
+        "audio-wav-24bit.wav",
+        "audio-opus.ogg",
+        "audio-alac-24h.m4a"
+      ],
+      "observed": "17/17 进入播放态且媒体名、时长与音轨符合语料；多音轨样本选择中文 Opus",
+      "recovery": "任一样本出错即停止并记录领域错误；未删除源文件",
+      "result": "PASS"
+    },
+    "longDuration": {
+      "scenario": "Q34-P02",
+      "sampleSHA256": "db86ca29291cea1b899eda7f24124e380d1249d3b53b9fb86308488a37e54e45",
+      "operation": "打开 24 小时 ALAC，以辅助功能增减动作定位开头、中点和末端",
+      "observedSeconds": [0, 43200, 86400],
+      "recovery": "定位失败时停止，不覆盖续播状态",
+      "result": "PASS"
+    },
+    "failureRecovery": {
+      "scenario": "Q34-P03",
+      "operation": "打开权限为 000 的有效 MP4、恢复权限后重试、再次撤销权限重开；另打开无效 MP4",
+      "observed": {
+        "firstUnreadableOpenToObservedMilliseconds": 2109,
+        "retryAfterPermissionRestore": "正在播放",
+        "secondUnreadableOpenToObservedMilliseconds": 1673,
+        "invalidContentOpenToObservedMilliseconds": 1710,
+        "unreadableClassification": "无法读取文件",
+        "invalidContentClassification": "媒体内容已损坏",
+        "actions": ["重试", "在 Finder 中显示", "从列表移除", "跳过"]
+      },
+      "recovery": "权限恢复为 0600；只移除应用内条目，不删除源文件",
+      "result": "PASS"
+    },
+    "keyboardAndFullScreen": {
+      "scenario": "Q34-P04",
+      "operation": "Space、左右箭头、上下箭头、P、Control-Command-F；全屏依次按三次 Escape",
+      "observed": "播放切换；+10/-10 秒；音量 1→0.95→1；侧栏收起；进入全屏；Escape 依次关闭 Playlist、控制层和全屏",
+      "result": "PASS"
+    },
+    "voiceOver": {
+      "scenario": "Q34-P05",
+      "initialState": "VoiceOver 关闭",
+      "operation": "从系统设置开启 VoiceOver，返回候选并按两次 Tab",
+      "observedFocus": ["播放器，已暂停", "后退 10 秒", "播放位置，当前位置 0 秒，总时长 12 秒"],
+      "recovery": "从系统设置关闭 VoiceOver",
+      "result": "PASS"
+    },
+    "appearanceAndMotion": {
+      "scenario": "Q34-P06",
+      "operation": "深色切换浅色；开启减弱动态效果；每次检查媒体、状态和焦点",
+      "observed": "video-vfr-h264.mkv、已暂停和播放位置焦点在两次设置切换后保持",
+      "recovery": "恢复深色并关闭减弱动态效果",
+      "result": "PASS"
+    },
+    "thermalMemoryEnergy": {
+      "scenario": "Q34-P07",
+      "sample": {
+        "name": "video-hevc-4k30-30min.mp4",
+        "properties": "3840x2160, HEVC, 30 fps, AAC, 1800.030 秒",
+        "sha256": "85b5083388fbc469712e607814fc6f97e227cec24aa0f97f6fbaed932e26b172"
+      },
+      "method": "候选与 QuickTime 相邻顺序播放同一文件；各 1800 秒、60 秒间隔、31 个样本；读取系统累计能耗、目标 PID CPU/RSS、电池温度和 pmset 热状态",
+      "candidate": {
+        "samplesAlive": "31/31",
+        "energyDelta": 8731862,
+        "energyPerSecond": 4851.0344,
+        "maxRSSMiB": 439.53125,
+        "temperatureCelsius": [30.87, 31.05],
+        "systemWarnings": 0
+      },
+      "quickTime": {
+        "samplesAlive": "31/31",
+        "energyDelta": 8478248,
+        "energyPerSecond": 4710.1378,
+        "maxRSSMiB": 108.65625,
+        "temperatureCelsius": [31.04, 31.06],
+        "systemWarnings": 0,
+        "elapsedAtEnd": "30:00"
+      },
+      "candidateOverQuickTime": 1.0299135,
+      "recovery": "测试结束退出 QuickTime 与候选；caffeinate 定时进程自动结束",
+      "result": "PASS"
+    }
+  },
+  "sourceFingerprints": {
+    "localCandidateRecordSHA256": "7319198d8fd9fed36ae9e7c9e4e2bc7035f3f51e2bd63a474bd7b1399279d775",
+    "localXcodeSummarySHA256": "5fe36b89ee53ae1b5a778e60f2266ca88296b5607cb82832ebf11e040a9ed464",
+    "localCandidateEnergyJSONLSHA256": "8c59d528423611118d0b62c06c28e20194bef0d5eabca3bcf20701ec723c8dd9",
+    "localQuickTimeEnergyJSONLSHA256": "e24ce1407550cfc7c4dd8dbe403469dd21a8fbccc77675190cfb00798c142fc9"
+  },
+  "privacy": {
+    "rawArtifactsCommitted": false,
+    "removedFields": ["device identifiers", "absolute user paths", "private Playlist names"],
+    "note": "原始 candidate-record、xcresult、JSONL 与 UI 截图只保存在本机 .build；本文件只保留脱敏数值和哈希。"
+  },
+  "blockingGaps": [
+    "未用真实硬件媒体键完成播放暂停、上一首和下一首；当前 Computer Use 输入层拒绝媒体键键码。",
+    "未在英文界面完成代表性物理场景。",
+    "启动反馈、首帧音频、定位 P95、稳态掉帧和音画同步没有同一候选的可核验测量。",
+    "ASS、SSA、PGS 尚未形成同一候选可分享且可辨识的像素帧证据。"
+  ],
+  "qualification": "FAIL"
+}
