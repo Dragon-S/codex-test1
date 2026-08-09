@@ -12,9 +12,13 @@ struct AppLocalization: Sendable {
     init(
         languageIdentifier: String? = nil,
         locale: Locale = .autoupdatingCurrent,
-        bundle: Bundle = Bundle(for: LocalizationBundleToken.self)
+        bundle: Bundle = Bundle(for: LocalizationBundleToken.self),
+        applicationLanguages: [String]? = UserDefaults.standard.stringArray(
+            forKey: "AppleLanguages"
+        )
     ) {
         let requestedLanguage = languageIdentifier
+            ?? applicationLanguages?.first
             ?? bundle.preferredLocalizations.first
             ?? "en"
         self.languageIdentifier = Self.supportedLanguage(for: requestedLanguage)

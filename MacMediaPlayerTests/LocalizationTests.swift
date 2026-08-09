@@ -30,6 +30,17 @@ struct LocalizationTests {
         #expect(english.format("playlist.savedAs", "夜航 Playlist") == "Saved as 夜航 Playlist")
     }
 
+    @Test("按 App 语言偏好优先于 Bundle 的系统首选语言")
+    func prefersPerApplicationLanguage() {
+        let english = AppLocalization(
+            locale: Locale(identifier: "zh_CN"),
+            applicationLanguages: ["en-CN", "zh-Hans-CN"]
+        )
+
+        #expect(english.languageIdentifier == "en")
+        #expect(english.text("menu.file") == "File")
+    }
+
     @Test("数量与日期时间遵循区域而媒体时长保持无歧义")
     func appliesRegionalFormatsWithoutAmbiguousMediaDuration() throws {
         let date = try #require(
