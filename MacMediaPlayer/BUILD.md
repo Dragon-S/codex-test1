@@ -65,7 +65,8 @@ scripts/build-internal-candidate.sh
 运行 SwiftPM 与 Xcode 全套契约测试，生成并启动通用 Release 归档。输出位于
 `.build/internal-candidate/<commit>-<timestamp>/`，其中
 `candidate-record.json` 绑定提交、构建身份、最低 macOS 版本和自动化结果，
-`PHYSICAL-ACCEPTANCE.md` 保持未完成物理机清单。自动化通过只表示
+`PHYSICAL-ACCEPTANCE.md` 从独立模板生成，并绑定当前候选身份及 #34 的逐场景
+必需元数据；已完成候选的结果报告不会被当作下一候选的模板复用。自动化通过只表示
 `AUTOMATED_PASS_PHYSICAL_PENDING`，不代表公开发布或 App Store 资格。
 候选记录中的 mpv 与 FFmpeg 版本直接取自 `sources.lock`，该文件是版本、来源与
 修订的唯一数据源。

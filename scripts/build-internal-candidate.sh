@@ -45,6 +45,7 @@ source_lock="$repository_root/prototypes/lgpl-packaging-proof/sources.lock"
 "$repository_root/scripts/tests/verify-candidate-inputs-test.sh"
 "$repository_root/scripts/tests/verify-build-state-test.sh"
 "$repository_root/scripts/tests/snapshot-engine-input-test.sh"
+"$repository_root/scripts/tests/render-physical-acceptance-test.sh"
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   swift test
@@ -187,11 +188,10 @@ jq -n \
     physicalAcceptance: "PENDING"
   }' > "$candidate_root/candidate-record.json"
 
-sed \
-  -e "s/{{COMMIT}}/$commit_sha/g" \
-  -e "s/{{BUILD_ID}}/$binary_sha256/g" \
-  -e "s/{{BUILT_AT}}/$timestamp/g" \
-  "$repository_root/docs/internal-mvp-physical-acceptance.md" \
-  > "$candidate_root/PHYSICAL-ACCEPTANCE.md"
+"$repository_root/scripts/render-physical-acceptance.sh" \
+  "$candidate_root/PHYSICAL-ACCEPTANCE.md" \
+  "$commit_sha" \
+  "$binary_sha256" \
+  "$timestamp"
 
 print -r -- "候选自动化验收通过，物理机验收仍待执行：$candidate_root"
