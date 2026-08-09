@@ -18,6 +18,43 @@ struct LibMPVPlaybackEngineContractTests {
         ) == nil)
     }
 
+    @Test("未启用内部资格记录时不安装采样 handler")
+    func qualificationSamplingHandlerIsAbsentWithoutRecorder() {
+        #expect(LibMPVPlaybackEngine.qualificationEventHandler(for: nil) == nil)
+    }
+
+    @Test("内部资格记录只入队而不在调用线程同步写盘")
+    func qualificationRecorderEnqueuesWritesOffTheCallingThread() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "qualification-queued-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let logURL = directory.appending(path: InternalQualificationRecorder.logName)
+        let writerQueue = DispatchQueue(label: "qualification-recorder-test-writer")
+        writerQueue.suspend()
+        var writerQueueIsSuspended = true
+        defer {
+            if writerQueueIsSuspended {
+                writerQueue.resume()
+            }
+        }
+        let recorder = try InternalQualificationRecorder(
+            fileURL: logURL,
+            writerQueue: writerQueue
+        )
+
+        recorder.recordSubtitleFrame(fileName: "qualification-subtitle-frame-0001.png", succeeded: true)
+        #expect(try Data(contentsOf: logURL).isEmpty)
+
+        writerQueue.resume()
+        writerQueueIsSuspended = false
+        await recorder.flush()
+
+        let log = try String(contentsOf: logURL, encoding: .utf8)
+        #expect(log.contains("\"kind\":\"session_started\""))
+        #expect(log.contains("\"kind\":\"subtitle_frame_captured\""))
+    }
+
     @Test("显式启用的内部资格记录器只写脱敏播放指标")
     func qualificationRecorderWritesPrivacySafeRealEngineMetrics() async throws {
         let supportDirectory = FileManager.default.temporaryDirectory
@@ -57,6 +94,7 @@ struct LibMPVPlaybackEngineContractTests {
         _ = try await eventRecorder.waitForVideoPresentationWithDimensions(loadID: loadID)
         await engine.seek(to: 1)
         try await Task.sleep(for: .milliseconds(300))
+        await recorder.flush()
 
         let logURL = recorderDirectory.appending(path: InternalQualificationRecorder.logName)
         let log = try String(contentsOf: logURL, encoding: .utf8)
@@ -74,6 +112,7 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(frameURL.deletingLastPathComponent() == recorderDirectory)
         #expect(frameURL.lastPathComponent == "qualification-subtitle-frame-0001.png")
         recorder.recordSubtitleFrame(fileName: frameURL.lastPathComponent, succeeded: true)
+        await recorder.flush()
         let updatedLog = try String(contentsOf: logURL, encoding: .utf8)
         #expect(updatedLog.contains("\"kind\":\"subtitle_frame_captured\""))
         #expect(updatedLog.contains("\"fileName\":\"qualification-subtitle-frame-0001.png\""))
@@ -94,21 +133,12 @@ struct LibMPVPlaybackEngineContractTests {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
-        let mediaURL = try makeSilentWAV()
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0],
-            ofItemAtPath: mediaURL.path
-        )
-        defer {
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: mediaURL.path
-            )
-            try? FileManager.default.removeItem(at: mediaURL)
-        }
+        let media = PermissionMediaFixture(url: try makeSilentWAV())
+        defer { media.cleanup() }
+        try media.revokeReadAccess()
         let loadID = PlaybackLoadID(rawValue: 16)
 
-        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+        await engine.load(LocalMedia(url: media.url), loadID: loadID)
 
         try await recorder.waitForState(.loading, loadID: loadID)
         try await recorder.waitForState(.failed(.unreadable), loadID: loadID)
@@ -119,25 +149,16 @@ struct LibMPVPlaybackEngineContractTests {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
-        let mediaURL = try makeSilentWAV()
-        defer {
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: mediaURL.path
-            )
-            try? FileManager.default.removeItem(at: mediaURL)
-        }
+        let media = PermissionMediaFixture(url: try makeSilentWAV())
+        defer { media.cleanup() }
         let initialLoadID = PlaybackLoadID(rawValue: 17)
         let revokedLoadID = PlaybackLoadID(rawValue: 18)
 
-        await engine.load(LocalMedia(url: mediaURL), loadID: initialLoadID)
+        await engine.load(LocalMedia(url: media.url), loadID: initialLoadID)
         try await recorder.waitForState(.playing, loadID: initialLoadID)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0],
-            ofItemAtPath: mediaURL.path
-        )
+        try media.revokeReadAccess()
 
-        await engine.load(LocalMedia(url: mediaURL), loadID: revokedLoadID)
+        await engine.load(LocalMedia(url: media.url), loadID: revokedLoadID)
 
         try await recorder.waitForState(.loading, loadID: revokedLoadID)
         try await recorder.waitForState(.failed(.unreadable), loadID: revokedLoadID)
@@ -148,23 +169,14 @@ struct LibMPVPlaybackEngineContractTests {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
-        let mediaURL = try makeSilentWAV()
-        defer {
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: mediaURL.path
-            )
-            try? FileManager.default.removeItem(at: mediaURL)
-        }
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0],
-            ofItemAtPath: mediaURL.path
-        )
-        try grantCurrentUserReadACL(to: mediaURL)
+        let media = PermissionMediaFixture(url: try makeSilentWAV())
+        defer { media.cleanup() }
+        try media.revokeReadAccess()
+        try media.grantCurrentUserReadACL()
         let loadID = PlaybackLoadID(rawValue: 19)
 
-        #expect(FileManager.default.isReadableFile(atPath: mediaURL.path))
-        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+        #expect(FileManager.default.isReadableFile(atPath: media.url.path))
+        await engine.load(LocalMedia(url: media.url), loadID: loadID)
 
         try await recorder.waitForState(.playing, loadID: loadID)
         try await recorder.expectNoFailure(loadID: loadID, during: .milliseconds(150))
@@ -354,17 +366,6 @@ struct LibMPVPlaybackEngineContractTests {
         return url
     }
 
-    private func grantCurrentUserReadACL(to url: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/chmod")
-        process.arguments = ["+a", "user:\(NSUserName()) allow read", url.path]
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw ACLTestSetupFailure(status: process.terminationStatus)
-        }
-    }
-
     private func expectRedCenterPixel(in videoView: PlaybackCanvasView) async throws {
         let deadline = ContinuousClock.now + .seconds(2)
         while ContinuousClock.now < deadline {
@@ -430,6 +431,40 @@ struct LibMPVPlaybackEngineContractTests {
             .appendingPathComponent("playback-frame-\(UUID().uuidString).mp4")
         try data.write(to: url, options: .atomic)
         return url
+    }
+}
+
+private final class PermissionMediaFixture {
+    let url: URL
+
+    init(url: URL) {
+        self.url = url
+    }
+
+    func revokeReadAccess() throws {
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0],
+            ofItemAtPath: url.path
+        )
+    }
+
+    func grantCurrentUserReadACL() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        process.arguments = ["+a", "user:\(NSUserName()) allow read", url.path]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw ACLTestSetupFailure(status: process.terminationStatus)
+        }
+    }
+
+    func cleanup() {
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: url.path
+        )
+        try? FileManager.default.removeItem(at: url)
     }
 }
 
