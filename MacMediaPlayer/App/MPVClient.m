@@ -692,9 +692,10 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
     mpv_event_end_file *endFile = event->data;
     uint64_t loadID = _eventLoadID;
     NSNumber *playlistEntryID = nil;
+    NSNumber *mappedLoadID = nil;
     if (endFile != NULL) {
         playlistEntryID = @(endFile->playlist_entry_id);
-        NSNumber *mappedLoadID = _loadIDsByPlaylistEntryID[playlistEntryID];
+        mappedLoadID = _loadIDsByPlaylistEntryID[playlistEntryID];
         if (mappedLoadID != nil) {
             loadID = mappedLoadID.unsignedLongLongValue;
         }
@@ -709,7 +710,8 @@ static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
         if (self.playbackEndedHandler != nil) {
             self.playbackEndedHandler(loadID);
         }
-    } else if (loadID == _requestedLoadID) {
+    } else if ((mappedLoadID != nil && endFile->reason == MPV_END_FILE_REASON_STOP)
+               || loadID == _requestedLoadID) {
         [self reportState:MPVClientPlaybackStateStopped loadID:loadID];
     }
     if (playlistEntryID != nil) {

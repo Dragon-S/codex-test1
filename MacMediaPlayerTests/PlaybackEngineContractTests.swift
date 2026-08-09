@@ -33,48 +33,16 @@ struct LibMPVPlaybackEngineContractTests {
 
     @Test("真实 libmpv 适配器可显式使用软件解码加载视频")
     func realAdapterLoadsVideoUsingSoftwareDecoding() async throws {
-        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let engine = LibMPVPlaybackEngine(videoView: videoView)
-        let recorder = ContractEventRecorder(events: engine.events)
-        let mediaURL = try makeRedMP4()
-        defer { try? FileManager.default.removeItem(at: mediaURL) }
-        let loadID = PlaybackLoadID(rawValue: 17)
-
-        await engine.loadUsingSoftwareDecoding(
-            LocalMedia(url: mediaURL),
-            loadID: loadID
-        )
-
-        try await recorder.waitForState(.playing, loadID: loadID)
-        let presentation = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
-        #expect(presentation.kind == .video)
-        #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
-        #expect(!recorder.hasFailure(loadID: loadID))
-
-        await engine.stop()
-        try await recorder.waitForState(.stopped, loadID: loadID)
+        try await verifyVideoLoad(loadID: PlaybackLoadID(rawValue: 17)) { engine, media, loadID in
+            await engine.loadUsingSoftwareDecoding(media, loadID: loadID)
+        }
     }
 
     @Test("真实适配器通过 VideoToolbox 硬件解码加载视频")
     func realAdapterLoadsVideoUsingVideoToolboxHardwareDecoding() async throws {
-        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let engine = LibMPVPlaybackEngine(videoView: videoView)
-        let recorder = ContractEventRecorder(events: engine.events)
-        let mediaURL = try makeRedMP4()
-        defer { try? FileManager.default.removeItem(at: mediaURL) }
-        let loadID = PlaybackLoadID(rawValue: 18)
-
-        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
-
-        try await recorder.waitForState(.playing, loadID: loadID)
-        let presentation = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
-        #expect(presentation.kind == .video)
-        #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
-        try await Task.sleep(for: .milliseconds(150))
-        #expect(!recorder.hasFailure(loadID: loadID))
-
-        await engine.stop()
-        try await recorder.waitForState(.stopped, loadID: loadID)
+        try await verifyVideoLoad(loadID: PlaybackLoadID(rawValue: 18)) { engine, media, loadID in
+            await engine.load(media, loadID: loadID)
+        }
     }
 
     @Test("真实适配器释放时取消正在加载的媒体")
@@ -91,17 +59,11 @@ struct LibMPVPlaybackEngineContractTests {
             let loadID = PlaybackLoadID(rawValue: UInt64(100 + iteration))
 
             await engine?.load(LocalMedia(url: mediaURL), loadID: loadID)
-            try await recorder.waitForState(.playing, loadID: loadID)
-            _ = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+            try await recorder.waitForState(.loading, loadID: loadID)
             engine = nil
 
             #expect(releasedEngine == nil)
             try await recorder.waitForCompletion()
-            let completionMark = recorder.eventMark()
-            try await recorder.expectNoEvents(
-                after: completionMark,
-                during: .milliseconds(150)
-            )
         }
     }
 
@@ -126,8 +88,8 @@ struct LibMPVPlaybackEngineContractTests {
         try await expectRedCenterPixel(in: videoView)
     }
 
-    @Test("真实适配器不会把被替换媒体的迟到事件标记为新加载")
-    func realAdapterKeepsEventsAssociatedWithTheirLoad() async throws {
+    @Test("真实适配器用新加载取消被替换的旧加载")
+    func realAdapterCancelsReplacedLoad() async throws {
         let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let availableURL = try makeSilentWAV()
@@ -135,9 +97,7 @@ struct LibMPVPlaybackEngineContractTests {
 
         try await verifyLoadReplacementContract(
             engine: engine,
-            interruptedMedia: LocalMedia(
-                url: URL(fileURLWithPath: "/tmp/replaced-missing-media.mp4")
-            ),
+            interruptedMedia: LocalMedia(url: availableURL),
             replacementMedia: LocalMedia(url: availableURL)
         )
     }
@@ -193,6 +153,28 @@ struct LibMPVPlaybackEngineContractTests {
         #expect(presentation.artist == "测试艺人")
         #expect(presentation.album == "测试专辑")
         #expect(!presentation.hasArtwork)
+    }
+
+    private func verifyVideoLoad(
+        loadID: PlaybackLoadID,
+        load: (LibMPVPlaybackEngine, LocalMedia, PlaybackLoadID) async -> Void
+    ) async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+
+        await load(engine, LocalMedia(url: mediaURL), loadID)
+
+        try await recorder.waitForState(.playing, loadID: loadID)
+        let presentation = try await recorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        #expect(presentation.kind == .video)
+        #expect(presentation.videoDimensions == VideoDimensions(width: 64, height: 64))
+        try await recorder.expectNoFailure(loadID: loadID, during: .milliseconds(150))
+
+        await engine.stop()
+        try await recorder.waitForState(.stopped, loadID: loadID)
     }
 
     private func makeSilentWAV() throws -> URL {
