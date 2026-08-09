@@ -1,14 +1,290 @@
 import AppKit
 
+private struct InternalQualificationRecord: Encodable, Sendable {
+    enum Kind: String, Encodable, Sendable {
+        case sessionStarted = "session_started"
+        case loadRequested = "load_requested"
+        case fileLoaded = "file_loaded"
+        case playbackRestart = "playback_restart"
+        case firstFrameRendered = "first_frame_rendered"
+        case seekRequested = "seek_requested"
+        case steadyStateSample = "steady_state_sample"
+        case subtitleFrameCaptured = "subtitle_frame_captured"
+        case unknown
+    }
+
+    let kind: Kind
+    let monotonicMilliseconds: Double
+    let loadID: UInt64?
+    let positionSeconds: Double?
+    let decoderDroppedFrames: Int64?
+    let outputDroppedFrames: Int64?
+    let mistimedFrames: Int64?
+    let avSyncSeconds: Double?
+    let fileName: String?
+    let succeeded: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case kind
+        case monotonicMilliseconds
+        case loadID
+        case positionSeconds
+        case decoderDroppedFrames
+        case outputDroppedFrames
+        case mistimedFrames
+        case avSyncSeconds
+        case fileName
+        case succeeded
+    }
+
+    static func sessionStarted(monotonicMilliseconds: Double) -> Self {
+        Self(
+            kind: .sessionStarted,
+            monotonicMilliseconds: monotonicMilliseconds,
+            loadID: nil,
+            positionSeconds: nil,
+            decoderDroppedFrames: nil,
+            outputDroppedFrames: nil,
+            mistimedFrames: nil,
+            avSyncSeconds: nil,
+            fileName: nil,
+            succeeded: nil
+        )
+    }
+
+    static func playbackEvent(_ event: MPVClientQualificationEvent) -> Self {
+        Self(
+            kind: kind(for: event.kind),
+            monotonicMilliseconds: event.monotonicMilliseconds,
+            loadID: event.loadID,
+            positionSeconds: event.position,
+            decoderDroppedFrames: event.decoderDroppedFrames,
+            outputDroppedFrames: event.outputDroppedFrames,
+            mistimedFrames: event.mistimedFrames,
+            avSyncSeconds: event.avSyncSeconds.isFinite ? event.avSyncSeconds : nil,
+            fileName: nil,
+            succeeded: nil
+        )
+    }
+
+    static func subtitleFrameCaptured(
+        fileName: String,
+        succeeded: Bool,
+        monotonicMilliseconds: Double
+    ) -> Self {
+        Self(
+            kind: .subtitleFrameCaptured,
+            monotonicMilliseconds: monotonicMilliseconds,
+            loadID: nil,
+            positionSeconds: nil,
+            decoderDroppedFrames: nil,
+            outputDroppedFrames: nil,
+            mistimedFrames: nil,
+            avSyncSeconds: nil,
+            fileName: fileName,
+            succeeded: succeeded
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(1, forKey: .schemaVersion)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(monotonicMilliseconds, forKey: .monotonicMilliseconds)
+        switch kind {
+        case .sessionStarted:
+            break
+        case .subtitleFrameCaptured:
+            try container.encode(fileName, forKey: .fileName)
+            try container.encode(succeeded, forKey: .succeeded)
+        case .loadRequested, .fileLoaded, .playbackRestart, .firstFrameRendered,
+             .seekRequested, .steadyStateSample, .unknown:
+            try container.encode(loadID, forKey: .loadID)
+            try container.encode(positionSeconds, forKey: .positionSeconds)
+            try container.encode(decoderDroppedFrames, forKey: .decoderDroppedFrames)
+            try container.encode(outputDroppedFrames, forKey: .outputDroppedFrames)
+            try container.encode(mistimedFrames, forKey: .mistimedFrames)
+            try container.encode(avSyncSeconds, forKey: .avSyncSeconds)
+        }
+    }
+
+    private static func kind(for kind: MPVClientQualificationEventKind) -> Kind {
+        switch kind {
+        case .loadRequested: .loadRequested
+        case .fileLoaded: .fileLoaded
+        case .playbackRestart: .playbackRestart
+        case .firstFrameRendered: .firstFrameRendered
+        case .seekRequested: .seekRequested
+        case .steadyStateSample: .steadyStateSample
+        @unknown default: .unknown
+        }
+    }
+}
+
+private final class InternalQualificationLogWriterState: @unchecked Sendable {
+    private let fileHandle: FileHandle
+    private let encoder: JSONEncoder
+
+    init(fileURL: URL, fileManager: FileManager) throws {
+        if !fileManager.fileExists(atPath: fileURL.path) {
+            _ = fileManager.createFile(atPath: fileURL.path, contents: nil)
+        }
+        fileHandle = try FileHandle(forWritingTo: fileURL)
+        try fileHandle.seekToEnd()
+        encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+    }
+
+    func write(_ record: InternalQualificationRecord) {
+        guard let data = try? encoder.encode(record) else { return }
+        try? fileHandle.write(contentsOf: data)
+        try? fileHandle.write(contentsOf: Data([0x0A]))
+    }
+
+    func synchronize() {
+        try? fileHandle.synchronize()
+    }
+
+    func close() {
+        synchronize()
+        try? fileHandle.close()
+    }
+}
+
+private final class InternalQualificationLogWriter: @unchecked Sendable {
+    private let queue: DispatchQueue
+    private let state: InternalQualificationLogWriterState
+
+    init(
+        fileURL: URL,
+        fileManager: FileManager,
+        queue: DispatchQueue
+    ) throws {
+        self.queue = queue
+        state = try InternalQualificationLogWriterState(
+            fileURL: fileURL,
+            fileManager: fileManager
+        )
+    }
+
+    deinit {
+        let state = state
+        queue.async {
+            state.close()
+        }
+    }
+
+    func enqueue(_ record: InternalQualificationRecord) {
+        let state = state
+        queue.async {
+            state.write(record)
+        }
+    }
+
+    func flush() async {
+        let state = state
+        await withCheckedContinuation { continuation in
+            queue.async {
+                state.synchronize()
+                continuation.resume()
+            }
+        }
+    }
+}
+
+final class InternalQualificationRecorder: @unchecked Sendable {
+    static let enableMarkerName = "EnableInternalQualificationEvidence"
+    static let logName = "internal-qualification.jsonl"
+    static let subtitleFramePrefix = "qualification-subtitle-frame"
+
+    private let directory: URL
+    private let writer: InternalQualificationLogWriter
+    private let sequenceLock = NSLock()
+    private var subtitleFrameSequence = 0
+
+    static func enabledRecorder(
+        fileManager: FileManager = .default,
+        applicationSupportDirectory: URL? = nil
+    ) -> InternalQualificationRecorder? {
+        let supportDirectory = applicationSupportDirectory
+            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let supportDirectory else { return nil }
+        let directory = supportDirectory.appending(path: "MacMediaPlayer", directoryHint: .isDirectory)
+        let marker = directory.appending(path: enableMarkerName)
+        guard fileManager.fileExists(atPath: marker.path) else { return nil }
+        do {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            return try InternalQualificationRecorder(
+                fileURL: directory.appending(path: logName),
+                fileManager: fileManager
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    init(
+        fileURL: URL,
+        fileManager: FileManager = .default,
+        writerQueue: DispatchQueue = DispatchQueue(
+            label: "com.dragon-s.MacMediaPlayer.internal-qualification-writer",
+            qos: .utility
+        )
+    ) throws {
+        directory = fileURL.deletingLastPathComponent()
+        writer = try InternalQualificationLogWriter(
+            fileURL: fileURL,
+            fileManager: fileManager,
+            queue: writerQueue
+        )
+        writer.enqueue(.sessionStarted(
+            monotonicMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
+        ))
+    }
+
+    func record(_ event: MPVClientQualificationEvent) {
+        writer.enqueue(.playbackEvent(event))
+    }
+
+    func nextSubtitleFrameURL() -> URL {
+        sequenceLock.lock()
+        defer { sequenceLock.unlock() }
+        subtitleFrameSequence += 1
+        let name = String(format: "%@-%04d.png", Self.subtitleFramePrefix, subtitleFrameSequence)
+        return directory.appending(path: name)
+    }
+
+    func recordSubtitleFrame(fileName: String, succeeded: Bool) {
+        writer.enqueue(.subtitleFrameCaptured(
+            fileName: fileName,
+            succeeded: succeeded,
+            monotonicMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
+        ))
+    }
+
+    func flush() async {
+        await writer.flush()
+    }
+}
+
 final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
 
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private let client: MPVClient
+    private let qualificationRecorder: InternalQualificationRecorder?
 
-    init(videoView: PlaybackCanvasView) {
+    init(
+        videoView: PlaybackCanvasView,
+        qualificationRecorder: InternalQualificationRecorder? = .enabledRecorder()
+    ) {
         (events, continuation) = AsyncStream.makeStream()
+        self.qualificationRecorder = qualificationRecorder
         client = MPVClient(videoView: videoView)
+        client.qualificationEventHandler = Self.qualificationEventHandler(
+            for: qualificationRecorder
+        )
         client.stateHandler = { [continuation] state, rawLoadID in
             let loadID = PlaybackLoadID(rawValue: rawLoadID)
             continuation.yield(.playbackStateChanged(Self.state(for: state), loadID: loadID))
@@ -87,6 +363,15 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         }
     }
 
+    static func qualificationEventHandler(
+        for recorder: InternalQualificationRecorder?
+    ) -> ((MPVClientQualificationEvent) -> Void)? {
+        guard let recorder else { return nil }
+        return { [recorder] event in
+            recorder.record(event)
+        }
+    }
+
     deinit {
         client.shutdown()
         continuation.finish()
@@ -144,11 +429,22 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         case let .embedded(id):
             identifier = id.rawValue
         }
-        return await withCheckedContinuation { continuation in
+        let success = await withCheckedContinuation { continuation in
             client.selectSubtitleTrack(identifier) { success in
                 continuation.resume(returning: success)
             }
         }
+        if success,
+           case .embedded = selection,
+           let screenshotURL = qualificationRecorder?.nextSubtitleFrameURL() {
+            client.captureScreenshot(to: screenshotURL) { [qualificationRecorder] succeeded in
+                qualificationRecorder?.recordSubtitleFrame(
+                    fileName: screenshotURL.lastPathComponent,
+                    succeeded: succeeded
+                )
+            }
+        }
+        return success
     }
 
     func loadExternalSubtitle(_ subtitle: LocalExternalSubtitle) async -> ExternalSubtitleLoadResult {

@@ -28,6 +28,29 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
     MPVClientMediaKindVideo,
 };
 
+typedef NS_ENUM(NSInteger, MPVClientQualificationEventKind) {
+    MPVClientQualificationEventKindLoadRequested,
+    MPVClientQualificationEventKindFileLoaded,
+    MPVClientQualificationEventKindPlaybackRestart,
+    MPVClientQualificationEventKindFirstFrameRendered,
+    MPVClientQualificationEventKindSeekRequested,
+    MPVClientQualificationEventKindSteadyStateSample,
+};
+
+/// 只供显式启用的内部候选资格记录器使用；不包含媒体路径或用户内容。
+@interface MPVClientQualificationEvent : NSObject
+
+@property (nonatomic, readonly) MPVClientQualificationEventKind kind;
+@property (nonatomic, readonly) uint64_t loadID;
+@property (nonatomic, readonly) double monotonicMilliseconds;
+@property (nonatomic, readonly) double position;
+@property (nonatomic, readonly) int64_t decoderDroppedFrames;
+@property (nonatomic, readonly) int64_t outputDroppedFrames;
+@property (nonatomic, readonly) int64_t mistimedFrames;
+@property (nonatomic, readonly) double avSyncSeconds;
+
+@end
+
 @interface MPVClientTrack : NSObject
 
 @property (nonatomic, readonly) NSUUID *identifier;
@@ -75,6 +98,7 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
 @property (nonatomic, copy, nullable) void (^settingsHandler)(double rate, double volume, BOOL muted, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^trackCatalogHandler)(NSArray<MPVClientTrack *> *audioTracks, NSArray<MPVClientTrack *> *subtitleTracks, uint64_t loadID);
 @property (nonatomic, copy, nullable) void (^mediaPresentationHandler)(MPVClientMediaPresentation *presentation, uint64_t loadID);
+@property (nonatomic, copy, nullable) void (^qualificationEventHandler)(MPVClientQualificationEvent *event);
 
 - (instancetype)initWithVideoView:(NSView *)videoView;
 - (void)loadURL:(NSURL *)url loadID:(uint64_t)loadID;
@@ -88,6 +112,7 @@ typedef NS_ENUM(NSInteger, MPVClientMediaKind) {
 - (void)setMuted:(BOOL)muted;
 - (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL success))completion;
 - (void)selectSubtitleTrack:(nullable NSUUID *)identifier completion:(void (^)(BOOL success))completion;
+- (void)captureScreenshotToURL:(NSURL *)url completion:(void (^)(BOOL success))completion;
 - (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult result, NSUUID * _Nullable identifier))completion;
 - (void)shutdown;
 

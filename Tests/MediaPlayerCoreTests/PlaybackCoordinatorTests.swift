@@ -312,6 +312,7 @@ struct PlaybackCoordinatorTests {
         await retryCoordinator.open(retryMedia)
         await retryEngine.sendState(.failed(.corrupted))
         try await wait(for: .failed(.corrupted), coordinator: retryCoordinator)
+        try await waitForRecoveryAction(.retry, coordinator: retryCoordinator)
 
         await retryCoordinator.retryPlaybackFailure()
 
@@ -324,6 +325,7 @@ struct PlaybackCoordinatorTests {
         await skipCoordinator.open(skipMedia)
         await skipEngine.sendState(.failed(.unsupported))
         try await wait(for: .failed(.unsupported), coordinator: skipCoordinator)
+        try await waitForRecoveryAction(.skip, coordinator: skipCoordinator)
 
         await skipCoordinator.skipPlaybackFailure()
 
@@ -336,6 +338,7 @@ struct PlaybackCoordinatorTests {
         await removeCoordinator.open(removeMedia)
         await removeEngine.sendState(.failed(.corrupted))
         try await wait(for: .failed(.corrupted), coordinator: removeCoordinator)
+        try await waitForRecoveryAction(.removeEntryFromList, coordinator: removeCoordinator)
 
         try await removeCoordinator.removeFailedEntry()
 
@@ -346,12 +349,12 @@ struct PlaybackCoordinatorTests {
     }
 
     private func wait(for expected: PlaybackState, coordinator: PlaybackCoordinator) async throws {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if coordinator.state == expected {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: { coordinator.state == expected }
+        ) {
+            return
         }
         throw CoordinatorStateTimeout(expected: expected, observed: coordinator.state)
     }
@@ -361,12 +364,12 @@ struct PlaybackCoordinatorTests {
     }
 
     private func wait(forCurrentIndex expected: Int, coordinator: PlaybackCoordinator) async throws {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if coordinator.nowPlayingList.currentIndex == expected {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: { coordinator.nowPlayingList.currentIndex == expected }
+        ) {
+            return
         }
         throw CoordinatorListTimeout(
             expected: expected,
@@ -378,12 +381,12 @@ struct PlaybackCoordinatorTests {
         for expected: PlaybackMediaPresentation,
         coordinator: PlaybackCoordinator
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if coordinator.mediaPresentation == expected {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: { coordinator.mediaPresentation == expected }
+        ) {
+            return
         }
         throw CoordinatorMediaPresentationTimeout(
             expected: expected,
@@ -392,26 +395,45 @@ struct PlaybackCoordinatorTests {
     }
 
     private func waitForCommands(count: Int, engine: FakePlaybackEngine) async throws {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if await engine.commands.count == count {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: { await engine.commands.count == count }
+        ) {
+            return
         }
         Issue.record("等待播放引擎命令超时")
+    }
+
+    private func waitForRecoveryAction(
+        _ action: PlaybackFailureRecoveryAction,
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: {
+                guard case let .recovery(recovery) = coordinator.playbackFailureNotice else {
+                    return false
+                }
+                return recovery.actions.contains(action)
+            }
+        ) {
+            return
+        }
+        Issue.record("等待播放失败恢复操作超时")
     }
 
     private func wait(
         for expected: PlaybackQualityNotice,
         coordinator: PlaybackCoordinator
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if coordinator.playbackQualityNotice == expected {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: { coordinator.playbackQualityNotice == expected }
+        ) {
+            return
         }
         Issue.record("等待播放质量状态超时")
     }
