@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "generatedAtUTC": "2026-08-09T04:05:00Z",
+  "evidenceReviewAtUTC": "2026-08-09T13:15:23Z",
   "scope": "Issue #34 候选 40cdeae 的脱敏自动化与 M5 物理机结果摘要",
   "candidate": {
     "commit": "40cdeaee6edcd9d3f5be871e87f79db554ad1393",
@@ -88,7 +89,9 @@
       "operation": "打开 24 小时 ALAC，以辅助功能增减动作定位开头、中点和末端",
       "observedSeconds": [0, 43200, 86400],
       "recovery": "定位失败时停止，不覆盖续播状态",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["initialState", "expected", "candidateBuild", "macOS", "device", "language", "appearance", "accessibilitySettings", "evidence"],
+      "result": "PARTIAL"
     },
     "failureRecovery": {
       "scenario": "Q34-P03",
@@ -103,13 +106,17 @@
         "actions": ["重试", "在 Finder 中显示", "从列表移除", "跳过"]
       },
       "recovery": "权限恢复为 0600；只移除应用内条目，不删除源文件",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["initialState", "expected", "candidateBuild", "macOS", "device", "language", "appearance", "accessibilitySettings", "evidence", "requiredFailureCorpus"],
+      "result": "PARTIAL"
     },
     "keyboardAndFullScreen": {
       "scenario": "Q34-P04",
       "operation": "Space、左右箭头、上下箭头、P、Control-Command-F；全屏依次按三次 Escape",
       "observed": "播放切换；+10/-10 秒；音量 1→0.95→1；侧栏收起；进入全屏；Escape 依次关闭 Playlist、控制层和全屏",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["initialState", "expected", "recovery", "candidateBuild", "macOS", "device", "language", "appearance", "accessibilitySettings", "evidence"],
+      "result": "PARTIAL"
     },
     "voiceOver": {
       "scenario": "Q34-P05",
@@ -117,14 +124,18 @@
       "operation": "从系统设置开启 VoiceOver，返回候选并按两次 Tab",
       "observedFocus": ["播放器，已暂停", "后退 10 秒", "播放位置，当前位置 0 秒，总时长 12 秒"],
       "recovery": "从系统设置关闭 VoiceOver",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["expected", "candidateBuild", "macOS", "device", "language", "appearance", "evidence"],
+      "result": "PARTIAL"
     },
     "appearanceAndMotion": {
       "scenario": "Q34-P06",
       "operation": "深色切换浅色；开启减弱动态效果；每次检查媒体、状态和焦点",
       "observed": "video-vfr-h264.mkv、已暂停和播放位置焦点在两次设置切换后保持",
       "recovery": "恢复深色并关闭减弱动态效果",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["initialState", "expected", "candidateBuild", "macOS", "device", "language", "evidence"],
+      "result": "PARTIAL"
     },
     "thermalMemoryEnergy": {
       "scenario": "Q34-P07",
@@ -153,7 +164,9 @@
       },
       "candidateOverQuickTime": 1.0299135,
       "recovery": "测试结束退出 QuickTime 与候选；caffeinate 定时进程自动结束",
-      "result": "PASS"
+      "evidenceStatus": "EVIDENCE METADATA MISSING",
+      "missingRequiredFields": ["initialState", "expected", "candidateBuild", "macOS", "device", "language", "appearance", "accessibilitySettings", "evidence"],
+      "result": "PARTIAL"
     }
   },
   "sourceFingerprints": {
@@ -171,7 +184,9 @@
     "未用真实硬件媒体键完成播放暂停、上一首和下一首；当前 Computer Use 输入层拒绝媒体键键码。",
     "未在英文界面完成代表性物理场景。",
     "启动反馈、首帧音频、定位 P95、稳态掉帧和音画同步没有同一候选的可核验测量。",
-    "ASS、SSA、PGS 尚未形成同一候选可分享且可辨识的像素帧证据。"
+    "ASS、SSA、PGS 尚未形成同一候选可分享且可辨识的像素帧证据。",
+    "Q34-P03 仅覆盖无权限文件和无效内容；截断、异常时间戳、伪造扩展名、不支持编码和损坏字幕未执行或未留存可核验证据。",
+    "Q34-P02–P07 缺少逐场景必需元数据；现有现场观察仅为 PARTIAL，缺失字段见各场景 missingRequiredFields。"
   ],
   "qualification": "FAIL"
 }
