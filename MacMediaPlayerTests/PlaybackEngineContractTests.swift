@@ -7,6 +7,70 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct LibMPVPlaybackEngineContractTests {
+    @Test("内部资格记录器默认关闭")
+    func qualificationRecorderIsDisabledWithoutMarker() throws {
+        let supportDirectory = FileManager.default.temporaryDirectory
+            .appending(path: "qualification-disabled-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+
+        #expect(InternalQualificationRecorder.enabledRecorder(
+            applicationSupportDirectory: supportDirectory
+        ) == nil)
+    }
+
+    @Test("显式启用的内部资格记录器只写脱敏播放指标")
+    func qualificationRecorderWritesPrivacySafeRealEngineMetrics() async throws {
+        let supportDirectory = FileManager.default.temporaryDirectory
+            .appending(path: "qualification-enabled-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let recorderDirectory = supportDirectory
+            .appending(path: "MacMediaPlayer", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(
+            at: recorderDirectory,
+            withIntermediateDirectories: true
+        )
+        let marker = recorderDirectory.appending(path: InternalQualificationRecorder.enableMarkerName)
+        _ = FileManager.default.createFile(atPath: marker.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+        let recorder = try #require(InternalQualificationRecorder.enabledRecorder(
+            applicationSupportDirectory: supportDirectory
+        ))
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let window = NSWindow(
+            contentRect: videoView.bounds,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = videoView
+        window.orderFront(nil)
+        let engine = LibMPVPlaybackEngine(
+            videoView: videoView,
+            qualificationRecorder: recorder
+        )
+        let eventRecorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeRedMP4()
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 411)
+
+        await engine.loadUsingSoftwareDecoding(LocalMedia(url: mediaURL), loadID: loadID)
+        try await eventRecorder.waitForState(.playing, loadID: loadID)
+        _ = try await eventRecorder.waitForVideoPresentationWithDimensions(loadID: loadID)
+        await engine.seek(to: 1)
+        try await Task.sleep(for: .milliseconds(300))
+
+        let logURL = recorderDirectory.appending(path: InternalQualificationRecorder.logName)
+        let log = try String(contentsOf: logURL, encoding: .utf8)
+        #expect(log.contains("\"kind\":\"session_started\""))
+        #expect(log.contains("\"kind\":\"load_requested\""))
+        #expect(log.contains("\"kind\":\"file_loaded\""))
+        #expect(log.contains("\"kind\":\"playback_restart\""))
+        #expect(log.contains("\"kind\":\"first_frame_rendered\""))
+        #expect(log.contains("\"kind\":\"seek_requested\""))
+        #expect(log.contains("\"kind\":\"steady_state_sample\""))
+        #expect(!log.contains(mediaURL.lastPathComponent))
+        #expect(!log.contains(mediaURL.path))
+    }
+
     @Test("真实适配器将 libmpv 失败映射为稳定领域错误")
     func realAdapterMapsFailuresToDomainErrors() {
         #expect(LibMPVPlaybackEngine.failure(for: .unreadable) == .unreadable)

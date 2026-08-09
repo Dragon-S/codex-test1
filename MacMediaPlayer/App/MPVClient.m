@@ -74,6 +74,46 @@ static BOOL MPVFileIsReadable(NSURL *url) {
 
 @end
 
+@interface MPVClientQualificationEvent ()
+
+- (instancetype)initWithKind:(MPVClientQualificationEventKind)kind
+                       loadID:(uint64_t)loadID
+        monotonicMilliseconds:(double)monotonicMilliseconds
+                     position:(double)position
+         decoderDroppedFrames:(int64_t)decoderDroppedFrames
+          outputDroppedFrames:(int64_t)outputDroppedFrames
+               mistimedFrames:(int64_t)mistimedFrames
+                avSyncSeconds:(double)avSyncSeconds;
+
+@end
+
+
+@implementation MPVClientQualificationEvent
+
+- (instancetype)initWithKind:(MPVClientQualificationEventKind)kind
+                       loadID:(uint64_t)loadID
+        monotonicMilliseconds:(double)monotonicMilliseconds
+                     position:(double)position
+         decoderDroppedFrames:(int64_t)decoderDroppedFrames
+          outputDroppedFrames:(int64_t)outputDroppedFrames
+               mistimedFrames:(int64_t)mistimedFrames
+                avSyncSeconds:(double)avSyncSeconds {
+    self = [super init];
+    if (self != nil) {
+        _kind = kind;
+        _loadID = loadID;
+        _monotonicMilliseconds = monotonicMilliseconds;
+        _position = position;
+        _decoderDroppedFrames = decoderDroppedFrames;
+        _outputDroppedFrames = outputDroppedFrames;
+        _mistimedFrames = mistimedFrames;
+        _avSyncSeconds = avSyncSeconds;
+    }
+    return self;
+}
+
+@end
+
 @interface MPVClient () {
     mpv_handle *_handle;
     dispatch_queue_t _queue;
@@ -98,6 +138,8 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     double _playbackRate;
     double _playerVolume;
     BOOL _muted;
+    uint64_t _qualificationFirstFrameLoadID;
+    CFAbsoluteTime _lastQualificationSampleTime;
     atomic_bool _shuttingDown;
 }
 @end
@@ -200,6 +242,8 @@ static BOOL MPVFileIsReadable(NSURL *url) {
             return;
         }
         self->_forceNextPositionReport = YES;
+        [self reportQualificationEvent:MPVClientQualificationEventKindSeekRequested
+                                loadID:self->_requestedLoadID];
         int result = [self executeCommand:@[ @"seek", value, @"absolute+exact" ]];
         if (result < 0) {
             self->_forceNextPositionReport = NO;
@@ -346,6 +390,14 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     mpv_render_context_render(_renderContext, parameters);
     [openGLContext flushBuffer];
     mpv_render_context_report_swap(_renderContext);
+    dispatch_async(_queue, ^{
+        if (self->_hasLoadedFile
+            && self->_qualificationFirstFrameLoadID == self->_eventLoadID) {
+            self->_qualificationFirstFrameLoadID = 0;
+            [self reportQualificationEvent:MPVClientQualificationEventKindFirstFrameRendered
+                                    loadID:self->_eventLoadID];
+        }
+    });
 }
 
 - (void)performLoadURL:(NSURL *)url
@@ -353,6 +405,10 @@ static BOOL MPVFileIsReadable(NSURL *url) {
       hardwareDecoding:(BOOL)hardwareDecoding {
     dispatch_async(_queue, ^{
         self->_requestedLoadID = loadID;
+        self->_qualificationFirstFrameLoadID = loadID;
+        self->_lastQualificationSampleTime = 0;
+        [self reportQualificationEvent:MPVClientQualificationEventKindLoadRequested
+                                loadID:loadID];
         self->_hardwareDecodingByLoadID[@(loadID)] = @(hardwareDecoding);
         if (!MPVFileIsReadable(url)) {
             [self reportState:MPVClientPlaybackStateLoading loadID:loadID];
@@ -451,9 +507,15 @@ static BOOL MPVFileIsReadable(NSURL *url) {
                 break;
             case MPV_EVENT_FILE_LOADED:
                 _hasLoadedFile = YES;
+                [self reportQualificationEvent:MPVClientQualificationEventKindFileLoaded
+                                        loadID:_eventLoadID];
                 [self reportCurrentPauseState];
                 [self reportTrackCatalog];
                 [self reportMediaPresentation];
+                break;
+            case MPV_EVENT_PLAYBACK_RESTART:
+                [self reportQualificationEvent:MPVClientQualificationEventKindPlaybackRestart
+                                        loadID:_eventLoadID];
                 break;
             case MPV_EVENT_PROPERTY_CHANGE:
                 [self handlePropertyChange:event];
@@ -706,6 +768,35 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     if (self.timelineHandler != nil) {
         self.timelineHandler(MAX(0, _position), MAX(0, _duration), _eventLoadID);
     }
+    if (now - _lastQualificationSampleTime >= 0.25) {
+        _lastQualificationSampleTime = now;
+        [self reportQualificationEvent:MPVClientQualificationEventKindSteadyStateSample
+                                loadID:_eventLoadID];
+    }
+}
+
+- (void)reportQualificationEvent:(MPVClientQualificationEventKind)kind
+                          loadID:(uint64_t)loadID {
+    if (self.qualificationEventHandler == nil || _handle == NULL) {
+        return;
+    }
+    MPVClientQualificationEvent *event = [[MPVClientQualificationEvent alloc]
+        initWithKind:kind
+        loadID:loadID
+        monotonicMilliseconds:NSProcessInfo.processInfo.systemUptime * 1000
+        position:MAX(0, _position)
+        decoderDroppedFrames:[self integerProperty:@"decoder-frame-drop-count" fallback:-1]
+        outputDroppedFrames:[self integerProperty:@"frame-drop-count" fallback:-1]
+        mistimedFrames:[self integerProperty:@"mistimed-frame-count" fallback:-1]
+        avSyncSeconds:[self doubleProperty:@"avsync" fallback:NAN]];
+    self.qualificationEventHandler(event);
+}
+
+- (double)doubleProperty:(NSString *)name fallback:(double)fallback {
+    double value = fallback;
+    return mpv_get_property(_handle, name.UTF8String, MPV_FORMAT_DOUBLE, &value) < 0
+        ? fallback
+        : value;
 }
 
 - (void)handleEndFile:(mpv_event *)event {
