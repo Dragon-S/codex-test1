@@ -147,12 +147,28 @@
       "result": "FAIL",
       "executionStatus": "NOT_RUN",
       "reason": "未在该精确候选上执行 30 分钟候选与 QuickTime 对照。"
+    },
+    "Q34-B08": {
+      "initialState": "未建立精确候选的用户选择文件、安全作用域授权和书签恢复现场状态",
+      "operation": "计划从用户选择的文件建立安全作用域访问，重启候选验证书签恢复，再撤销权限并执行重新授权恢复",
+      "expected": "重启后仍可只读访问；权限丢失时错误分类稳定；重新授权后恢复同一本地媒体引用；不删除或覆盖源文件",
+      "recovery": "计划退出安全作用域访问，恢复验收前的文件权限并退出候选，不修改源文件内容",
+      "candidateBuild": "8adedcb36ba53767fd7cc1842ca979f3e4dfb9b5",
+      "macOS": "26.6 (25G72)",
+      "device": "MacBook Pro; Apple M5; 24 GB",
+      "language": "未执行",
+      "appearance": "未执行",
+      "accessibilitySettings": "未执行",
+      "evidence": "无现场执行证据",
+      "result": "FAIL",
+      "executionStatus": "NOT_RUN",
+      "reason": "未在该精确候选上物理验证安全作用域访问、权限丢失和书签恢复闭环。"
     }
   },
   "blockingChecks": {
     "Q34-B01": "FAIL: 缺少真实硬件播放暂停、上一首、下一首媒体键证据",
     "Q34-B02": "FAIL: 系统设置将精确候选指定为 English 并完全退出重启后，应用仍显示简体中文",
-    "Q34-B03": "FAIL: 缺少三轮 P95、稳态掉帧、同步、内存与能耗完整证据",
+    "Q34-B03": "FAIL: 缺少三轮 P95、稳态掉帧、同步、1080p 与纯音频 RSS 不超过 384 MiB、4K 硬解 RSS 不超过 512 MiB 及能耗完整证据",
     "Q34-B04": "FAIL: 缺少同一候选 ASS、SSA、PGS 固定帧像素证据",
     "Q34-B05": "FAIL: 缺少完整失败语料执行记录",
     "Q34-B06": "FAIL: 已执行场景缺少完整必需断言或可核验原始证据；未执行场景没有现场结果",
@@ -161,8 +177,19 @@
   },
   "primaryFailure": {
     "scenario": "Q34-B02",
+    "initialState": "按 App 语言在验收前已为 English；候选界面简体中文、深色，VoiceOver 与减弱动态效果关闭",
+    "operation": "确认系统设置绑定精确 App 路径并选择 English，完全退出同 Bundle ID 的全部进程，再从 Finder 打开精确归档；计划继续执行打开、播放与错误恢复代表流程",
     "expected": "精确候选在系统设置指定 English 后，以英文完成代表性打开、播放与错误恢复场景",
     "observed": "系统设置显示 MacMediaPlayer English；精确候选完全退出并从 Finder 重启后，菜单、控制器、状态与辅助功能文案仍为简体中文",
-    "recovery": "候选已退出；系统外观为深色，VoiceOver 与减弱动态效果均关闭"
+    "recovery": "候选已退出；按 App 语言保持验收前的 English，未修改媒体；系统外观为深色，VoiceOver 与减弱动态效果均关闭",
+    "candidateBuild": "8adedcb36ba53767fd7cc1842ca979f3e4dfb9b5",
+    "macOS": "26.6 (25G72)",
+    "device": "MacBook Pro; Apple M5; 24 GB",
+    "language": "按 App 语言 English；实际界面简体中文",
+    "appearance": "深色",
+    "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+    "evidence": "系统设置显示 MacMediaPlayer English；重启后的菜单、控制器、状态与辅助功能文案现场观察仍为简体中文",
+    "result": "FAIL",
+    "executionStatus": "EXECUTED"
   }
 }
