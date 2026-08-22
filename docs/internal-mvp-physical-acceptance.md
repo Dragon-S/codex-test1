@@ -4,7 +4,7 @@
 
 - Issue #34 结果：`FAIL`
 - 最新复验候选：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
-- Q34-B02 结果：`PASS`。默认英文窗口、应用/File/Edit/View 菜单、有效媒体打开与播放、损坏媒体领域错误与 `Retry` 后重新打开有效媒体的恢复流程均已在同一候选上执行；动作按钮与 Playback Order、Repeat 选择器无截断，可见辅助功能文案均为英文。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
+- Q34-B02 结果：`PASS`。系统设置显示按 App 语言为 English；完全退出同 Bundle ID 的全部进程后，从 Finder 启动精确候选，并在同一冷启动会话内完成默认英文窗口、应用/File/Edit/View 菜单、有效媒体打开与播放、损坏媒体领域错误与 `Retry` 后重新打开有效媒体的恢复流程；动作按钮与 Playback Order、Repeat 选择器无截断，可见辅助功能文案均为英文。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
 - 本轮发现并修复英文 Playlist 侧栏布局截断：侧栏从 260 点扩到 320 点，Playback Order 与 Repeat 改为两行全宽选择器；AppKit 布局回归测试先 RED 后 GREEN。
 - 其他阻断：真实硬件媒体键、完整失败语料、安全作用域恢复、三轮性能与播放质量、ASS/SSA/PGS 固定帧、30 分钟 QuickTime 对照及原始证据完整性仍未在同一最新候选上通过。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
@@ -27,10 +27,10 @@ Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 
 
 ### Q34-B02 英文代表场景
 
-- 初始状态：候选进程已退出；签名候选安装到稳定应用位置；宿主与沙盒按 App 语言均为 English；深色外观；保留已有填充用户数据。
-- 操作：从稳定位置启动候选，复核默认窗口及应用、File、Edit、View 菜单；通过打开面板选择 6 秒脱敏合成 WAV 并观察播放；再选择脱敏损坏 MP4，执行 `Retry`，随后重新打开有效 WAV 完成恢复。
+- 初始状态：系统设置显示 `MacMediaPlayer — English`；同 Bundle ID 的全部候选进程已停止；签名候选安装到稳定应用位置且可执行文件 SHA-256 与 candidate-record 一致；深色外观；保留已有填充用户数据。
+- 操作：在 Finder 中选中稳定位置的精确候选并启动，复核默认窗口及应用、File、Edit、View 菜单；在同一 Finder 冷启动会话内通过打开面板选择 6 秒脱敏合成 WAV 并观察播放；再选择脱敏损坏 MP4，执行 `Retry`，随后重新打开有效 WAV 完成恢复。
 - 预期：菜单、控制器、状态、错误与辅助功能文案均为英文，不出现原始键、语言混杂或控件截断；有效媒体可打开并播放；损坏媒体显示领域错误和恢复操作，恢复后可重新加载有效媒体。
-- 观察：默认窗口动作按钮与 Playback Order、Repeat 选择器完整显示；可见应用文案、菜单、播放状态、错误文案与恢复按钮均为英文。有效 WAV 进入 `Playing` 且时长为 `0:06`；损坏 MP4 显示 `Media content is corrupted` 及 `Retry`、`Show in Finder`、`Remove from List`、`Skip`；`Retry` 后重新打开有效 WAV，状态从 `Loading` 到媒体末端 `Paused`。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
+- 观察：系统设置显示按 App 语言为 English；Finder 选中的 `MacMediaPlayer Internal.app` 启动为精确稳定候选。默认窗口动作按钮与 Playback Order、Repeat 选择器完整显示；可见应用文案、菜单、播放状态、错误文案与恢复按钮均为英文。有效 WAV 进入 `Playing` 且时长为 `0:06`；损坏 MP4 显示 `Media content is corrupted` 及 `Retry`、`Show in Finder`、`Remove from List`、`Skip`；`Retry` 后重新打开有效 WAV 并再次进入 `Playing`。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
 - 恢复：候选已完全退出；稳定位置保留精确候选和 English 映射；上一稳定候选保留在本地可恢复备份中；未删除或修改 Playlist、用户媒体或测试样本。
 - 候选构建：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
 - macOS：26.6.2（25G83）
