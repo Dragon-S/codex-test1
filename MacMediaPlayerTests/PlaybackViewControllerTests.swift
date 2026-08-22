@@ -278,6 +278,22 @@ struct PlaybackViewControllerTests {
         #expect(window.contentView === controller.view)
     }
 
+    @Test("默认英文窗口为 Playlist 操作按钮保留完整宽度")
+    func defaultEnglishWindowReservesFullPlaylistActionWidth() throws {
+        let controller = makeController(localization: AppLocalization(
+            languageIdentifier: "en",
+            locale: Locale(identifier: "en_US")
+        ))
+        let size = NSSize(width: 960, height: 600)
+        let window = host(controller, size: size)
+        layout(controller, in: window, size: size)
+        let sidebar = try #require(controller.view.subviews.first {
+            $0.accessibilityLabel() == "Playlist sidebar"
+        })
+
+        #expect(sidebar.frame.width >= 320)
+    }
+
     @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
     func playlistSidebarMovesFocusInAndBack() throws {
         let controller = makeController()

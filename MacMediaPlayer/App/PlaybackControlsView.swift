@@ -693,7 +693,7 @@ struct NowPlayingListView: View {
                 }
             }
             .padding(.horizontal, 12)
-            HStack {
+            VStack(alignment: .leading, spacing: 8) {
                 Picker("播放顺序", selection: Binding(
                     get: { playlist.playbackOrder },
                     set: { order in
@@ -703,6 +703,7 @@ struct NowPlayingListView: View {
                     Text("顺序").tag(PlaybackOrder.sequential)
                     Text("随机").tag(PlaybackOrder.random)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Picker("重复方式", selection: Binding(
                     get: { playlist.repeatMode },
                     set: { mode in
@@ -713,6 +714,7 @@ struct NowPlayingListView: View {
                     Text("列表循环").tag(PlaylistRepeatMode.playlist)
                     Text("单条循环").tag(PlaylistRepeatMode.entry)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 12)
             if coordinator.detachedNowPlayingEntry != nil {

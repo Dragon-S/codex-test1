@@ -226,7 +226,7 @@ final class PlaybackViewController: NSViewController {
             nowPlayingListView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             nowPlayingListView.topAnchor.constraint(equalTo: container.topAnchor),
             nowPlayingListView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            nowPlayingListView.widthAnchor.constraint(equalToConstant: 260),
+            nowPlayingListView.widthAnchor.constraint(equalToConstant: 320),
             playlistToggleButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
             playlistToggleButton.trailingAnchor.constraint(equalTo: videoView.trailingAnchor, constant: -12),
         ])
