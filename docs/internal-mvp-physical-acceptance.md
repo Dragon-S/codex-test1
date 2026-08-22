@@ -1,14 +1,52 @@
 # 离线内部 MVP 候选物理机验收结果
 
-## 结论
+## 当前结论
 
-- 结果：`FAIL`
-- 候选：`8adedcb36ba53767fd7cc1842ca979f3e4dfb9b5`
-- 主阻断：Q34-B02 英文代表场景失败。系统设置已将精确候选指定为 English，候选完全退出并从 Finder 重启后，菜单、控制器、状态与辅助功能文案仍为简体中文。
-- 其他阻断：真实硬件媒体键、完整失败语料、安全作用域恢复、三轮性能与播放质量、ASS/SSA/PGS 固定帧、30 分钟 QuickTime 对照及原始证据完整性均未在同一候选上通过。
+- Issue #34 结果：`FAIL`
+- 最新复验候选：`d6fa9c269d1d34e42986307af0172e707c48b216`
+- Q34-B02 进展：旧候选在系统设置指定 English 后仍显示简体中文的直接故障，在稳定安装路径连续三次启动时未再复现；三次均观察到英文 `Speed` 与 `Mute` 控件，未匹配到对应中文控件。
+- Q34-B02 当前结果：`PARTIAL`。本次没有执行英文打开媒体、播放、错误恢复以及菜单、状态和完整辅助功能文案复核，不能据此标为 `PASS`。
+- 其他阻断：真实硬件媒体键、完整失败语料、安全作用域恢复、三轮性能与播放质量、ASS/SSA/PGS 固定帧、30 分钟 QuickTime 对照及原始证据完整性仍未在同一最新候选上通过。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。完整脱敏记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始候选、xcresult 与外观截图保存在本地候选目录，未提交含账户、私人 Playlist 或用户绝对路径的证据。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新复验的完整脱敏摘要见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)；历史候选的完整脱敏记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始候选、xcresult、偏好备份与现场 UI 状态保存在本地，未提交账户、私人 Playlist、媒体内容、偏好文件原文或用户绝对路径。
+
+## 2026-08-22 最新候选语言复验
+
+| 项目 | 值 |
+| --- | --- |
+| Release 提交 | `d6fa9c269d1d34e42986307af0172e707c48b216` |
+| 构建时间 | `20260822T093313Z` |
+| 可执行文件 SHA-256 | `e3d48681af9bc9361455dbd24f29f499a3887fb7143b2aaec6f42f9a8faa908a` |
+| 动态闭包 SHA-256 | `ccc37fb3961cff56ae133c830eb8914d0709f140855e1fc00374beff2fd38f56` |
+| candidate-record SHA-256 | `b971b2b2461dda5eebcae3df6dbd3db609ca19833bed59e33fcba800a2c9777b` |
+| 签名 | Apple Development；Team ID `JVJM87NK2A`；磁盘验证与 Designated Requirement `PASS` |
+| 引擎 | mpv `v0.41.0`；FFmpeg `n8.1.2`；`arm64 + x86_64` |
+| 设备 | MacBook Pro `Mac17,2`；Apple M5；24 GB |
+| 系统与工具 | macOS 26.6.2（25G83）；Xcode 26.6（17F113） |
+| 自动门槛 | Swift `94/94`；Xcode/真实 libmpv `49/49`；签名启动与候选数据场景 `PASS` |
+
+### Q34-B02 英文代表场景跟进
+
+- 初始状态：候选进程已退出；系统设置旧条目显示 English，但同 Bundle ID 候选实际显示简体中文；LaunchServices 存在大量临时构建路径登记，宿主与沙盒 `AppleLanguages` 状态不一致。
+- 操作：安装签名候选到稳定应用路径，备份并统一宿主与沙盒语言为 `en`，注销旧登记并只重新登记稳定副本；确认系统设置显示 `MacMediaPlayer Internal — English`；从稳定路径连续启动三次并读取可见辅助功能控件文字。
+- 预期：菜单、控制器、状态、错误与辅助功能文案均为英文，并完成打开、播放和一条错误恢复代表流程。
+- 观察：三次启动均出现英文 `Speed` 与 `Mute`，未匹配到“速度”“静音”“打开文件”或“清空播放列表”等中文控件；本次没有打开媒体或执行错误恢复。
+- 恢复：播放器已完全退出；系统设置保留稳定副本的 English 映射；未删除沙盒容器，未修改 Playlist 或媒体文件。
+- 候选构建：`d6fa9c269d1d34e42986307af0172e707c48b216`
+- macOS：26.6.2（25G83）
+- 设备：MacBook Pro `Mac17,2`；Apple M5；24 GB
+- 语言：English
+- 外观：深色
+- 辅助功能设置：本次未执行 VoiceOver 代表流程
+- 证据：三轮可见控件检查、系统设置稳定条目、签名验证、可执行文件三方哈希一致性及脱敏 JSON 摘要。
+- 结果：`PARTIAL`
+
+下一步必须在同一候选上补齐英文打开、播放和错误恢复代表流程，并复核菜单、状态、完整辅助功能文案与布局；在此之前不得将 Q34-B02 或 Issue #34 标为 `PASS`。
+
+## 2026-08-09 历史候选结果
+
+以下结果绑定候选 `8adedcb36ba53767fd7cc1842ca979f3e4dfb9b5`，保留为不可追溯改写的历史现场记录；不得外推到最新候选。
 
 ## 候选与环境
 

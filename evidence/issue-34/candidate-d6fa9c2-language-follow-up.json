@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-22T09:43:00Z",
+  "result": "FAIL",
+  "candidateStatus": "AUTOMATED_PASS_PHYSICAL_PENDING",
+  "scope": "Issue #34 候选 d6fa9c2 的自动化结果、英语语言故障处置与物理冒烟复验；不外推至完整 M5 资格、全部 macOS 14+、公开发布或 App Store 资格",
+  "candidate": {
+    "commit": "d6fa9c269d1d34e42986307af0172e707c48b216",
+    "builtAtUTC": "20260822T093313Z",
+    "configuration": "Release",
+    "executableSHA256": "e3d48681af9bc9361455dbd24f29f499a3887fb7143b2aaec6f42f9a8faa908a",
+    "dynamicClosureSHA256": "ccc37fb3961cff56ae133c830eb8914d0709f140855e1fc00374beff2fd38f56",
+    "candidateRecordSHA256": "b971b2b2461dda5eebcae3df6dbd3db609ca19833bed59e33fcba800a2c9777b",
+    "architectures": ["arm64", "x86_64"],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2",
+    "bundleIdentifier": "com.dragon-s.MacMediaPlayer",
+    "signingTeamIdentifier": "JVJM87NK2A"
+  },
+  "environment": {
+    "deviceModel": "Mac17,2",
+    "chip": "Apple M5",
+    "memory": "24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 26.6 (17F113)",
+    "appearance": "深色",
+    "accessibilitySettings": "本次未改变；未执行 VoiceOver 代表流程"
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (94/94)",
+    "appAndRealEngineContracts": "PASS (49/49)",
+    "freshUserData": "PASS",
+    "populatedUserData": "PASS",
+    "signedLaunch": "PASS",
+    "codeSignature": "PASS: Apple Development 签名在磁盘有效并满足 Designated Requirement",
+    "candidateHashMatch": "PASS: 构建产物、稳定安装副本与 candidate-record 的可执行文件 SHA-256 完全一致"
+  },
+  "languageDiagnosis": {
+    "preRepairObserved": "系统设置显示 MacMediaPlayer 为 English，但同 Bundle ID 候选从 LaunchServices 启动后仍解析为 zh-Hans 并显示简体中文",
+    "immediateCause": "同一 Bundle ID 存在大量临时构建路径的 LaunchServices 登记，且宿主偏好中的 AppleLanguages 为 en、沙盒偏好缺少该键，系统设置显示值与应用实际读取值不一致",
+    "controlObservation": "显式进程参数 AppleLanguages=en 或使用临时唯一 Bundle ID 时，候选可显示英文；这两项仅用于定位，没有作为交付修复保留"
+  },
+  "remediation": {
+    "stableBundleName": "MacMediaPlayer Internal.app",
+    "launchServicesUnregisterAttempts": 108,
+    "finalLaunchServicesRecord": "稳定安装副本",
+    "hostAppleLanguages": ["en"],
+    "sandboxAppleLanguages": ["en"],
+    "systemSettingsDisplay": "MacMediaPlayer Internal — English",
+    "sandboxContainerDeleted": false,
+    "playlistDataModified": false
+  },
+  "physicalScenarios": {
+    "Q34-B02": {
+      "initialState": "候选进程已退出；系统设置旧条目显示 English，但应用实际界面为简体中文；存在多个同 Bundle ID 的临时 LaunchServices 登记",
+      "operation": "安装签名候选到稳定应用路径，备份并统一宿主与沙盒 AppleLanguages 为 en，注销旧登记并重新登记稳定副本；确认系统设置显示 MacMediaPlayer Internal — English；从稳定路径连续启动三次并读取可见辅助功能控件文字",
+      "expected": "菜单、控制器、状态、错误与辅助功能文案均为英文，并完成打开、播放和一条错误恢复代表流程",
+      "observed": "三次启动均出现英文 Speed 与 Mute 控件，未匹配到速度、静音、打开文件或清空播放列表等中文控件；本次没有打开媒体或执行错误恢复",
+      "recovery": "播放器已完全退出；系统设置保留稳定副本的 English 映射；未删除沙盒容器，未修改 Playlist 或媒体文件",
+      "candidateBuild": "d6fa9c269d1d34e42986307af0172e707c48b216",
+      "macOS": "26.6.2 (25G83)",
+      "device": "Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "未执行 VoiceOver 代表流程",
+      "evidence": {
+        "launchCount": 3,
+        "matchedEnglishControls": ["Speed", "Mute"],
+        "matchedChineseControls": [],
+        "systemSettingsDisplay": "MacMediaPlayer Internal — English",
+        "stableExecutableSHA256": "e3d48681af9bc9361455dbd24f29f499a3887fb7143b2aaec6f42f9a8faa908a",
+        "codeSignature": "PASS",
+        "processAfterRecovery": "STOPPED"
+      },
+      "result": "PARTIAL",
+      "executionStatus": "EXECUTED_PARTIAL",
+      "resolvedFailure": "旧候选在 English 设置下仍显示简体中文的直接故障，在本次稳定路径三轮控件冒烟中未再复现",
+      "missingRequiredEvidence": [
+        "英文打开媒体代表流程",
+        "英文播放代表流程",
+        "英文错误恢复代表流程",
+        "菜单、状态、完整辅助功能文案与布局复核"
+      ]
+    }
+  },
+  "blockingChecks": {
+    "Q34-B01": "NOT_RUN: 本次未执行真实硬件媒体键",
+    "Q34-B02": "PARTIAL: 三轮英文控件冒烟通过，但打开、播放、错误恢复及完整文案布局尚未执行",
+    "Q34-B03": "NOT_RUN: 本次未执行三轮性能分位、播放质量、RSS 与能耗门槛",
+    "Q34-B04": "NOT_RUN: 本次未执行 ASS、SSA、PGS 固定帧复核",
+    "Q34-B05": "NOT_RUN: 本次未执行完整失败语料",
+    "Q34-B06": "FAIL: 当前候选仍缺少完整场景元数据与现场结果",
+    "Q34-B07": "PARTIAL: candidate-record、自动化输出与本次脱敏摘要存在；完整原始物理证据未提交",
+    "Q34-B08": "NOT_RUN: 本次未执行安全作用域访问、权限丢失与书签恢复闭环"
+  },
+  "privacy": {
+    "rawArtifactsCommitted": false,
+    "committedData": "仅提交脱敏摘要、哈希、版本、场景结果和非隐私设备规格",
+    "excludedData": ["账户信息", "设备序列号", "绝对用户路径", "私人 Playlist 名称", "媒体文件名与内容", "偏好文件原文"],
+    "localBackupCreated": true
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "在同一 d6fa9c2 候选上完成 Q34-B02 英文打开、播放与错误恢复代表流程，并继续其余物理阻断矩阵"
+}
