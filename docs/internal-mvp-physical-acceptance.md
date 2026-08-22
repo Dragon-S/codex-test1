@@ -27,7 +27,7 @@ Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 
 
 ### Q34-B02 英文代表场景
 
-- 初始状态：系统设置显示 `MacMediaPlayer — English`；同 Bundle ID 的全部候选进程已停止；签名候选安装到稳定应用位置且可执行文件 SHA-256 与 candidate-record 一致；深色外观；保留已有填充用户数据。
+- 初始状态：系统首选语言为简体中文，系统设置显示 `MacMediaPlayer — English`；同 Bundle ID 的全部候选进程已停止，未打开媒体且无活动错误或恢复界面；签名候选安装到稳定应用位置且可执行文件 SHA-256 与 candidate-record 一致；深色外观；保留已有填充用户数据。
 - 操作：在 Finder 中选中稳定位置的精确候选并启动，复核默认窗口及应用、File、Edit、View 菜单；在同一 Finder 冷启动会话内通过打开面板选择 6 秒脱敏合成 WAV 并观察播放；再选择脱敏损坏 MP4，执行 `Retry`，随后重新打开有效 WAV 完成恢复。
 - 预期：菜单、控制器、状态、错误与辅助功能文案均为英文，不出现原始键、语言混杂或控件截断；有效媒体可打开并播放；损坏媒体显示领域错误和恢复操作，恢复后可重新加载有效媒体。
 - 观察：系统设置显示按 App 语言为 English；Finder 选中的 `MacMediaPlayer Internal.app` 启动为精确稳定候选。默认窗口动作按钮与 Playback Order、Repeat 选择器完整显示；可见应用文案、菜单、播放状态、错误文案与恢复按钮均为英文。有效 WAV 进入 `Playing` 且时长为 `0:06`；损坏 MP4 显示 `Media content is corrupted` 及 `Retry`、`Show in Finder`、`Remove from List`、`Skip`；`Retry` 后重新打开有效 WAV 并再次进入 `Playing`。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
