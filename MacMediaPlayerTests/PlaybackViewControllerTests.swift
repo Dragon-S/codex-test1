@@ -278,20 +278,44 @@ struct PlaybackViewControllerTests {
         #expect(window.contentView === controller.view)
     }
 
-    @Test("默认英文窗口为 Playlist 操作按钮保留完整宽度")
-    func defaultEnglishWindowReservesFullPlaylistActionWidth() throws {
-        let controller = makeController(localization: AppLocalization(
-            languageIdentifier: "en",
-            locale: Locale(identifier: "en_US")
-        ))
+    @Test("默认英文窗口完整显示 Playlist 操作与两行播放选项")
+    func defaultEnglishWindowShowsPlaylistActionsAndPlaybackOptions() async throws {
+        let playlist = Playlist(name: "English Layout", entries: [])
+        let coordinator = PlaybackCoordinator(
+            engine: LayoutFakePlaybackEngine(),
+            playlistStore: InMemoryPlaylistStore(library: PlaylistLibrary(playlists: [playlist]))
+        )
+        try await coordinator.restorePersistentState()
+        coordinator.browsePlaylist(playlist.id)
+        let controller = makeController(
+            coordinator: coordinator,
+            localization: AppLocalization(
+                languageIdentifier: "en",
+                locale: Locale(identifier: "en_US")
+            )
+        )
         let size = NSSize(width: 960, height: 600)
         let window = host(controller, size: size)
         layout(controller, in: window, size: size)
         let sidebar = try #require(controller.view.subviews.first {
             $0.accessibilityLabel() == "Playlist sidebar"
         })
+        let popUpButtons = viewDescendants(of: sidebar).compactMap { $0 as? NSPopUpButton }
+        let playbackOrder = try #require(popUpButtons.first {
+            $0.titleOfSelectedItem == "Sequential"
+        })
+        let repeatMode = try #require(popUpButtons.first {
+            $0.titleOfSelectedItem == "No Repeat"
+        })
+        let playbackOrderFrame = sidebar.convert(playbackOrder.bounds, from: playbackOrder)
+        let repeatModeFrame = sidebar.convert(repeatMode.bounds, from: repeatMode)
 
         #expect(sidebar.frame.width >= 320)
+        #expect(sidebar.fittingSize.width <= sidebar.frame.width)
+        #expect(abs(playbackOrderFrame.midY - repeatModeFrame.midY) >= min(
+            playbackOrderFrame.height,
+            repeatModeFrame.height
+        ))
     }
 
     @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
@@ -606,6 +630,10 @@ struct PlaybackViewControllerTests {
         }
         #expect(coordinator.state == state)
         #expect(coordinator.position == position)
+    }
+
+    private func viewDescendants(of root: NSView) -> [NSView] {
+        root.subviews.flatMap { [$0] + viewDescendants(of: $0) }
     }
 
 }
