@@ -260,7 +260,16 @@
     },
     "SSA": {
       "result": "FAIL",
-      "observation": "在字幕包有效时段选择 SSA 轨道，固定帧未显示字幕。",
+      "inputSHA256": "d313f3c97adde4a9b6e1a1fbcb0cf012bfab8aed1b709bb510bcf26edb20ed57",
+      "capturePositionBoundsSeconds": {
+        "before": 37.452,
+        "after": 37.744
+      },
+      "subtitlePacketIntervalSeconds": {
+        "start": 36.494,
+        "end": 40.494
+      },
+      "observation": "截图事件位于相邻播放样本 37.452–37.744 秒之间，完整落在字幕包 36.494–40.494 秒的有效区间内；已选择 SSA 轨道，但固定帧未显示字幕。",
       "frameSHA256": "5f9d0eb0df3efa1f91aeb88e1c3af14e2f07868219b8be12a59d79f2ae0d82e4"
     },
     "PGS": {
