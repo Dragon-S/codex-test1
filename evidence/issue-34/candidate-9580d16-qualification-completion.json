@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-25T16:38:08Z",
+  "issue": 34,
+  "result": "FAIL",
+  "scope": "Apple M5 MacBook Pro 上离线内部 MVP 的单候选物理资格复验；不外推至全部 macOS 14+、公开发布或 App Store 资格。",
+  "candidate": {
+    "releaseCommit": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+    "executableSHA256": "b3f6554d9f5eea4de50defa0ce0df270c7b0221fa352728769b0d1c7cd5874a5",
+    "dynamicClosureSHA256": "7da1ffdc2e1f98f0175d1b60b8684924e0b28132c1b6a3bc5f232d9b63c76408",
+    "candidateRecordSHA256": "21792c3b23f8465ba906143e3ccbde7475cd633b0915ae5b5ba9d9d7c8fab752",
+    "signatureVerification": "PASS"
+  },
+  "environment": {
+    "hardware": "MacBook Pro Mac17,2；Apple M5；24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "26.6 (17F113)",
+    "appLanguage": "English",
+    "initialAppearance": "深色",
+    "initialVoiceOver": false,
+    "initialReduceMotion": false
+  },
+  "physicalScenarios": {
+    "Q34-P01": {
+      "result": "PARTIAL",
+      "observation": "17 个核心输入均显示预期文件名、Playing 与正确时长；多音轨样本显示 English AAC。未完整执行逐轨切换与所有轨道断言。"
+    },
+    "Q34-P02": {
+      "result": "PARTIAL",
+      "inputSHA256": "db86ca29291cea1b899eda7f24124e380d1249d3b53b9fb86308488a37e54e45",
+      "observation": "24 小时 ALAC 的开头、中点约 12 小时与末端 24 小时均可达，无溢出或崩溃；未完整执行重启续播和结尾持久化。"
+    },
+    "Q34-P03": {
+      "result": "PARTIAL",
+      "observation": "损坏、截断、伪造扩展名、无权限、损坏字幕与异常时间戳均无崩溃，并观察到相应恢复路径；未形成与无效内容相区分的独立不支持编码样本。"
+    },
+    "Q34-P04": {
+      "result": "PASS",
+      "observation": "Space、左右方向键、上下方向键、P 和 Control-Command-F 的播放、定位、音量、Playlist 与全屏软件键盘路径均通过；真实硬件媒体键由 Q34-B01 单独判定。"
+    },
+    "Q34-P05": {
+      "result": "PARTIAL",
+      "observation": "VoiceOver 开启时，损坏媒体状态、Retry、Show in Finder、Remove from List、Skip 及恢复后的 Playing 均存在于辅助功能树；当前执行接口无法核验实际朗读与 VoiceOver 光标行为。"
+    },
+    "Q34-P06": {
+      "result": "PARTIAL",
+      "observation": "完成浅色切换、深色恢复及减弱动态效果开关恢复；未穷尽增强对比度、非颜色状态与全屏外观。"
+    },
+    "Q34-P07": {
+      "result": "PARTIAL",
+      "observation": "候选与 QuickTime 均完成相邻 30 分钟 4K 播放，候选能耗比为 1.082，且无热警告；相邻运行期间后台进程集合发生变化，因此保留严格受控环境结论。"
+    }
+  },
+  "performanceEvidence": {
+    "internalQualificationLog": {
+      "lineCount": 15397,
+      "sha256": "f1fb552cdbc41121c75f7502e5aa7059dc170610601edb06e46e7de008ce97cc"
+    },
+    "loadToFirstFrameMilliseconds": {
+      "sampleCount": 23,
+      "minimum": 23.189,
+      "median": 75.817,
+      "p95": 146.802625,
+      "maximum": 341.43875
+    },
+    "seekToPlaybackRestartMilliseconds": {
+      "sampleCount": 57,
+      "minimum": 1.63,
+      "median": 52.582,
+      "p95": 125.542542,
+      "maximum": 156.964,
+      "over500Milliseconds": 0
+    },
+    "1080pTenMinuteRuns": [
+      {
+        "round": 1,
+        "durationSeconds": 599.96,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 271.125,
+        "energyImpactDelta": 4599396,
+        "maximumTemperatureCelsius": 30.96,
+        "rawEvidenceSHA256": "ab15cd0c4a6eb53a345371597a5ba50818810290607ed36e5f88c5a4b10e97f5"
+      },
+      {
+        "round": 2,
+        "durationSeconds": 599.976,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 277.671875,
+        "energyImpactDelta": 4645149,
+        "maximumTemperatureCelsius": 30.96
+      },
+      {
+        "round": 3,
+        "durationSeconds": 599.918,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 281.40625,
+        "energyImpactDelta": 3766864,
+        "maximumTemperatureCelsius": 30.95
+      }
+    ],
+    "4kThirtyMinuteCandidate": {
+      "durationSeconds": 1800.011,
+      "outputDrops": 0,
+      "decoderDrops": 0,
+      "maximumAbsoluteAVSeconds": 0.033333333,
+      "peakRSSMiB": 504.125,
+      "peakCPUPercent": 50.3,
+      "energyImpactDelta": 11706646,
+      "maximumTemperatureCelsius": 30.97,
+      "thermalWarning": false,
+      "rawEvidenceSHA256": "22eb918d2701b1afb67e8421c3aa3427c358a213f742cd613d8dd86b53761f89"
+    },
+    "4kThirtyMinuteQuickTime": {
+      "durationSeconds": 1800,
+      "sampleCount": 31,
+      "peakRSSMiB": 119.75,
+      "peakCPUPercent": 4.2,
+      "energyImpactDelta": 10820217,
+      "maximumTemperatureCelsius": 30.95,
+      "thermalWarning": false,
+      "rawEvidenceSHA256": "42478a48b5d96d3927de501837dd5e49bebbd269bc6f16e3298e747b011db2e7"
+    },
+    "candidateToQuickTimeEnergyRatio": 1.0819234032,
+    "qualificationBoundary": "首帧、定位、三轮 1080p、4K RSS、掉帧、A/V 偏差和 30 分钟能耗测量均在阈值内；仍缺纯音频 RSS、按代表样本严格控制的 20 次操作三轮协议、UI 反馈时延及暂停/切换音轨后的 A/V 恢复证据，因此 Q34-B03 为 FAIL。"
+  },
+  "subtitleEvidence": {
+    "ASS": {
+      "result": "PASS",
+      "frameSHA256": "ad59c08a10b86e8de04ddf3c42f55efccaac96f20359c5edf8e1e643c8fa51e7"
+    },
+    "SSA": {
+      "result": "FAIL",
+      "observation": "在字幕包有效时段选择 SSA 轨道，固定帧未显示字幕。",
+      "frameSHA256": "5f9d0eb0df3efa1f91aeb88e1c3af14e2f07868219b8be12a59d79f2ae0d82e4"
+    },
+    "PGS": {
+      "result": "FAIL",
+      "observation": "在字幕包有效时段选择 PGS 轨道，固定帧未显示字幕。",
+      "frameSHA256": "1b1dd9fb8115827cf27699a144cabab6c0918a2b93e0675c6b89f2492a2103aa"
+    }
+  },
+  "blockingChecks": {
+    "Q34-B01": "FAIL：当前自动化接口不能合成真实硬件媒体键，未执行物理播放/暂停、上一首与下一首。",
+    "Q34-B02": "PASS：精确候选的 English 打开、播放、错误与恢复代表场景已通过。",
+    "Q34-B03": "FAIL：多项测量通过阈值，但缺少纯音频 RSS、严格受控操作协议、UI 反馈和部分 A/V 恢复证据。",
+    "Q34-B04": "FAIL：ASS 固定帧通过；SSA 与 PGS 在有效时段未渲染可见字幕。",
+    "Q34-B05": "FAIL：已覆盖六类失败输入，但缺少独立的不支持编码样本。",
+    "Q34-B06": "FAIL：存在 FAIL、PARTIAL 与未执行场景，场景元数据不能支撑完整资格。",
+    "Q34-B07": "FAIL：candidate-record 已从归档终端输出按字节恢复，但原始 xcresult 缺失。",
+    "Q34-B08": "FAIL：通过 UI 建立的只读书签在重启后持久存在，但 Playlist 条目列表可见高度为零，无法继续重启播放、撤销权限与重新授权闭环。"
+  },
+  "rawEvidenceBoundary": {
+    "committed": false,
+    "candidateRecord": "RECOVERED_BYTE_IDENTICAL_FROM_ARCHIVED_TERMINAL_OUTPUT",
+    "xcresult": "MISSING",
+    "reason": "原始截图、媒体、辅助功能树、用户数据库和绝对路径仅保存在本机，避免提交账户、私人 Playlist、媒体内容或用户路径。"
+  },
+  "restoration": {
+    "voiceOver": "关闭，恢复初始值",
+    "appearance": "深色，恢复初始值",
+    "reduceMotion": "关闭，恢复初始值",
+    "candidateProcess": "已停止",
+    "quickTimeProcess": "已停止",
+    "playlistDatabaseSHA256": "7dae1065d46f577a042677d8ed8b7397d1ad597049d6d7ed3e3a0a5b593b0399",
+    "preferencesSHA256": "a3bd8380b4ac269914ce7f087c71f0b901d97a3339f292abf89add1cd15596bf"
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "修复或解释 SSA/PGS 不渲染与 Playlist 条目列表零高度，补齐真实硬件媒体键、纯音频及严格受控性能协议、不支持编码、VoiceOver 实际朗读和原始 xcresult 后，重新绑定候选执行完整资格验收。"
+}
