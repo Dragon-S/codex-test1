@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-22T11:06:24Z",
+  "result": "FAIL",
+  "candidateStatus": "AUTOMATED_PASS_PHYSICAL_PENDING",
+  "scope": "Issue #34 候选 9580d16 的自动化结果与 Q34-B02 英文代表场景；不外推至完整 M5 资格、全部 macOS 14+、公开发布或 App Store 资格",
+  "candidate": {
+    "commit": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+    "builtAtUTC": "20260822T104258Z",
+    "configuration": "Release",
+    "executableSHA256": "b3f6554d9f5eea4de50defa0ce0df270c7b0221fa352728769b0d1c7cd5874a5",
+    "dynamicClosureSHA256": "7da1ffdc2e1f98f0175d1b60b8684924e0b28132c1b6a3bc5f232d9b63c76408",
+    "candidateRecordSHA256": "21792c3b23f8465ba906143e3ccbde7475cd633b0915ae5b5ba9d9d7c8fab752",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2",
+    "bundleIdentifier": "com.dragon-s.MacMediaPlayer",
+    "signingTeamIdentifier": "JVJM87NK2A"
+  },
+  "environment": {
+    "deviceModel": "Mac17,2",
+    "chip": "Apple M5",
+    "memory": "24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 26.6 (17F113)",
+    "appearance": "深色",
+    "accessibilitySettings": "本次未改变；通过 macOS 辅助功能树复核可见控件、状态和菜单文案"
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (94/94)",
+    "appAndRealEngineContracts": "PASS (50/50)",
+    "freshUserData": "PASS",
+    "populatedUserData": "PASS",
+    "signedLaunch": "PASS",
+    "codeSignature": "PASS: Apple Development 签名在磁盘有效并满足 Designated Requirement",
+    "candidateHashMatch": "PASS: 归档产物、稳定安装副本与 candidate-record 的可执行文件 SHA-256 完全一致"
+  },
+  "physicalScenarios": {
+    "Q34-B02": {
+      "initialState": "系统首选语言为简体中文，系统设置显示 MacMediaPlayer 按 App 语言为 English；同 Bundle ID 的全部候选进程已停止，未打开媒体且无活动错误或恢复界面；签名候选安装到稳定应用位置且可执行文件 SHA-256 与 candidate-record 一致；深色外观；保留已有填充用户数据",
+      "operation": "在 Finder 中选中稳定位置的精确候选并启动，复核默认窗口、应用菜单及 File、Edit、View 菜单；在同一 Finder 冷启动会话内通过打开面板选择 6 秒脱敏合成 WAV 并观察播放；再选择脱敏损坏 MP4，执行 Retry，随后重新打开有效 WAV 完成恢复",
+      "expected": "菜单、控制器、状态、错误与辅助功能文案均为英文，不出现原始键、语言混杂或控件截断；有效媒体可打开并播放；损坏媒体显示领域错误和恢复操作，恢复后可重新加载有效媒体",
+      "observed": "系统设置显示 MacMediaPlayer — English；完全退出同 Bundle ID 进程后，Finder 选中的 MacMediaPlayer Internal.app 启动为精确稳定候选。默认窗口动作按钮与 Playback Order、Repeat 选择器完整显示；可见应用文案、菜单、播放状态、错误文案与恢复按钮均为英文。有效 WAV 进入 Playing 且时长为 0:06；损坏 MP4 显示 Media content is corrupted 及 Retry、Show in Finder、Remove from List、Skip；Retry 后重新打开有效 WAV 并再次进入 Playing。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂",
+      "recovery": "候选已完全退出；稳定位置保留精确候选和 English 映射；上一稳定候选保留在本地可恢复备份中；未删除或修改 Playlist、用户媒体或测试样本",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 未开启；通过 macOS 辅助功能树复核可见角色、名称、值、状态和菜单",
+      "evidence": {
+        "syntheticAudioSHA256": "2f597e7349ad53690a387beb4c7124bf7dabd87eda99fd6200c4824ecae0ef6d",
+        "syntheticCorruptMediaSHA256": "e17f8a52a022a5c0bf1f19a6ac178d7fbf0d82dd3d331e4e7be708cd2130b622",
+        "rawEvidenceSHA256": {
+          "appMenuAccessibility": "627d29b40f841077056022e30a15a96b04fa0e7beb9cc8fa49d3c985b6955b4b",
+          "corruptErrorAccessibility": "8266660ed0420a9605aa157e04c47f344c68911a24e8e3f48191cf2133c67d95",
+          "corruptErrorScreenshot": "b1a9d859d7f80554e97d4305750bf54638feffea98d743cc6dc2478b64934f11",
+          "editMenuAccessibility": "0d4cfedfdb418372cc1659c6722c88d9ed73e8bb8bbc04bfc83c1a45ad9efa14",
+          "fileMenuAccessibility": "518f7a844fd716dfd3eb09e35749d947f9718b3a99a01f76ac069f7186efa659",
+          "finderCorruptErrorAccessibility": "8266660ed0420a9605aa157e04c47f344c68911a24e8e3f48191cf2133c67d95",
+          "finderCorruptErrorScreenshot": "d0fcd030be2a0c2391c464ea9bfcf61b717a89c657be1378bd76f979576b2c05",
+          "finderPlayingAccessibility": "889bf5bab3db7fa74cf0543bee127f762d7e6f08d0369bf98b331bdcb7e62d5e",
+          "finderPlayingScreenshot": "4b34d647c9c2e8ff931b7a5b8fc45f5f71a3d6865c31cb7e7a7af2f0a4b17576",
+          "finderRecoveredAccessibility": "836c6c0efb6bcf10f24d6745ed4d580efadb1a59bb194b9c67f8d166c69e5a1f",
+          "finderRecoveredScreenshot": "76595df92e44e4baf63fe81159b7d5133fc3bc51fb6b7d82b4d3a0c7dffddf25",
+          "finderSelectedAccessibility": "f8babbbf8c1709868bbd015477197d7f2b7a5665d5ce171bb3679c209fa2f399",
+          "finderSelectedScreenshot": "05c87053e0475e0bcd6deb1c6d573d940500383e9519110a88d6d2998e8ad33f",
+          "idleAccessibility": "ffccd969a8d52244093355b7e13f79016528f439ae1f29c03ddbf8232f2ce42a",
+          "idleScreenshot": "b9e42c82ffc2d177cfb0e96f7eabd197804e0db459f2f60f4bf0796988fa4efa",
+          "postFinderLaunchAccessibility": "ffccd969a8d52244093355b7e13f79016528f439ae1f29c03ddbf8232f2ce42a",
+          "postFinderLaunchScreenshot": "b9e42c82ffc2d177cfb0e96f7eabd197804e0db459f2f60f4bf0796988fa4efa",
+          "processBeforeFinderLaunch": "0ab44c69b2b46f9501536da2604bc5e9a57ccbfe58384e239bc6c71d0f5ea635",
+          "processAfterRecovery": "0ab44c69b2b46f9501536da2604bc5e9a57ccbfe58384e239bc6c71d0f5ea635",
+          "playingAccessibility": "6cc54dd67110d4d41f153d640c71bcb462a4c0de24b9f1f014e4322ef903ad63",
+          "playingScreenshot": "febb37c4a889c0ef305808a2fdcd8eb81c1895109d031bb1ee60a6c63a2d385a",
+          "recoveredAccessibility": "e6169f36871b7a2b5c9f891c932e87dcd5eef81ded450a1b7887955344208875",
+          "recoveredScreenshot": "878b66ba9d5d6d6141ebd69e7f553d1226d1b9a3f7e8512a27080ad1b3bd210a",
+          "systemSettingsLanguageAccessibility": "481c235446808eee808f5c0e048c1eea54c5a4760e2d1f250cc900f88d28e8f2",
+          "systemSettingsLanguageScreenshot": "b2c2af4d4a311feffd1f9adf1a1595014492b97d94de792432917a885c37b5a1",
+          "viewMenuAccessibility": "a1af634cc1a4215f9d5913cf8ba2164a501eac95f012ac08f42b890f19374ca5"
+        },
+        "processBeforeFinderLaunch": "STOPPED",
+        "processAfterRecovery": "STOPPED"
+      },
+      "result": "PASS",
+      "executionStatus": "EXECUTED"
+    }
+  },
+  "blockingChecks": {
+    "Q34-B01": "NOT_RUN: 未在该精确候选上执行真实硬件播放暂停、上一首与下一首媒体键",
+    "Q34-B02": "PASS: 英文默认布局、菜单、打开、播放、损坏媒体错误与恢复代表流程均完成并留存哈希绑定证据",
+    "Q34-B03": "NOT_RUN: 未在该精确候选上执行三轮性能分位、播放质量、RSS 与能耗门槛",
+    "Q34-B04": "NOT_RUN: 未在该精确候选上执行 ASS、SSA、PGS 固定帧复核",
+    "Q34-B05": "PARTIAL: 覆盖一条损坏媒体错误与恢复代表流程；截断、异常时间戳、伪造扩展名、不支持编码、无权限和损坏字幕未执行",
+    "Q34-B06": "FAIL: 该精确候选仍缺少 Q34-P01 至 Q34-P07、Q34-B01、Q34-B03 至 Q34-B05 及 Q34-B08 的完整场景元数据与现场结果",
+    "Q34-B07": "PARTIAL: candidate-record、xcresult、Q34-B02 截图与辅助功能树在本地存在并绑定 SHA-256；其余物理原始证据不完整",
+    "Q34-B08": "NOT_RUN: 未在该精确候选上执行安全作用域访问、权限丢失与书签恢复闭环"
+  },
+  "privacy": {
+    "rawArtifactsCommitted": false,
+    "committedData": "仅提交脱敏摘要、哈希、版本、场景结果和非隐私设备规格",
+    "excludedData": [
+      "账户信息",
+      "设备序列号",
+      "绝对用户路径",
+      "私人 Playlist 名称",
+      "用户媒体文件名与内容",
+      "偏好文件原文"
+    ],
+    "localBackupCreated": true
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "在同一 9580d16 候选上执行 Q34-B01 真实硬件媒体键，并继续完整失败语料、安全作用域恢复、性能与播放质量、字幕像素帧和 30 分钟 QuickTime 对照"
+}

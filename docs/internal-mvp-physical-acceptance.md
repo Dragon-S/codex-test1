@@ -3,15 +3,47 @@
 ## 当前结论
 
 - Issue #34 结果：`FAIL`
-- 最新复验候选：`d6fa9c269d1d34e42986307af0172e707c48b216`
-- Q34-B02 进展：旧候选在系统设置指定 English 后仍显示简体中文的直接故障，在稳定安装路径连续三次启动时未再复现；三次均观察到英文 `Speed` 与 `Mute` 控件，未匹配到对应中文控件。
-- Q34-B02 当前结果：`PARTIAL`。本次没有执行英文打开媒体、播放、错误恢复以及菜单、状态和完整辅助功能文案复核，不能据此标为 `PASS`。
+- 最新复验候选：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
+- Q34-B02 结果：`PASS`。系统设置显示按 App 语言为 English；完全退出同 Bundle ID 的全部进程后，从 Finder 启动精确候选，并在同一冷启动会话内完成默认英文窗口、应用/File/Edit/View 菜单、有效媒体打开与播放、损坏媒体领域错误与 `Retry` 后重新打开有效媒体的恢复流程；动作按钮与 Playback Order、Repeat 选择器无截断，可见辅助功能文案均为英文。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
+- 本轮发现并修复英文 Playlist 侧栏布局截断：侧栏从 260 点扩到 320 点，Playback Order 与 Repeat 改为两行全宽选择器；AppKit 布局回归测试先 RED 后 GREEN。
 - 其他阻断：真实硬件媒体键、完整失败语料、安全作用域恢复、三轮性能与播放质量、ASS/SSA/PGS 固定帧、30 分钟 QuickTime 对照及原始证据完整性仍未在同一最新候选上通过。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新复验的完整脱敏摘要见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)；历史候选的完整脱敏记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始候选、xcresult、偏好备份与现场 UI 状态保存在本地，未提交账户、私人 Playlist、媒体内容、偏好文件原文或用户绝对路径。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新复验的完整脱敏摘要见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，历史完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始候选、xcresult、偏好备份与现场 UI 状态保存在本地，未提交账户、私人 Playlist、媒体内容、偏好文件原文或用户绝对路径。
 
-## 2026-08-22 最新候选语言复验
+## 2026-08-22 最终候选英文代表场景
+
+| 项目 | 值 |
+| --- | --- |
+| Release 提交 | `9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd` |
+| 构建时间 | `20260822T104258Z` |
+| 可执行文件 SHA-256 | `b3f6554d9f5eea4de50defa0ce0df270c7b0221fa352728769b0d1c7cd5874a5` |
+| 动态闭包 SHA-256 | `7da1ffdc2e1f98f0175d1b60b8684924e0b28132c1b6a3bc5f232d9b63c76408` |
+| candidate-record SHA-256 | `21792c3b23f8465ba906143e3ccbde7475cd633b0915ae5b5ba9d9d7c8fab752` |
+| 引擎 | mpv `v0.41.0`；FFmpeg `n8.1.2`；`arm64 + x86_64` |
+| 设备 | MacBook Pro `Mac17,2`；Apple M5；24 GB |
+| 系统与工具 | macOS 26.6.2（25G83）；Xcode 26.6（17F113） |
+| 自动门槛 | Swift `94/94`；Xcode/真实 libmpv `50/50`；签名启动与候选数据场景 `PASS` |
+
+### Q34-B02 英文代表场景
+
+- 初始状态：系统首选语言为简体中文，系统设置显示 `MacMediaPlayer — English`；同 Bundle ID 的全部候选进程已停止，未打开媒体且无活动错误或恢复界面；签名候选安装到稳定应用位置且可执行文件 SHA-256 与 candidate-record 一致；深色外观；保留已有填充用户数据。
+- 操作：在 Finder 中选中稳定位置的精确候选并启动，复核默认窗口及应用、File、Edit、View 菜单；在同一 Finder 冷启动会话内通过打开面板选择 6 秒脱敏合成 WAV 并观察播放；再选择脱敏损坏 MP4，执行 `Retry`，随后重新打开有效 WAV 完成恢复。
+- 预期：菜单、控制器、状态、错误与辅助功能文案均为英文，不出现原始键、语言混杂或控件截断；有效媒体可打开并播放；损坏媒体显示领域错误和恢复操作，恢复后可重新加载有效媒体。
+- 观察：系统设置显示按 App 语言为 English；Finder 选中的 `MacMediaPlayer Internal.app` 启动为精确稳定候选。默认窗口动作按钮与 Playback Order、Repeat 选择器完整显示；可见应用文案、菜单、播放状态、错误文案与恢复按钮均为英文。有效 WAV 进入 `Playing` 且时长为 `0:06`；损坏 MP4 显示 `Media content is corrupted` 及 `Retry`、`Show in Finder`、`Remove from List`、`Skip`；`Retry` 后重新打开有效 WAV 并再次进入 `Playing`。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
+- 恢复：候选已完全退出；稳定位置保留精确候选和 English 映射；上一稳定候选保留在本地可恢复备份中；未删除或修改 Playlist、用户媒体或测试样本。
+- 候选构建：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
+- macOS：26.6.2（25G83）
+- 设备：MacBook Pro `Mac17,2`；Apple M5；24 GB
+- 语言：English
+- 外观：深色
+- 辅助功能设置：VoiceOver 未开启；通过 macOS 辅助功能树复核可见角色、名称、值、状态和菜单。
+- 证据：脱敏样本和本地原始截图/辅助功能树均绑定 SHA-256；完整哈希清单见最新脱敏 JSON 摘要。
+- 结果：`PASS`
+
+Issue #34 总结果仍为 `FAIL`：上述 PASS 只覆盖 Q34-B02；同一候选的 Q34-B01、Q34-B03 至 Q34-B05、Q34-B08 与 Q34-P01 至 Q34-P07 仍有未执行或不完整项。
+
+## 2026-08-22 前一候选语言复验
 
 | 项目 | 值 |
 | --- | --- |
@@ -42,7 +74,7 @@ Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 
 - 证据：三轮可见控件检查、系统设置稳定条目、签名验证、可执行文件三方哈希一致性及脱敏 JSON 摘要。
 - 结果：`PARTIAL`
 
-下一步必须在同一候选上补齐英文打开、播放和错误恢复代表流程，并复核菜单、状态、完整辅助功能文案与布局；在此之前不得将 Q34-B02 或 Issue #34 标为 `PASS`。
+当时的下一步是在同一候选上补齐英文打开、播放和错误恢复代表流程，并复核菜单、状态、完整辅助功能文案与布局；在完成前不得将该候选的 Q34-B02 或 Issue #34 标为 `PASS`。
 
 ## 2026-08-09 历史候选结果
 
