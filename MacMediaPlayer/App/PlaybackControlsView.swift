@@ -798,6 +798,7 @@ struct NowPlayingListView: View {
                 .accessibilityLabel(mediaName)
                 .accessibilityValue(presentation.accessibilityValue)
             }
+            .frame(minHeight: 80)
         }
     }
 

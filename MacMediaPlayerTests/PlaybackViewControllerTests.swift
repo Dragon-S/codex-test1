@@ -318,6 +318,50 @@ struct PlaybackViewControllerTests {
         ))
     }
 
+    @Test("重启恢复后 Playlist 条目列表保留至少一行可见高度")
+    func restoredPlaylistEntryListKeepsVisibleHeight() async throws {
+        let entry = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data("restored-bookmark".utf8),
+            lastKnownPath: "/tmp/restored-after-restart.mp4"
+        ))
+        let playlist = Playlist(
+            name: "重启恢复",
+            entries: [entry],
+            currentEntryID: entry.id
+        )
+        let coordinator = PlaybackCoordinator(
+            engine: LayoutFakePlaybackEngine(),
+            playlistStore: InMemoryPlaylistStore(library: PlaylistLibrary(
+                playlists: [playlist],
+                activePlaylistID: playlist.id
+            ))
+        )
+        let controller = makeController(coordinator: coordinator)
+        let size = NSSize(width: 640, height: 400)
+        let window = host(controller, size: size)
+        layout(controller, in: window, size: size)
+        try await coordinator.restorePersistentState()
+        let sidebar = try #require(controller.view.subviews.first {
+            $0.accessibilityLabel() == "Playlist 侧栏"
+        })
+
+        var entryList: NSScrollView?
+        for _ in 0..<100 where entryList == nil {
+            sidebar.layoutSubtreeIfNeeded()
+            entryList = viewDescendants(of: sidebar)
+                .compactMap { $0 as? NSScrollView }
+                .first(where: \.hasVerticalScroller)
+            if entryList == nil {
+                try await Task.sleep(for: .milliseconds(1))
+            }
+        }
+        let restoredEntryList = try #require(entryList)
+
+        #expect(restoredEntryList.frame.height >= 44)
+        #expect(restoredEntryList.contentView.documentVisibleRect.height >= 44)
+    }
+
     @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
     func playlistSidebarMovesFocusInAndBack() throws {
         let controller = makeController()
