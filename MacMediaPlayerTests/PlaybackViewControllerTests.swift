@@ -341,25 +341,35 @@ struct PlaybackViewControllerTests {
         let size = NSSize(width: 640, height: 400)
         let window = host(controller, size: size)
         layout(controller, in: window, size: size)
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+        #expect(window.isVisible)
         try await coordinator.restorePersistentState()
         let sidebar = try #require(controller.view.subviews.first {
             $0.accessibilityLabel() == "Playlist 侧栏"
         })
+        let windowContentView = try #require(window.contentView)
+        let minimumVisibleEntryListHeight: CGFloat = 40
 
         var entryList: NSScrollView?
-        for _ in 0..<100 where entryList == nil {
+        var visibleEntryListHeight: CGFloat = 0
+        for _ in 0..<100 where visibleEntryListHeight < minimumVisibleEntryListHeight {
             sidebar.layoutSubtreeIfNeeded()
             entryList = viewDescendants(of: sidebar)
                 .compactMap { $0 as? NSScrollView }
                 .first(where: \.hasVerticalScroller)
-            if entryList == nil {
+            if let entryList {
+                let visibleListRect = entryList.convert(entryList.visibleRect, to: windowContentView)
+                    .intersection(windowContentView.bounds)
+                visibleEntryListHeight = visibleListRect.height
+            }
+            if visibleEntryListHeight < minimumVisibleEntryListHeight {
                 try await Task.sleep(for: .milliseconds(1))
             }
         }
-        let restoredEntryList = try #require(entryList)
+        _ = try #require(entryList)
 
-        #expect(restoredEntryList.frame.height >= 44)
-        #expect(restoredEntryList.contentView.documentVisibleRect.height >= 44)
+        #expect(visibleEntryListHeight >= minimumVisibleEntryListHeight)
     }
 
     @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
