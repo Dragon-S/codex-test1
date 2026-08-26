@@ -1,0 +1,336 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-25T16:38:08Z",
+  "issue": 34,
+  "result": "FAIL",
+  "scope": "Apple M5 MacBook Pro 上离线内部 MVP 的单候选物理资格复验；不外推至全部 macOS 14+、公开发布或 App Store 资格。",
+  "candidate": {
+    "releaseCommit": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+    "builtAtUTC": "20260822T104258Z",
+    "executableSHA256": "b3f6554d9f5eea4de50defa0ce0df270c7b0221fa352728769b0d1c7cd5874a5",
+    "dynamicClosureSHA256": "7da1ffdc2e1f98f0175d1b60b8684924e0b28132c1b6a3bc5f232d9b63c76408",
+    "candidateRecordSHA256": "21792c3b23f8465ba906143e3ccbde7475cd633b0915ae5b5ba9d9d7c8fab752",
+    "signatureVerification": "PASS"
+  },
+  "environment": {
+    "hardware": "MacBook Pro Mac17,2；Apple M5；24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "26.6 (17F113)",
+    "appLanguage": "English",
+    "initialAppearance": "深色",
+    "initialVoiceOver": false,
+    "initialReduceMotion": false
+  },
+  "physicalScenarios": {
+    "Q34-P01": {
+      "initialState": "精确候选已启动；English；深色；VoiceOver 与减弱动态效果关闭；无活动错误。",
+      "actions": "逐一打开 17 个锁定的核心视频、音频、VFR、长 GOP、音轨与字幕容器输入，核对媒体名、播放态和时长；观察多音轨样本的当前音轨。",
+      "expected": "每个输入进入正确播放态，媒体名、时长、音轨与字幕符合语料定义。",
+      "recovery": "不删除或修改输入；完成后停止候选。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "inputCount": 17,
+        "sanitizedSummarySHA256": "5b76657588bed66da5b47d9e33378f77cd0b731faafd73d6d0e54b4f019fa7e3",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "17 个核心输入均显示预期文件名、Playing 与正确时长；多音轨样本显示 English AAC。未完整执行逐轨切换与所有轨道断言。"
+    },
+    "Q34-P02": {
+      "initialState": "精确候选运行；English；深色；VoiceOver 与减弱动态效果关闭；锁定 24 小时 ALAC 尚未打开。",
+      "actions": "打开锁定 ALAC，分别定位开头、中点约 12 小时与末端 24 小时。",
+      "expected": "无溢出、崩溃或错误保存，定位、续播与结尾行为符合 #17。",
+      "recovery": "不修改输入；完成后停止候选，不覆盖用户原有状态。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "inputSHA256": "db86ca29291cea1b899eda7f24124e380d1249d3b53b9fb86308488a37e54e45",
+        "startAccessibilityTreeSHA256": "c404ff7aa07f631cd5c5f990cbc76bd26c23b3f53fe8790dfd6d9e4e483aee0f",
+        "midpointAccessibilityTreeSHA256": "7cb8635c0805e6ffb1037fbb15ad0ae920018cf103343ee129afcfd0b8436b56",
+        "endAccessibilityTreeSHA256": "3d89c2b8c0ab2f14f94e48ac694a324b96696569b42d83e1fe89223ab5fefb43",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "24 小时 ALAC 的开头、中点约 12 小时与末端 24 小时均可达，无溢出或崩溃；未完整执行重启续播和结尾持久化。"
+    },
+    "Q34-P03": {
+      "initialState": "精确候选运行；English；深色；VoiceOver 与减弱动态效果关闭；测试输入权限除无权限步骤外均可读。",
+      "actions": "依次打开无效内容、截断、伪造扩展名、无权限、损坏字幕与异常时间戳输入，执行可用的重试或重新打开恢复；未形成独立不支持编码输入。",
+      "expected": "打开阶段不可播放时 5 秒内结束尝试，错误分类稳定，恢复不删除源文件，字幕损坏不阻断主媒体。",
+      "recovery": "将无权限输入恢复为可读并重试；其余输入停止；不删除或覆盖输入。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "notMediaAccessibilityTreeSHA256": "74243b99adea41fd45a761443ce6288195e9be16fd7926b1925c7393fb54295e",
+        "truncatedAccessibilityTreeSHA256": "bba7ab94facb1850fd9daaa12e18420a3d9cfb5e927fba16ab0f528684898e03",
+        "forgedExtensionAccessibilityTreeSHA256": "8c348c63406881e3f0415f26be61a7d13695d0382c89a85d18c18bf7da39862e",
+        "unreadableAccessibilityTreeSHA256": "dee6860423bea6bf217e1b8efd5441ca15cf84b6d90ffa97d0885c09b4cb171c",
+        "unreadableRestoredAccessibilityTreeSHA256": "1a0eb1dd63c18b8ba9ccd85fa52ce164c2a051a0bf15afbf592793523472a958",
+        "malformedSubtitleScreenshotSHA256": "71ca5dbcaae65c409aaaf3631cd96ece62b5e0eda61c6aa6f548a7a21cef2e5e",
+        "anomalousTimestampEndAccessibilityTreeSHA256": "fcdaa2c6847f18cc46245460ac1601837e5a92c393fea820b0e2906f78398034",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "损坏、截断、伪造扩展名、无权限、损坏字幕与异常时间戳均无崩溃，并观察到相应恢复路径；未形成与无效内容相区分的独立不支持编码样本。"
+    },
+    "Q34-P04": {
+      "initialState": "精确候选正在播放脱敏输入；English；深色；VoiceOver 与减弱动态效果关闭；普通窗口。",
+      "actions": "执行 Space、左右方向键、上下方向键、P 与 Control-Command-F；未执行真实硬件播放/暂停、上一首、下一首媒体键、系统音量键语义和完整分层 Escape。",
+      "expected": "局部焦点语义优先；播放、定位、音量、Playlist 和全屏层级正确；系统音量键保持系统行为。",
+      "recovery": "退出全屏并恢复普通窗口；完成后停止候选。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "spacePauseAccessibilityTreeSHA256": "625e89aff77fa6cb2ac830558b2ae809ff23a8c17a64eb8ae88658ec1cdccaa4",
+        "spacePlayAccessibilityTreeSHA256": "47254cff6c0bea0735cf9d34795111f666b3f4c8887a8209f843881118fb7202",
+        "seekLeftAccessibilityTreeSHA256": "cb327451936e12eaf1a56af5e20012cb948f1c9715b9168a38fd17db802c7b96",
+        "seekRightAccessibilityTreeSHA256": "fef0fdef39eb326408a18cc67f578f9adcf938e8cc778a67159561ff88e812aa",
+        "windowRestoredAccessibilityTreeSHA256": "858d5b9a22fb9717664a0384fbf8dcc6ec027dacabda7f09209623111a1a1c67",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "已执行的软件键盘路径通过；真实媒体键、系统音量键语义和完整分层 Escape 缺失，因此不能标记为 PASS。"
+    },
+    "Q34-P05": {
+      "initialState": "精确候选运行；English；深色；VoiceOver 关闭；减弱动态效果关闭。",
+      "actions": "开启 VoiceOver，打开损坏媒体，检查错误与恢复动作的辅助功能树，再打开有效媒体恢复 Playing；未完成可听朗读、完整 Playlist/轨道/字幕操作和 VoiceOver 光标核验。",
+      "expected": "角色、名称、值、状态、通知和焦点顺序正确，恢复流程进入并返回合理焦点。",
+      "recovery": "关闭 VoiceOver，确认设置恢复；完成后停止候选。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "执行中 VoiceOver 开启；减弱动态效果关闭；结束后 VoiceOver 恢复关闭",
+      "evidence": {
+        "voiceOverOnSettingsSHA256": "5bb5ba9db9def5a0ab301dfddea4ec74bc806571ea010252e242ab565a965b5f",
+        "errorAccessibilityTreeSHA256": "67e2f98082068376a9c747f84bc720346e7962bf0792ffe3dcb25b90e8549a1c",
+        "recoveredAccessibilityTreeSHA256": "3a7668f618cd70d8a731b3f61eef25d04646006bb1ff64a684a839f4b0a4ba61",
+        "voiceOverRestoredOffSettingsSHA256": "d6b37ca950d9846de30070da0f28af60426854350f02ae13e823fa6aa799c64f",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "VoiceOver 开启时，损坏媒体状态、Retry、Show in Finder、Remove from List、Skip 及恢复后的 Playing 均存在于辅助功能树；当前执行接口无法核验实际朗读与 VoiceOver 光标行为。"
+    },
+    "Q34-P06": {
+      "initialState": "精确候选运行；English；深色；VoiceOver 与减弱动态效果关闭。",
+      "actions": "切换浅色并恢复深色；开启减弱动态效果并恢复关闭；未执行增强对比度与完整非颜色状态、全屏外观核验。",
+      "expected": "媒体、暂停状态和焦点保持；状态不只依赖颜色；开启减弱动态效果时抑制明显滑动、缩放、弹簧和视差。",
+      "recovery": "恢复深色并关闭减弱动态效果；完成后停止候选。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "执行中浅色与深色；结束后恢复深色",
+      "accessibilitySettings": "VoiceOver 关闭；执行中减弱动态效果开启；结束后恢复关闭",
+      "evidence": {
+        "lightCandidateScreenshotSHA256": "e39580bbae59d1ba5887fefb00db937876474c09e01b1c2b866e8daf37532a76",
+        "darkRestoredCandidateScreenshotSHA256": "4a4395b575954884a6d362c41a8d6bda5bc05cf3247de7836c035c3e0a46a3e1",
+        "reduceMotionOnSettingsSHA256": "e1bc670f1576c364aedf0778eca24c7c4189c57f8d30dbe5d9b98e33213a4cb2",
+        "reduceMotionRestoredOffSettingsSHA256": "55178a2312d7f850c72aaa6b7da3de64304023973baf05fdeeb13c8fce93a7f2",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "完成浅色切换、深色恢复及减弱动态效果开关恢复；未穷尽增强对比度、非颜色状态与全屏外观。"
+    },
+    "Q34-P07": {
+      "initialState": "精确候选与 QuickTime 均停止；English；深色；VoiceOver 与减弱动态效果关闭；供电状态未单独记录；运行期间后台进程集合发生变化。",
+      "actions": "以相邻顺序播放同一锁定 4K HEVC/AAC 30 分钟输入，按固定间隔采集候选与 QuickTime 的 RSS、CPU、能耗和温度。",
+      "expected": "候选 RSS 不超过 512 MiB，无系统热警告，能耗不超过 QuickTime 的 2 倍，并保留原始样本。",
+      "recovery": "退出候选与 QuickTime。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "inputSHA256": "9108a40465d03a217ded195a3145716ff1ff6a80fd285eaad327c4cbd67d8db2",
+        "candidateJSONLSHA256": "22eb918d2701b1afb67e8421c3aa3427c358a213f742cd613d8dd86b53761f89",
+        "quickTimeJSONLSHA256": "42478a48b5d96d3927de501837dd5e49bebbd269bc6f16e3298e747b011db2e7",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PARTIAL",
+      "observation": "候选与 QuickTime 均完成相邻 30 分钟 4K 播放，候选能耗比为 1.082，且无热警告；相邻运行期间后台进程集合发生变化，因此保留严格受控环境结论。"
+    }
+  },
+  "performanceEvidence": {
+    "internalQualificationLog": {
+      "lineCount": 15397,
+      "sha256": "f1fb552cdbc41121c75f7502e5aa7059dc170610601edb06e46e7de008ce97cc"
+    },
+    "loadToFirstFrameMilliseconds": {
+      "sampleCount": 23,
+      "minimum": 23.189,
+      "median": 75.817,
+      "p95": 146.802625,
+      "maximum": 341.43875
+    },
+    "seekToPlaybackRestartMilliseconds": {
+      "sampleCount": 57,
+      "minimum": 1.63,
+      "median": 52.582,
+      "p95": 125.542542,
+      "maximum": 156.964,
+      "over500Milliseconds": 0
+    },
+    "1080pTenMinuteRuns": [
+      {
+        "round": 1,
+        "durationSeconds": 599.96,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 271.125,
+        "energyImpactDelta": 4599396,
+        "maximumTemperatureCelsius": 30.96,
+        "rawEvidenceSHA256": "ab15cd0c4a6eb53a345371597a5ba50818810290607ed36e5f88c5a4b10e97f5"
+      },
+      {
+        "round": 2,
+        "durationSeconds": 599.976,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 277.671875,
+        "energyImpactDelta": 4645149,
+        "maximumTemperatureCelsius": 30.96,
+        "rawEvidenceSHA256": "53b6813ef531f42c4959927c2632b24b6cbc923b06576154bcbdfab7b04e8e5e"
+      },
+      {
+        "round": 3,
+        "durationSeconds": 599.918,
+        "outputDrops": 0,
+        "decoderDrops": 0,
+        "maximumAbsoluteAVSeconds": 0.041708333,
+        "peakRSSMiB": 281.40625,
+        "energyImpactDelta": 3766864,
+        "maximumTemperatureCelsius": 30.95,
+        "rawEvidenceSHA256": "845fc3c34903303d16e46a5bc420c3fd2b607ee07fb02dc92c5704136a56b663"
+      }
+    ],
+    "4kThirtyMinuteCandidate": {
+      "durationSeconds": 1800.011,
+      "outputDrops": 0,
+      "decoderDrops": 0,
+      "maximumAbsoluteAVSeconds": 0.033333333,
+      "peakRSSMiB": 504.125,
+      "peakCPUPercent": 50.3,
+      "energyImpactDelta": 11706646,
+      "maximumTemperatureCelsius": 30.97,
+      "thermalWarning": false,
+      "rawEvidenceSHA256": "22eb918d2701b1afb67e8421c3aa3427c358a213f742cd613d8dd86b53761f89"
+    },
+    "4kThirtyMinuteQuickTime": {
+      "durationSeconds": 1800,
+      "sampleCount": 31,
+      "peakRSSMiB": 119.75,
+      "peakCPUPercent": 4.2,
+      "energyImpactDelta": 10820217,
+      "maximumTemperatureCelsius": 30.95,
+      "thermalWarning": false,
+      "rawEvidenceSHA256": "42478a48b5d96d3927de501837dd5e49bebbd269bc6f16e3298e747b011db2e7"
+    },
+    "candidateToQuickTimeEnergyRatio": 1.0819234032,
+    "qualificationBoundary": "首帧、定位、三轮 1080p、4K RSS、掉帧、A/V 偏差和 30 分钟能耗测量均在阈值内；仍缺纯音频 RSS、按代表样本严格控制的 20 次操作三轮协议、UI 反馈时延及暂停/切换音轨后的 A/V 恢复证据，因此 Q34-B03 为 FAIL。"
+  },
+  "subtitleEvidence": {
+    "ASS": {
+      "result": "PARTIAL",
+      "inputSHA256": "1672ea5ccb8d885d0ad0b94c4b9700da3e5ef0f8e94b94a02532e4ffb08f8b79",
+      "observation": "固定帧可见两行 ASS 字幕，但未单独记录固定帧时刻，也未完成位置、样式和重叠层级的逐项对照。",
+      "frameSHA256": "ad59c08a10b86e8de04ddf3c42f55efccaac96f20359c5edf8e1e643c8fa51e7"
+    },
+    "SSA": {
+      "result": "FAIL",
+      "inputSHA256": "d313f3c97adde4a9b6e1a1fbcb0cf012bfab8aed1b709bb510bcf26edb20ed57",
+      "capturePositionBoundsSeconds": {
+        "before": 37.452,
+        "after": 37.744
+      },
+      "subtitlePacketIntervalSeconds": {
+        "start": 36.494,
+        "end": 40.494
+      },
+      "observation": "截图事件位于相邻播放样本 37.452–37.744 秒之间，完整落在字幕包 36.494–40.494 秒的有效区间内；已选择 SSA 轨道，但固定帧未显示字幕。",
+      "frameSHA256": "5f9d0eb0df3efa1f91aeb88e1c3af14e2f07868219b8be12a59d79f2ae0d82e4"
+    },
+    "PGS": {
+      "result": "PARTIAL",
+      "observation": "选择 PGS 轨道后得到空白帧，但捕获前最后可核对播放位置为 9.885 秒，已超过字幕包 9.009 秒的末端，截图事件又晚约 11.226 秒；该帧不能证明位于有效区间，也不能证明 PGS 渲染故障。",
+      "frameSHA256": "1b1dd9fb8115827cf27699a144cabab6c0918a2b93e0675c6b89f2492a2103aa"
+    }
+  },
+  "blockingScenarioRecords": {
+    "Q34-B02": {
+      "record": "candidate-9580d16-language-qualification.json",
+      "recordSHA256": "61243e336cf3c44ed430c259b5935d2f5594149a2880629d8c5cc1e3631b4dc6",
+      "metadata": "初始状态、操作、预期、恢复、候选构建、macOS、设备、语言、外观、辅助功能设置、证据和结果均记录于引用文件。",
+      "result": "PASS"
+    },
+    "Q34-B08": {
+      "initialState": "精确候选停止；用户 Playlist 数据库与偏好已备份；测试 Playlist 和只读书签尚未建立；测试输入可读。",
+      "actions": "从 UI 新建测试 Playlist 并添加用户选择输入，退出并重启候选验证书签持久化；因条目列表可见高度为零，未能继续重启播放、撤销权限和重新授权。",
+      "expected": "重启后只读访问保持；权限丢失时错误分类稳定；重新授权后恢复同一本地媒体引用；不删除或覆盖输入。",
+      "recovery": "停止候选，恢复用户 Playlist 数据库与偏好，不修改测试输入。",
+      "candidateBuild": "9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "bookmarkAddedAccessibilityTreeSHA256": "1f21fad1c90412968e97aca5da5210d8d7b92660f883b0249e4b6979a9f78d7c",
+        "restartPersistedAccessibilityTreeSHA256": "2f8f847433e4f49873b764e357092a97b156d475a28b85511896d5b70421d7b8",
+        "zeroHeightLayoutScreenshotSHA256": "e7d766ac84975d94630a82ac8cc9ecb45819b1f49b26f68af7383b5f7e76177d",
+        "testDatabaseSHA256": "552623311c496b963fdafb98d9c3eb25700985aa2faec4d0134a9d73261de7e4",
+        "rawEvidenceCommitted": false
+      },
+      "result": "FAIL"
+    }
+  },
+  "blockingChecks": {
+    "Q34-B01": "FAIL：当前自动化接口不能合成真实硬件媒体键，未执行物理播放/暂停、上一首与下一首。",
+    "Q34-B02": "PASS：精确候选的 English 打开、播放、错误与恢复代表场景已通过。",
+    "Q34-B03": "FAIL：多项测量通过阈值，但缺少纯音频 RSS、严格受控操作协议、UI 反馈和部分 A/V 恢复证据。",
+    "Q34-B04": "FAIL：ASS 仅证明两行字幕可见，缺固定帧时刻和完整像素断言；SSA 在有效时段未渲染可见字幕；PGS 捕获时刻不能证明位于有效区间。",
+    "Q34-B05": "FAIL：已覆盖六类失败输入，但缺少独立的不支持编码样本。",
+    "Q34-B06": "FAIL：P07 的供电基线未记录；ASS 缺固定帧时刻与完整像素断言；其余场景虽已补录必需字段与选定证据哈希，但原始证据清单不完整，不能通过元数据完整性复核。",
+    "Q34-B07": "FAIL：candidate-record 已从归档终端输出按字节恢复，但原始 xcresult 缺失。",
+    "Q34-B08": "FAIL：通过 UI 建立的只读书签在重启后持久存在，但 Playlist 条目列表可见高度为零，无法继续重启播放、撤销权限与重新授权闭环。"
+  },
+  "rawEvidenceBoundary": {
+    "committed": false,
+    "candidateRecord": "RECOVERED_BYTE_IDENTICAL_FROM_ARCHIVED_TERMINAL_OUTPUT",
+    "xcresult": "MISSING",
+    "reason": "原始截图、媒体、辅助功能树、用户数据库和绝对路径仅保存在本机，避免提交账户、私人 Playlist、媒体内容或用户路径。"
+  },
+  "restoration": {
+    "voiceOver": "关闭，恢复初始值",
+    "appearance": "深色，恢复初始值",
+    "reduceMotion": "关闭，恢复初始值",
+    "candidateProcess": "已停止",
+    "quickTimeProcess": "已停止",
+    "playlistDatabaseSHA256": "7dae1065d46f577a042677d8ed8b7397d1ad597049d6d7ed3e3a0a5b593b0399",
+    "preferencesSHA256": "a3bd8380b4ac269914ce7f087c71f0b901d97a3339f292abf89add1cd15596bf"
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "修复或解释 SSA 不渲染与 Playlist 条目列表零高度，在 PGS 字幕有效区间重新采集带精确时刻和像素断言的固定帧，并补齐同一精确候选的简体中文代表性物理机场景、真实硬件媒体键、纯音频及严格受控性能协议、不支持编码、VoiceOver 实际朗读和原始 xcresult 后，重新绑定候选执行完整资格验收。"
+}

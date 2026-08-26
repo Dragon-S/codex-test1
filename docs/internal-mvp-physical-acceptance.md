@@ -4,12 +4,51 @@
 
 - Issue #34 结果：`FAIL`
 - 最新复验候选：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
-- Q34-B02 结果：`PASS`。系统设置显示按 App 语言为 English；完全退出同 Bundle ID 的全部进程后，从 Finder 启动精确候选，并在同一冷启动会话内完成默认英文窗口、应用/File/Edit/View 菜单、有效媒体打开与播放、损坏媒体领域错误与 `Retry` 后重新打开有效媒体的恢复流程；动作按钮与 Playback Order、Repeat 选择器无截断，可见辅助功能文案均为英文。已有 Playlist 名称和媒体名保持用户原文，不属于语言混杂。
-- 本轮发现并修复英文 Playlist 侧栏布局截断：侧栏从 260 点扩到 320 点，Playback Order 与 Repeat 改为两行全宽选择器；AppKit 布局回归测试先 RED 后 GREEN。
-- 其他阻断：真实硬件媒体键、完整失败语料、安全作用域恢复、三轮性能与播放质量、ASS/SSA/PGS 固定帧、30 分钟 QuickTime 对照及原始证据完整性仍未在同一最新候选上通过。
+- 已通过的完整阻断项仅有 Q34-B02 英文代表场景。软件键盘路径、ASS 两行字幕可见以及多项性能子门槛通过，但这些部分观察不能替代完整阻断资格。
+- 本轮确认两个可复现的物理故障：SSA 在字幕有效时段没有可见渲染；重启后 Playlist 条目仍在辅助功能树中，但条目列表可见高度为零，阻断安全作用域恢复闭环。PGS 空白帧的捕获时刻不能证明位于字幕有效区间，不作为故障结论。
+- 仍缺同一精确候选的简体中文代表性物理机场景、真实硬件媒体键、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读，以及原始 xcresult。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新复验的完整脱敏摘要见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，历史完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始候选、xcresult、偏好备份与现场 UI 状态保存在本地，未提交账户、私人 Playlist、媒体内容、偏好文件原文或用户绝对路径。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一候选先前的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，历史完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+
+## 2026-08-25 完整物理资格复验
+
+| 场景 | 结果 | 观察与边界 |
+| --- | --- | --- |
+| Q34-P01 核心格式语料 | `PARTIAL` | 17 个输入均显示预期文件名、Playing 与正确时长；未完整执行逐轨切换与所有轨道断言。 |
+| Q34-P02 24 小时 ALAC | `PARTIAL` | 开头、中点约 12 小时与末端 24 小时均可达，无溢出或崩溃；未完整执行重启续播和结尾持久化。 |
+| Q34-P03 失败语料 | `PARTIAL` | 损坏、截断、伪造扩展名、无权限、损坏字幕和异常时间戳均无崩溃，并观察到恢复路径；缺少独立的不支持编码样本。 |
+| Q34-P04 键盘、媒体键与全屏 | `PARTIAL` | Space、左右、上下、P 与 Control-Command-F 的软件键盘路径通过；真实媒体键、系统音量键语义和完整分层 Escape 未执行。 |
+| Q34-P05 VoiceOver | `PARTIAL` | 错误、恢复动作和恢复后 Playing 存在于辅助功能树；当前接口不能核验实际朗读与 VoiceOver 光标。 |
+| Q34-P06 外观与动态效果 | `PARTIAL` | 完成浅色、深色与减弱动态效果切换并恢复；未穷尽增强对比度、非颜色状态和全屏外观。 |
+| Q34-P07 4K 热稳态 | `PARTIAL` | 候选与 QuickTime 均完成相邻 30 分钟，能耗比 1.082 且无热警告；期间后台进程集合发生变化，严格受控结论保留。 |
+
+### 关键性能观察
+
+| 指标 | 观察 | 门槛结果 |
+| --- | --- | --- |
+| 打开到首帧 | 23 个样本；P95 146.803 ms；最大 341.439 ms | 子门槛 `PASS` |
+| 定位到恢复播放 | 57 个样本；P95 125.543 ms；最大 156.964 ms | 子门槛 `PASS` |
+| 1080p 10 分钟稳态 | 三轮输出与解码掉帧均为 0；最大绝对 A/V 偏差 41.709 ms；峰值 RSS 271.125–281.406 MiB | 子门槛 `PASS` |
+| 4K 30 分钟候选 | 输出与解码掉帧均为 0；最大绝对 A/V 偏差 33.333 ms；峰值 RSS 504.125 MiB；无热警告 | 子门槛 `PASS` |
+| QuickTime 相邻对照 | 候选/QuickTime 能耗比 1.082 | 测量值通过；受环境变化影响，Q34-P07 保留 `PARTIAL` |
+
+这些通过值不能把 Q34-B03 提升为 `PASS`：仍缺纯音频 RSS、按代表样本严格控制的 20 次操作三轮协议、UI 反馈时延，以及暂停和切换音轨后的 A/V 恢复证据。
+
+### 阻断项
+
+| 场景 | 结果 | 证据或缺口 |
+| --- | --- | --- |
+| Q34-B01 真实硬件媒体键 | `FAIL` | 当前自动化接口不能合成真实硬件媒体键，未执行物理播放/暂停、上一首与下一首。 |
+| Q34-B02 英文代表场景 | `PASS` | 精确候选的 English 打开、播放、错误与恢复代表场景已通过。 |
+| Q34-B03 性能分位与播放质量 | `FAIL` | 多项子门槛通过，但严格协议与纯音频、UI 反馈、部分 A/V 恢复证据缺失。 |
+| Q34-B04 字幕像素帧 | `FAIL` | ASS 可见两行字幕但缺固定帧时刻和完整像素断言；SSA 截图事件位于 37.452–37.744 秒播放样本之间，完整落在 36.494–40.494 秒字幕包有效区间内，仍无可见字幕；PGS 捕获前最后可核对位置已超过字幕包末端，不能判定渲染结果。 |
+| Q34-B05 完整失败语料 | `FAIL` | 已覆盖六类失败输入；缺少与无效内容相区分的独立不支持编码样本。 |
+| Q34-B06 场景元数据完整性 | `FAIL` | P07 供电基线未记录，ASS 缺固定帧时刻与完整像素断言，原始证据清单也不完整。 |
+| Q34-B07 原始证据留存 | `FAIL` | candidate-record 已从归档终端输出按字节恢复且哈希一致；原始 xcresult 缺失。 |
+| Q34-B08 安全作用域与书签恢复 | `FAIL` | UI 添加的只读书签在重启后仍存在；Playlist 条目列表可见高度为零，无法完成重启播放、撤销权限与重新授权。 |
+
+验收结束后已将 VoiceOver、外观与减弱动态效果恢复到初始值，退出候选与 QuickTime，并按备份哈希恢复用户 Playlist 数据库和偏好。原始证据不提交仓库；选定证据哈希索引、候选身份和恢复状态见最新脱敏 JSON。
 
 ## 2026-08-22 最终候选英文代表场景
 
