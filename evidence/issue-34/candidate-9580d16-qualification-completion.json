@@ -332,5 +332,5 @@
     "preferencesSHA256": "a3bd8380b4ac269914ce7f087c71f0b901d97a3339f292abf89add1cd15596bf"
   },
   "qualification": "FAIL",
-  "nextRequiredAction": "修复或解释 SSA 不渲染与 Playlist 条目列表零高度，在 PGS 字幕有效区间重新采集带精确时刻和像素断言的固定帧，并补齐真实硬件媒体键、纯音频及严格受控性能协议、不支持编码、VoiceOver 实际朗读和原始 xcresult 后，重新绑定候选执行完整资格验收。"
+  "nextRequiredAction": "修复或解释 SSA 不渲染与 Playlist 条目列表零高度，在 PGS 字幕有效区间重新采集带精确时刻和像素断言的固定帧，并补齐同一精确候选的简体中文代表性物理机场景、真实硬件媒体键、纯音频及严格受控性能协议、不支持编码、VoiceOver 实际朗读和原始 xcresult 后，重新绑定候选执行完整资格验收。"
 }

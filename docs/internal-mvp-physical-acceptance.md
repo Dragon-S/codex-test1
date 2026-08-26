@@ -6,7 +6,7 @@
 - 最新复验候选：`9580d16e4ffd842cfbc29c48eb6e6e26bf2bd5dd`
 - 已通过的完整阻断项仅有 Q34-B02 英文代表场景。软件键盘路径、ASS 两行字幕可见以及多项性能子门槛通过，但这些部分观察不能替代完整阻断资格。
 - 本轮确认两个可复现的物理故障：SSA 在字幕有效时段没有可见渲染；重启后 Playlist 条目仍在辅助功能树中，但条目列表可见高度为零，阻断安全作用域恢复闭环。PGS 空白帧的捕获时刻不能证明位于字幕有效区间，不作为故障结论。
-- 仍缺真实硬件媒体键、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读，以及原始 xcresult。
+- 仍缺同一精确候选的简体中文代表性物理机场景、真实硬件媒体键、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读，以及原始 xcresult。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
 Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一候选先前的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，历史完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
