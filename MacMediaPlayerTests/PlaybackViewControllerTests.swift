@@ -318,6 +318,60 @@ struct PlaybackViewControllerTests {
         ))
     }
 
+    @Test("重启恢复后 Playlist 条目列表保留至少一行可见高度")
+    func restoredPlaylistEntryListKeepsVisibleHeight() async throws {
+        let entry = PlaylistEntry(media: PersistentLocalMediaReference(
+            id: LocalMediaReferenceID(),
+            bookmark: Data("restored-bookmark".utf8),
+            lastKnownPath: "/tmp/restored-after-restart.mp4"
+        ))
+        let playlist = Playlist(
+            name: "重启恢复",
+            entries: [entry],
+            currentEntryID: entry.id
+        )
+        let coordinator = PlaybackCoordinator(
+            engine: LayoutFakePlaybackEngine(),
+            playlistStore: InMemoryPlaylistStore(library: PlaylistLibrary(
+                playlists: [playlist],
+                activePlaylistID: playlist.id
+            ))
+        )
+        let controller = makeController(coordinator: coordinator)
+        let size = NSSize(width: 640, height: 400)
+        let window = host(controller, size: size)
+        layout(controller, in: window, size: size)
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+        #expect(window.isVisible)
+        try await coordinator.restorePersistentState()
+        let sidebar = try #require(controller.view.subviews.first {
+            $0.accessibilityLabel() == "Playlist 侧栏"
+        })
+        let windowContentView = try #require(window.contentView)
+        let minimumVisibleEntryListHeight: CGFloat = 40
+
+        var entryList: NSScrollView?
+        var visibleEntryListHeight: CGFloat = 0
+        for _ in 0..<100 where visibleEntryListHeight < minimumVisibleEntryListHeight {
+            sidebar.layoutSubtreeIfNeeded()
+            entryList = viewDescendants(of: sidebar)
+                .compactMap { $0 as? NSScrollView }
+                .first(where: \.hasVerticalScroller)
+            if let entryList {
+                let visibleListRect = entryList.convert(entryList.visibleRect, to: windowContentView)
+                    .intersection(windowContentView.bounds)
+                visibleEntryListHeight = visibleListRect.height
+            }
+            if visibleEntryListHeight < minimumVisibleEntryListHeight {
+                try await Task.sleep(for: .milliseconds(1))
+            }
+        }
+        _ = try #require(entryList)
+
+        #expect(visibleEntryListHeight >= minimumVisibleEntryListHeight)
+    }
+
     @Test("打开 Playlist 侧栏时焦点进入侧栏，关闭时返回触发按钮")
     func playlistSidebarMovesFocusInAndBack() throws {
         let controller = makeController()
