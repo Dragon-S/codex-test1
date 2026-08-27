@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-27T06:46:00Z",
+  "result": "FAIL",
+  "scope": "Issue #34 候选 7afba19 的 Q34-B08 定向物理复验；不外推至完整 M5 资格、全部 macOS 14+、公开发布或 App Store 资格",
+  "candidate": {
+    "commit": "7afba19e8cf20afd3a1f37fe5bff13468d3e890b",
+    "builtAtUTC": "20260827T063710Z",
+    "configuration": "Release",
+    "executableSHA256": "124fee6b8c07e8375ab9144f52404c11e73eaad4338aa3e862b59e1d7f1d7534",
+    "dynamicClosureSHA256": "b14dbb8b808a741d6d36999b0a9959f31709f575096971a5a44857a963649f99",
+    "candidateRecordSHA256": "e677fb12ef7d7a38304f23ccc5563359d369848973f16e338af9362c639edfc3",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2",
+    "bundleIdentifier": "com.dragon-s.MacMediaPlayer",
+    "signingTeamIdentifier": "JVJM87NK2A"
+  },
+  "environment": {
+    "deviceModel": "Mac17,2",
+    "chip": "Apple M5",
+    "memory": "24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 26.6 (17F113)",
+    "language": "English",
+    "appearance": "深色",
+    "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭"
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (95/95)",
+    "appAndRealEngineContracts": "PASS (51/51)",
+    "freshUserData": "PASS",
+    "populatedUserData": "PASS",
+    "signedLaunch": "PASS",
+    "candidateHashMatch": "PASS：归档、安装副本与 candidate-record 的可执行文件 SHA-256 完全一致"
+  },
+  "physicalScenarios": {
+    "Q34-B08": {
+      "initialState": "精确候选进程已停止；测试前用户容器已完整备份；通过 UI 建立的只读安全作用域书签与测试 Playlist 已存在；测试输入可读。",
+      "actions": "从精确安装路径启动候选，确认重启恢复后的 Playlist 条目可见并可从书签播放；随后两次完全退出候选、把专用输入权限改为不可读、从精确路径重启并触发 File Missing，再恢复输入权限并通过系统文件面板重新授权同一输入。第一轮重新授权写入的新书签在第二轮重启后再次被恢复。",
+      "expected": "重启后只读访问保持；权限丢失时错误分类稳定；重新授权后立即恢复同一本地媒体引用并播放；旧加载代次的迟到失败不得覆盖新加载；不删除或覆盖输入。",
+      "observed": "重启恢复后条目可见且进入 Playing；两轮权限丢失均稳定显示 File Missing 与 Relocate；两轮重新授权后均立即进入 Playing，未出现 Media content is corrupted。精确运行进程映像与候选安装路径一致，可执行文件 SHA-256 与 candidate-record 一致。",
+      "recovery": "候选已完全退出；专用输入权限恢复为 0644；测试后容器移入本地可恢复证据目录，测试前容器已恢复，恢复前后全部普通文件 SHA-256 清单一致。",
+      "candidateBuild": "7afba19e8cf20afd3a1f37fe5bff13468d3e890b",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "inputSHA256": "95ae8d7f11c69187f6cdfea7675e8de2d7427c207e4f3c031463fa73d8fa4566",
+        "restartRestoredAccessibilityTreeSHA256": "366f3b1e10aceba6a613adc1440820b724467f341e1df0fdf7d4dc8c8036b73a",
+        "restartPlayingAccessibilityTreeSHA256": "43f791cefac8ee5c2e9c791a7dfa2063efc3c539d2c67b22f7d1e6837c9847a0",
+        "round1MissingAccessibilityTreeSHA256": "7ba325b83f094897fa952dd6e70dcc8ad0fdca9c45d172033a2885e981d5a942",
+        "round1RecoveredAccessibilityTreeSHA256": "9ef8eba1cac0564c22fe6af8d80dccd4ac542d753f18104d8d68f462e6043a78",
+        "round1ResultSHA256": "987adcbfd1df5e56c2b869d9bc6bb1729dd2cb61ca6ab1bd076a6032821802fc",
+        "round2MissingAccessibilityTreeSHA256": "7ba325b83f094897fa952dd6e70dcc8ad0fdca9c45d172033a2885e981d5a942",
+        "round2RecoveredAccessibilityTreeSHA256": "cd19363d202ab4b9f5752fb87a40e50aefa81e52c63965c538062d338038622f",
+        "round2ResultSHA256": "f45f668233980bcb3f7802f7bed86714162e7ec2d656e3da27d8de21a07f0a11",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PASS"
+    }
+  },
+  "regression": {
+    "preFixPhysicalFeedbackLoop": "RED：候选 7d4c7e4 连续 2/2 次在重新授权后先显示 Media content is corrupted，Retry 后才恢复 Playing",
+    "rootCause": "重新定位当前媒体后没有创建新的加载代次；旧加载的迟到 corrupted 事件仍被视为当前事件并覆盖恢复状态",
+    "test": "PlaybackCoordinatorTests.relocationReloadsMediaAndIgnoresStaleFailure",
+    "red": "PASS：修复前测试失败，恢复加载 ID 未变化且缺少第二次 load 命令",
+    "green": "PASS：修复后定向测试、PlaybackCoordinatorTests 与全量 Swift 套件通过"
+  },
+  "blockingChecks": {
+    "Q34-B01": "NOT_RUN：未在该精确候选上执行真实硬件媒体键。",
+    "Q34-B02": "NOT_RUN：未在该精确候选上重跑英文代表场景。",
+    "Q34-B03": "NOT_RUN：未在该精确候选上重跑完整性能分位与播放质量门槛。",
+    "Q34-B04": "NOT_RUN：未在该精确候选上重跑 ASS、SSA 与 PGS 固定帧资格。",
+    "Q34-B05": "NOT_RUN：未在该精确候选上重跑完整失败语料。",
+    "Q34-B06": "FAIL：只有 Q34-B08 具备该精确候选的完整场景元数据。",
+    "Q34-B07": "PARTIAL：candidate-record、xcresult 与本次本地原始物理证据存在；未建立该候选完整资格的原始证据集。",
+    "Q34-B08": "PASS：重启书签恢复、稳定权限丢失分类和两轮系统文件面板重新授权闭环均在精确候选上通过。"
+  },
+  "rawEvidenceBoundary": {
+    "committed": false,
+    "candidateRecord": "LOCAL",
+    "xcresult": "LOCAL",
+    "reason": "原始截图、媒体、辅助功能树、用户数据库和绝对路径仅保存在本机，仓库只记录脱敏观察与 SHA-256 索引。",
+    "discardedLaunchServicesRun": "首轮自动循环发现同 Bundle ID 的旧候选进程被 LaunchServices 复用；该轮原始材料已单独保留并明确排除，随后以精确新候选进程映像重新执行全部计入结论的步骤。"
+  },
+  "restoration": {
+    "candidateProcess": "STOPPED",
+    "inputMode": "0644",
+    "userContainer": "RESTORED",
+    "fileContentComparison": "PASS：测试前备份与恢复后容器的全部普通文件 SHA-256 清单一致",
+    "postTestContainerRetainedLocally": true
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "在同一精确候选或新的完整候选上执行 Q34-B01 至 B07 及 P01 至 P07 的剩余物理矩阵；任一阻断项失败或缺失时 Issue #34 必须保持 FAIL 和开放。"
+}
