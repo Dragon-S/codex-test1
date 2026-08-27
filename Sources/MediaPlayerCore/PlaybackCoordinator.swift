@@ -716,8 +716,9 @@ public final class PlaybackCoordinator: ObservableObject {
             currentIndex: nowPlayingList.currentIndex
         )
         missingMediaNotice = .none
-        if currentEntry?.media.referenceID == referenceID {
+        if let currentEntry, currentEntry.media.referenceID == referenceID {
             isRestoredMediaPendingLoad = false
+            resetTimeline(for: currentEntry)
             await load(replacementMedia)
         }
         return .relocated
