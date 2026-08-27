@@ -81,6 +81,52 @@ struct PlaybackCoordinatorTests {
         #expect(await engine.commands == [.load(oldMedia[0]), .load(newMedia[0])])
     }
 
+    @Test("文件重新授权后立即重载并忽略旧加载代次的迟到失败")
+    func relocationReloadsMediaAndIgnoresStaleFailure() async throws {
+        let engine = FakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine)
+        let referenceID = LocalMediaReferenceID()
+        let fileIdentity = LocalFileIdentity(rawValue: Data([0x41]))
+        let original = LocalMedia(
+            url: URL(fileURLWithPath: "/tmp/permission-recovery.wav"),
+            referenceID: referenceID,
+            bookmark: Data([0x42]),
+            fileIdentity: fileIdentity
+        )
+        await coordinator.open(original)
+        _ = try await coordinator.saveNowPlayingList(as: "权限恢复")
+        let failedLoadID = try #require(await engine.loadIDs.last)
+        engine.send(.playbackStateChanged(.failed(.unreadable), loadID: failedLoadID))
+        try await waitForMissingMediaRecovery(coordinator: coordinator)
+        let relocated = LocalMedia(
+            url: original.url,
+            referenceID: LocalMediaReferenceID(),
+            bookmark: Data([0x43]),
+            fileIdentity: fileIdentity
+        )
+
+        let result = try await coordinator.relocateMissingMedia(
+            referenceID: referenceID,
+            to: relocated
+        )
+
+        #expect(result == .relocated)
+        let recoveredLoadID = try #require(await engine.loadIDs.last)
+        #expect(recoveredLoadID != failedLoadID)
+        engine.send(.playbackStateChanged(.failed(.corrupted), loadID: failedLoadID))
+        engine.send(.playbackStateChanged(.playing, loadID: recoveredLoadID))
+        try await wait(for: .playing, coordinator: coordinator)
+        #expect(await engine.commands == [
+            .load(original),
+            .load(LocalMedia(
+                url: relocated.url,
+                referenceID: referenceID,
+                bookmark: relocated.bookmark,
+                fileIdentity: fileIdentity
+            )),
+        ])
+    }
+
     @Test("协调层只发布当前加载的音频标题、艺人、专辑与封面状态")
     func publishesAudioPresentationForCurrentLoadOnly() async throws {
         let engine = FakePlaybackEngine()
@@ -422,6 +468,24 @@ struct PlaybackCoordinatorTests {
             return
         }
         Issue.record("等待播放失败恢复操作超时")
+    }
+
+    private func waitForMissingMediaRecovery(
+        coordinator: PlaybackCoordinator
+    ) async throws {
+        if try await waitUntilTestCondition(
+            for: .seconds(1),
+            pollingEvery: .milliseconds(1),
+            condition: {
+                if case .recoveryRequired = coordinator.missingMediaNotice {
+                    return true
+                }
+                return false
+            }
+        ) {
+            return
+        }
+        Issue.record("等待文件缺失恢复流程超时")
     }
 
     private func wait(
