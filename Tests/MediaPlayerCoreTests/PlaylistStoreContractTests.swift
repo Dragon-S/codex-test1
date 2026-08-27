@@ -958,7 +958,8 @@ struct NamedPlaylistCoordinatorTests {
             playlists: [firstPlaylist, secondPlaylist],
             activePlaylistID: firstPlaylist.id
         ))
-        let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine(), playlistStore: store)
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
         try await coordinator.restorePersistentState()
         let relocated = LocalMedia(
             url: URL(fileURLWithPath: "/tmp/new-shared.mp4"),
@@ -986,6 +987,7 @@ struct NamedPlaylistCoordinatorTests {
         ])
         #expect(coordinator.nowPlayingList.entries[0].media.url.path == "/tmp/new-shared.mp4")
         #expect(!coordinator.nowPlayingList.entries[0].isMediaMissing)
+        #expect(await engine.seekPositions.last == 63)
     }
 
     @Test("明显不同文件先报告共享影响范围且确认后重置关联状态")
@@ -1000,7 +1002,6 @@ struct NamedPlaylistCoordinatorTests {
         let first = PlaylistEntry(
             media: reference,
             resumePosition: 90,
-            isCompleted: true,
             playbackPreferences: EntryPlaybackPreferences(
                 audioTrack: TrackPreference(languageCode: "fr", title: "Français", ordinal: 2),
                 subtitle: .off
@@ -1024,7 +1025,8 @@ struct NamedPlaylistCoordinatorTests {
             activePlaylistID: firstPlaylist.id
         )
         let store = InMemoryPlaylistStore(library: originalLibrary)
-        let coordinator = PlaybackCoordinator(engine: PlaylistFakePlaybackEngine(), playlistStore: store)
+        let engine = PlaylistFakePlaybackEngine()
+        let coordinator = PlaybackCoordinator(engine: engine, playlistStore: store)
         try await coordinator.restorePersistentState()
         let differentFile = LocalMedia(
             url: URL(fileURLWithPath: "/tmp/replacement.mkv"),
@@ -1062,6 +1064,7 @@ struct NamedPlaylistCoordinatorTests {
             $0.playbackPreferences == EntryPlaybackPreferences()
         })
         #expect(coordinator.missingMediaNotice == .none)
+        #expect(await engine.seekPositions.last == 0)
     }
 
     @Test("没有文件身份时文件名与容器格式明显不同仍要求确认替换影响")
@@ -1545,6 +1548,7 @@ private enum PlaylistEngineCommand: Equatable, Sendable {
 private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     private(set) var commands: [PlaylistEngineCommand] = []
     private(set) var loadedMediaNames: [String] = []
+    private(set) var seekPositions: [TimeInterval] = []
     nonisolated let events: AsyncStream<PlaybackEngineEvent>
     private let continuation: AsyncStream<PlaybackEngineEvent>.Continuation
     private var loadIDs: [PlaybackLoadID] = []
@@ -1561,7 +1565,7 @@ private actor PlaylistFakePlaybackEngine: PlaybackEngine {
     func play() { commands.append(.play) }
     func pause() { commands.append(.pause) }
     func stop() { commands.append(.stop) }
-    func seek(to position: TimeInterval) {}
+    func seek(to position: TimeInterval) { seekPositions.append(position) }
     func setPlaybackRate(_ rate: Double) {}
     func setPlayerVolume(_ volume: Double) {}
     func setMuted(_ isMuted: Bool) {}
