@@ -3,23 +3,23 @@
 ## 当前结论
 
 - Issue #34 结果：`FAIL`
-- 最新定向复验候选：`7afba19e8cf20afd3a1f37fe5bff13468d3e890b`
+- 最新定向复验候选：`11843c2b936389e1e4c58738c9fc83c8b2f4d272`
 - Q34-B08 在该精确候选上为 `PASS`：重启书签恢复、两轮权限丢失分类与系统文件面板重新授权闭环均通过；Playlist 零可见高度故障未再复现。
 - #34 的其余阻断项没有在该精确候选上完整重跑。历史候选上的 Q34-B02 英文代表场景、软件键盘路径、ASS 两行字幕可见及多项性能子门槛不能转移为该候选的完整资格。
 - 历史完整复验仍记录 SSA 在字幕有效时段没有可见渲染；PGS 空白帧的捕获时刻不能证明位于字幕有效区间，不作为故障结论。仍缺真实硬件媒体键、简体中文代表性场景、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读等完整现场证据。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新定向复验摘要见 [`candidate-7afba19-b08-qualification.json`](../evidence/issue-34/candidate-7afba19-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新定向复验摘要见 [`candidate-11843c2-b08-qualification.json`](../evidence/issue-34/candidate-11843c2-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
 
 ## 2026-08-27 Q34-B08 定向物理复验
 
 | 项目 | 值 |
 | --- | --- |
-| Release 提交 | `7afba19e8cf20afd3a1f37fe5bff13468d3e890b` |
-| 构建时间 | `20260827T063710Z` |
-| 可执行文件 SHA-256 | `124fee6b8c07e8375ab9144f52404c11e73eaad4338aa3e862b59e1d7f1d7534` |
-| 动态闭包 SHA-256 | `b14dbb8b808a741d6d36999b0a9959f31709f575096971a5a44857a963649f99` |
-| candidate-record SHA-256 | `e677fb12ef7d7a38304f23ccc5563359d369848973f16e338af9362c639edfc3` |
+| Release 提交 | `11843c2b936389e1e4c58738c9fc83c8b2f4d272` |
+| 构建时间 | `20260827T065537Z` |
+| 可执行文件 SHA-256 | `78c5be75be436c70d07b7ef3b425a643720a04457403a5dc9704618334141f83` |
+| 动态闭包 SHA-256 | `231678f4e364374a93730855ecbfc275953a80255541432c0b7f0edbd7857cd5` |
+| candidate-record SHA-256 | `db70ed0619a7d1c7823bc7177daa0784232040455c2af1eca2a83c9292cf85ca` |
 | 引擎 | mpv `v0.41.0`；FFmpeg `n8.1.2`；`arm64 + x86_64` |
 | 设备 | MacBook Pro `Mac17,2`；Apple M5；24 GB |
 | 系统与工具 | macOS 26.6.2（25G83）；Xcode 26.6（17F113） |
@@ -32,7 +32,7 @@ Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 
 - 预期：重启后只读访问保持；权限丢失时错误分类稳定；重新授权后立即恢复同一本地媒体引用并播放；旧加载代次的迟到失败不得覆盖新加载；不删除或覆盖输入。
 - 观察：重启恢复后 Playlist 条目可见且进入 `Playing`；两轮均稳定显示 `File Missing` 与 `Relocate…`，重新授权后均立即进入 `Playing`，未出现 `Media content is corrupted`。计入结论的每轮运行前后都核对了精确进程映像；安装副本可执行文件哈希与 candidate-record 一致。一次被 LaunchServices 复用旧 Bundle ID 进程的预运行已明确排除并单独保留，不计入结果。
 - 恢复：候选完全退出；专用输入权限恢复为 `0644`；测试后容器移入本地可恢复证据目录，测试前容器已恢复，恢复前后全部普通文件 SHA-256 清单一致。
-- 候选构建：`7afba19e8cf20afd3a1f37fe5bff13468d3e890b`
+- 候选构建：`11843c2b936389e1e4c58738c9fc83c8b2f4d272`
 - macOS：26.6.2（25G83）
 - 设备：MacBook Pro `Mac17,2`；Apple M5；24 GB
 - 语言：English
@@ -41,7 +41,7 @@ Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 
 - 证据：本地保留候选记录、xcresult、脱敏合成输入、六组截图与辅助功能树、两轮诊断 JSON、测试前后容器；仓库摘要记录 SHA-256，不提交媒体、用户数据库或绝对路径。
 - 结果：`PASS`
 
-定向复验发现并修复了一个独立竞态：旧候选在重新授权后会先显示 `Media content is corrupted`，`Retry` 后才恢复。根因是重新定位当前媒体后没有创建新加载代次，旧加载迟到的 `.corrupted` 事件仍被接受。公开 `PlaybackCoordinator` 接缝新增 RED→GREEN 回归，修复后立即重载当前媒体并隔离旧代次事件。
+定向复验发现并修复了一个独立竞态：旧候选在重新授权后会先显示 `Media content is corrupted`，`Retry` 后才恢复。根因是重新定位当前媒体后没有创建新加载代次，旧加载迟到的 `.corrupted` 事件仍被接受。公开 `PlaybackCoordinator` 接缝新增 RED→GREEN 回归，修复后立即重载当前媒体并隔离旧代次事件。Spec 复审随后发现明显不同文件替换会复用旧媒体时间线；补充回归的 RED 为定位到 90 秒，修复后不同文件从 0 秒开始，同一文件仍保留 63 秒续播位置。
 
 Issue #34 总结果仍为 `FAIL`：本节只证明 Q34-B08；Q34-B01 至 B07 的其余资格和 Q34-P01 至 P07 没有在该精确候选上完整执行。
 
