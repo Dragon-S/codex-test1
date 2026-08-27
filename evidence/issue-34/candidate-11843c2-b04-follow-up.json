@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-27T16:15:41Z",
+  "result": "FAIL",
+  "scope": "Issue #34 候选 11843c2 的 Q34-B04 定向物理跟进；诊断输入与对照只用于定位，不外推至完整字幕矩阵、完整 M5 资格或新候选",
+  "candidate": {
+    "commit": "11843c2b936389e1e4c58738c9fc83c8b2f4d272",
+    "builtAtUTC": "20260827T065537Z",
+    "configuration": "Release",
+    "executableSHA256": "78c5be75be436c70d07b7ef3b425a643720a04457403a5dc9704618334141f83",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2"
+  },
+  "environment": {
+    "deviceModel": "Mac17,2",
+    "chip": "Apple M5",
+    "memory": "24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 26.6 (17F113)",
+    "language": "English",
+    "appearance": "深色",
+    "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭"
+  },
+  "physicalScenario": {
+    "id": "Q34-B04",
+    "initialState": "从精确安装路径运行签名 Release 候选；核心 SSA 输入可读；候选处于深色、English，VoiceOver 与减弱动态效果关闭。",
+    "actions": "打开锁定 SSA 核心输入，定位到 42.8 秒并选择 Subtitle 1，分别保存候选 UI、全屏和资格截图；另用纯 ASCII SSA/ASS 诊断输入复核。随后用独立 mpv 在相同 SSA 输入的字幕有效区间保存对照帧。",
+    "expected": "字幕有效区间内应出现可辨识字形；保存的帧应与候选、输入哈希、加载代次和精确播放时刻绑定。",
+    "observed": "候选 UI 的字幕菜单值为 Subtitle 1，但锁定 SSA、ASCII SSA 与 ASCII ASS 画面均没有可见字形。独立 mpv 对相同锁定 SSA 输入在 43 秒显示两行字幕，证明输入及有效区间可用。候选现有 subtitle_frame_captured 记录只有文件名和 succeeded，缺少 loadID 与 positionSeconds，不能单独证明固定帧时刻。",
+    "recovery": "精确候选已正常退出；测试后容器移入本地可恢复证据目录，测试前容器已恢复，恢复前后全部普通文件 SHA-256 清单一致；原始媒体、截图、辅助功能树和用户数据不提交仓库。",
+    "candidateBuild": "11843c2b936389e1e4c58738c9fc83c8b2f4d272",
+    "result": "FAIL"
+  },
+  "evidence": {
+    "lockedSSAInputSHA256": "d313f3c97adde4a9b6e1a1fbcb0cf012bfab8aed1b709bb510bcf26edb20ed57",
+    "candidateSSASelectedFrameSHA256": "ab253f2501381834daa0d2605409becb75480e64b620035b16b8a3370628f4c8",
+    "candidateASCII_SSAUnobscuredFrameSHA256": "59227ed7e9de01e57c4ca28e1df0614d63eb3193ee350605462b79cac9d546a3",
+    "candidateASCII_ASSSelectedFrameSHA256": "435f5bb61eb5aa9d41323ef38cf4c4fb3329a5880e3538c915914c0cff13a608",
+    "independentMPVReferenceFrameSHA256": "91a3a0bc97715c1028413f148e1346c3d4ea964102ee752ac56a77a65ebd6dc9",
+    "independentMPVSourceFrameSHA256": "87e6c33a04da0c276a8e78d9d09e47c360fa5f16bf04674184cdb197d907c68b",
+    "preFixQualificationLogSHA256": "fa88e2c795286ba0ea68783e657caf2814b2e2b96de0252492b9bb8058222893",
+    "rawEvidenceCommitted": false
+  },
+  "regression": {
+    "publicSeam": "InternalQualificationRecorder 的脱敏 JSONL 记录，以及 LibMPVPlaybackEngine 到真实 AppKit 画布的字幕渲染契约",
+    "red": "资格记录测试要求字幕帧包含 loadID 与 positionSeconds；修复前编译失败，recordSubtitleFrame 只接受文件名与 succeeded。",
+    "green": "MPVClient 在截图命令完成后读取当前 time-pos，并把 succeeded、loadID 与 positionSeconds 传给记录器；定向资格记录与内嵌 SSA 像素测试通过。",
+    "pixelGuard": "真实 SSA 回归先记录未选字幕时的亮色像素基线，选轨后要求亮色像素增加，避免把画布背景误判为字幕。",
+    "diagnosticBoundary": "真实引擎契约在未签名测试宿主中对软解和硬解均通过，尚未定位签名沙盒候选无字形的根因；不以推断替代物理 FAIL。"
+  },
+  "qualification": "FAIL",
+  "restoration": {
+    "candidateProcess": "STOPPED",
+    "userContainer": "RESTORED",
+    "fileContentComparison": "PASS：测试前备份与恢复后容器的全部普通文件 SHA-256 清单一致",
+    "postTestContainerRetainedLocally": true,
+    "systemAppearance": "未修改",
+    "voiceOver": "未修改",
+    "reduceMotion": "未修改"
+  },
+  "nextRequiredAction": "从包含新资格字段的精确提交构建并签名新的 Release 候选；在新候选上重新执行 ASS、SSA、PGS 固定帧矩阵并继续定位签名沙盒候选无字形的根因。历史候选结果不得转移。"
+}
