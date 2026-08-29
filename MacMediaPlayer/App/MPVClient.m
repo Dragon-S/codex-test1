@@ -14,6 +14,12 @@ static void *MPVGetOpenGLProcAddress(void *context, const char *name) {
 static void MPVRenderUpdate(void *context);
 static NSString * const MPVHardwareDecoder = @"videotoolbox-copy";
 
+typedef struct {
+    double position;
+    uint64_t loadID;
+    BOOL exists;
+} MPVPendingSeek;
+
 static BOOL MPVFileIsReadable(NSURL *url) {
     NSError *error = nil;
     NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingFromURL:url error:&error];
@@ -145,6 +151,7 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     __weak NSOpenGLView *_videoView;
     double _position;
     double _duration;
+    MPVPendingSeek _pendingSeek;
     CFAbsoluteTime _lastTimelineReportTime;
     BOOL _forceNextPositionReport;
     double _playbackRate;
@@ -247,21 +254,22 @@ static BOOL MPVFileIsReadable(NSURL *url) {
 }
 
 - (void)seekTo:(double)position {
-    NSString *value = [NSString stringWithFormat:@"%.6f", MAX(0, position)];
+    double clampedPosition = MAX(0, position);
     dispatch_async(_queue, ^{
         if (self->_handle == NULL) {
             [self reportFailure:MPVClientFailureEngineUnavailable loadID:self->_requestedLoadID];
             return;
         }
-        self->_forceNextPositionReport = YES;
-        [self reportQualificationEvent:MPVClientQualificationEventKindSeekRequested
-                                loadID:self->_requestedLoadID];
-        int result = [self executeCommand:@[ @"seek", value, @"absolute+exact" ]];
-        if (result < 0) {
-            self->_forceNextPositionReport = NO;
-            [self reportFailure:[self failureForError:result]
-                        loadID:self->_requestedLoadID];
+        uint64_t loadID = self->_requestedLoadID;
+        if (!self->_hasLoadedFile || self->_eventLoadID != loadID) {
+            self->_pendingSeek = (MPVPendingSeek) {
+                .position = clampedPosition,
+                .loadID = loadID,
+                .exists = YES,
+            };
+            return;
         }
+        [self performSeekToPosition:clampedPosition loadID:loadID];
     });
 }
 
@@ -443,6 +451,7 @@ static BOOL MPVFileIsReadable(NSURL *url) {
       hardwareDecoding:(BOOL)hardwareDecoding {
     dispatch_async(_queue, ^{
         self->_requestedLoadID = loadID;
+        self->_pendingSeek = (MPVPendingSeek) { 0 };
         self->_qualificationFirstFrameLoadID = loadID;
         self->_lastQualificationSampleTime = 0;
         [self reportQualificationEvent:MPVClientQualificationEventKindLoadRequested
@@ -547,6 +556,11 @@ static BOOL MPVFileIsReadable(NSURL *url) {
                 _hasLoadedFile = YES;
                 [self reportQualificationEvent:MPVClientQualificationEventKindFileLoaded
                                         loadID:_eventLoadID];
+                if (_pendingSeek.exists && _pendingSeek.loadID == _eventLoadID) {
+                    double position = _pendingSeek.position;
+                    _pendingSeek = (MPVPendingSeek) { 0 };
+                    [self performSeekToPosition:position loadID:_eventLoadID];
+                }
                 [self reportCurrentPauseState];
                 [self reportTrackCatalog];
                 [self reportMediaPresentation];
@@ -830,6 +844,18 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     self.qualificationEventHandler(event);
 }
 
+- (void)performSeekToPosition:(double)position loadID:(uint64_t)loadID {
+    NSString *value = [NSString stringWithFormat:@"%.6f", position];
+    _forceNextPositionReport = YES;
+    [self reportQualificationEvent:MPVClientQualificationEventKindSeekRequested
+                            loadID:loadID];
+    int result = [self executeCommand:@[ @"seek", value, @"absolute+exact" ]];
+    if (result < 0) {
+        _forceNextPositionReport = NO;
+        [self reportFailure:[self failureForError:result] loadID:loadID];
+    }
+}
+
 - (double)doubleProperty:(NSString *)name fallback:(double)fallback {
     double value = fallback;
     return mpv_get_property(_handle, name.UTF8String, MPV_FORMAT_DOUBLE, &value) < 0
@@ -851,6 +877,9 @@ static BOOL MPVFileIsReadable(NSURL *url) {
     }
     if (loadID == _eventLoadID) {
         _hasLoadedFile = NO;
+    }
+    if (_pendingSeek.exists && _pendingSeek.loadID == loadID) {
+        _pendingSeek = (MPVPendingSeek) { 0 };
     }
     if (endFile != NULL && endFile->reason == MPV_END_FILE_REASON_ERROR) {
         [self reportFailure:[self failureForError:endFile->error]
