@@ -50,10 +50,10 @@ static BOOL MPVFileIsReadable(NSURL *url) {
 
 - (instancetype)initWithSucceeded:(BOOL)succeeded
                             loadID:(uint64_t)loadID
-                          position:(double)position {
+                          position:(NSNumber *)position {
     self = [super init];
     if (self != nil) {
-        _succeeded = succeeded;
+        _succeeded = succeeded && position != nil;
         _loadID = loadID;
         _position = position;
     }
@@ -303,18 +303,18 @@ static BOOL MPVFileIsReadable(NSURL *url) {
                     completion:(void (^)(MPVClientScreenshotCapture *))completion {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), _queue, ^{
         uint64_t loadID = self->_eventLoadID;
-        double position = self->_position;
         if (self->_handle == NULL) {
             completion([[MPVClientScreenshotCapture alloc]
                 initWithSucceeded:NO
                            loadID:loadID
-                         position:position]);
+                         position:nil]);
             return;
         }
         int result = [self executeCommand:@[ @"screenshot-to-file", url.path, @"subtitles" ]];
         double capturedPosition = 0;
+        NSNumber *position = nil;
         if (mpv_get_property(self->_handle, "time-pos", MPV_FORMAT_DOUBLE, &capturedPosition) >= 0) {
-            position = capturedPosition;
+            position = @(capturedPosition);
         }
         completion([[MPVClientScreenshotCapture alloc]
             initWithSucceeded:result >= 0

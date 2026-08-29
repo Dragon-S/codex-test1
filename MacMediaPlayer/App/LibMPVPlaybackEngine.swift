@@ -72,7 +72,7 @@ private struct InternalQualificationRecord: Encodable, Sendable {
         fileName: String,
         succeeded: Bool,
         loadID: UInt64,
-        positionSeconds: Double,
+        positionSeconds: Double?,
         monotonicMilliseconds: Double
     ) -> Self {
         Self(
@@ -267,7 +267,7 @@ final class InternalQualificationRecorder: @unchecked Sendable {
             fileName: fileName,
             succeeded: capture.succeeded,
             loadID: capture.loadID,
-            positionSeconds: capture.position,
+            positionSeconds: capture.position?.doubleValue,
             monotonicMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
         ))
     }

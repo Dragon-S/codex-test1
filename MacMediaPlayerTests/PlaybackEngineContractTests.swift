@@ -45,7 +45,11 @@ struct LibMPVPlaybackEngineContractTests {
 
         recorder.recordSubtitleFrame(
             fileName: "qualification-subtitle-frame-0001.png",
-            capture: MPVClientScreenshotCapture(succeeded: true, loadID: 7, position: 12.5)
+            capture: MPVClientScreenshotCapture(
+                succeeded: true,
+                loadID: 7,
+                position: NSNumber(value: 12.5)
+            )
         )
         #expect(try Data(contentsOf: logURL).isEmpty)
 
@@ -56,6 +60,31 @@ struct LibMPVPlaybackEngineContractTests {
         let log = try String(contentsOf: logURL, encoding: .utf8)
         #expect(log.contains("\"kind\":\"session_started\""))
         #expect(log.contains("\"kind\":\"subtitle_frame_captured\""))
+    }
+
+    @Test("截图时刻不可读时资格记录明确失败且不伪造位置")
+    func qualificationRecorderRejectsScreenshotWithoutExactPosition() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "qualification-missing-position-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let logURL = directory.appending(path: InternalQualificationRecorder.logName)
+        let recorder = try InternalQualificationRecorder(fileURL: logURL)
+
+        recorder.recordSubtitleFrame(
+            fileName: "qualification-subtitle-frame-0001.png",
+            capture: MPVClientScreenshotCapture(succeeded: true, loadID: 7, position: nil)
+        )
+        await recorder.flush()
+
+        let lines = try String(contentsOf: logURL, encoding: .utf8).split(separator: "\n")
+        let recordData = try #require(lines.last?.data(using: .utf8))
+        let record = try #require(
+            JSONSerialization.jsonObject(with: recordData) as? [String: Any]
+        )
+        #expect(record["kind"] as? String == "subtitle_frame_captured")
+        #expect(record["succeeded"] as? Bool == false)
+        #expect(record["positionSeconds"] is NSNull)
     }
 
     @Test("显式启用的内部资格记录器只写脱敏播放指标")
@@ -74,15 +103,8 @@ struct LibMPVPlaybackEngineContractTests {
         let recorder = try #require(InternalQualificationRecorder.enabledRecorder(
             applicationSupportDirectory: supportDirectory
         ))
-        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let window = NSWindow(
-            contentRect: videoView.bounds,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = videoView
-        window.orderFront(nil)
+        let (videoView, window) = makeVisiblePlaybackCanvas()
+        defer { window.orderOut(nil) }
         let engine = LibMPVPlaybackEngine(
             videoView: videoView,
             qualificationRecorder: recorder
@@ -119,7 +141,7 @@ struct LibMPVPlaybackEngineContractTests {
             capture: MPVClientScreenshotCapture(
                 succeeded: true,
                 loadID: loadID.rawValue,
-                position: 1
+                position: NSNumber(value: 1)
             )
         )
         await recorder.flush()
@@ -245,10 +267,8 @@ struct LibMPVPlaybackEngineContractTests {
 
     @Test("真实 libmpv 适配器把首帧输出到 AppKit 画布")
     func realAdapterRendersFirstFrameToAppKitCanvas() async throws {
-        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let window = NSWindow(contentRect: videoView.bounds, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.contentView = videoView
-        window.orderFront(nil)
+        let (videoView, window) = makeVisiblePlaybackCanvas()
+        defer { window.orderOut(nil) }
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
         let mediaURL = try makeRedMP4()
@@ -314,15 +334,7 @@ struct LibMPVPlaybackEngineContractTests {
 
     @Test("真实适配器把已选择的内嵌 SSA 字幕渲染到 AppKit 画布")
     func realAdapterRendersSelectedEmbeddedSSASubtitleToAppKitCanvas() async throws {
-        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
-        let window = NSWindow(
-            contentRect: videoView.bounds,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = videoView
-        window.orderFront(nil)
+        let (videoView, window) = makeVisiblePlaybackCanvas()
         let engine = LibMPVPlaybackEngine(videoView: videoView)
         let recorder = ContractEventRecorder(events: engine.events)
         let mediaURL = try makeEmbeddedSSAMKV()
@@ -385,6 +397,19 @@ struct LibMPVPlaybackEngineContractTests {
 
         await engine.stop()
         try await recorder.waitForState(.stopped, loadID: loadID)
+    }
+
+    private func makeVisiblePlaybackCanvas() -> (PlaybackCanvasView, NSWindow) {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let window = NSWindow(
+            contentRect: videoView.bounds,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = videoView
+        window.orderFront(nil)
+        return (videoView, window)
     }
 
     private func makeSilentWAV() throws -> URL {

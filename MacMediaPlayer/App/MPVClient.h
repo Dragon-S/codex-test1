@@ -56,11 +56,11 @@ typedef NS_ENUM(NSInteger, MPVClientQualificationEventKind) {
 
 @property (nonatomic, readonly) BOOL succeeded;
 @property (nonatomic, readonly) uint64_t loadID;
-@property (nonatomic, readonly) double position;
+@property (nonatomic, readonly, nullable) NSNumber *position;
 
 - (instancetype)initWithSucceeded:(BOOL)succeeded
                             loadID:(uint64_t)loadID
-                          position:(double)position;
+                          position:(nullable NSNumber *)position;
 
 @end
 

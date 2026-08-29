@@ -48,7 +48,7 @@
   "regression": {
     "publicSeam": "InternalQualificationRecorder 的脱敏 JSONL 记录，以及 LibMPVPlaybackEngine 到真实 AppKit 画布的字幕渲染契约",
     "red": "资格记录测试要求字幕帧包含 loadID 与 positionSeconds；修复前编译失败，recordSubtitleFrame 只接受文件名与 succeeded。",
-    "green": "MPVClient 在截图命令完成后读取当前 time-pos，并把 succeeded、loadID 与 positionSeconds 传给记录器；定向资格记录与内嵌 SSA 像素测试通过。",
+    "green": "MPVClient 在截图命令完成后读取当前 time-pos，并把 succeeded、loadID 与 positionSeconds 传给记录器；无法读取精确时刻时记录明确失败且位置为 null；定向资格记录与内嵌 SSA 像素测试通过。",
     "pixelGuard": "真实 SSA 回归先记录未选字幕时的亮色像素基线，选轨后要求亮色像素增加，避免把画布背景误判为字幕。",
     "diagnosticBoundary": "真实引擎契约在未签名测试宿主中对软解和硬解均通过，尚未定位签名沙盒候选无字形的根因；不以推断替代物理 FAIL。"
   },
