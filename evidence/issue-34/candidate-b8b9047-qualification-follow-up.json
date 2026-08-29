@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-08-29T14:44:13Z",
+  "result": "FAIL",
+  "scope": "Issue #34 候选 b8b9047 的 24 小时音频重启续播与 Q34-B04 字幕固定帧定向复验；不外推至完整 M5 资格、全部 macOS 14+、公开发布或 App Store 资格",
+  "candidate": {
+    "commit": "b8b90476426dc8e2c2937527fa27bb23d7cf7193",
+    "builtAtUTC": "20260829T142942Z",
+    "configuration": "Release",
+    "executableSHA256": "02b13a8de87dc80121caa10873a8a4c1438a2ee0f2b6538030f57496b793b654",
+    "dynamicClosureSHA256": "410746602fc4a4fe7cf9fee7a76310cc999c84a989c3b87c8743af24bc2a1d59",
+    "candidateRecordSHA256": "e966e5f156881e1fdda882ee8914836775a922cf1bb909d6300ff496cffa7871",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "minimumMacOS": "14.0",
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2",
+    "bundleIdentifier": "com.dragon-s.MacMediaPlayer",
+    "signingTeamIdentifier": "JVJM87NK2A"
+  },
+  "environment": {
+    "deviceModel": "Mac17,2",
+    "chip": "Apple M5",
+    "memory": "24 GB",
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 26.6 (17F113)",
+    "languagesObserved": [
+      "简体中文",
+      "English"
+    ],
+    "appearance": "深色",
+    "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭"
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (95/95)",
+    "appAndRealEngineContracts": "PASS (54/54)",
+    "freshUserData": "PASS",
+    "populatedUserData": "PASS",
+    "signedLaunch": "PASS",
+    "candidateHashMatch": "PASS：签名归档可执行文件与 candidate-record 的 SHA-256 一致"
+  },
+  "physicalScenarios": {
+    "P02RestartResume": {
+      "relatedScenario": "Q34-P02",
+      "initialState": "从精确签名候选路径启动；测试前用户容器已完整备份；锁定的 24 小时 ALAC 输入可读；建立专用测试 Playlist。",
+      "actions": "打开 24 小时 ALAC，定位至 13:00:17，继续播放并在 13:00:42 暂停；确认续播位置已持久化后正常退出精确候选，再从同一路径重启并恢复播放。",
+      "expected": "重启后恢复到持久化的长时间线位置，继续播放不得回到 0 秒、溢出或崩溃。",
+      "observed": "退出前数据库续播位置为 46842.16814871082 秒且未完成；重启后界面恢复到 13:00:42，继续播放的真实引擎位置为 46842.6984194187 秒且状态为 Playing。",
+      "recovery": "精确候选正常退出；测试后容器保留在本机私有证据目录；测试前用户容器已恢复，恢复后全部普通文件通过原 SHA-256 清单校验。",
+      "candidateBuild": "b8b90476426dc8e2c2937527fa27bb23d7cf7193",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "inputSHA256": "db86ca29291cea1b899eda7f24124e380d1249d3b53b9fb86308488a37e54e45",
+        "afterRelaunchAccessibilityTreeSHA256": "da1c6c07819e16afccef44539bc610d13c5dab8cc5232f2ba15c7640d1a1fccf",
+        "afterRelaunchScreenshotSHA256": "f5657850b01130daa53f8c54525324ea3a3c9503301c5e9847e006425f63a377",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PASS"
+    },
+    "Q34-B04": {
+      "initialState": "从精确签名候选路径运行；资格记录开关已启用；三个锁定字幕输入可读；播放暂停在各自字幕有效区间。",
+      "actions": "分别打开 SSA、ASS 与 PGS 输入，定位到 1.458、1.917 与 4.880 秒，通过字幕菜单重新选择轨道以触发候选自身的固定帧捕获。",
+      "expected": "SSA 显示两行样式字幕；ASS 同时显示顶部重叠层与底部两行字幕；PGS 显示红色斜体位图文字；每张帧与输入、加载代次和精确播放时刻绑定。",
+      "observed": "SSA 帧显示“SSA 样式字幕 / 第二行”；ASS 帧同时显示“ASS 顶部重叠层”和“ASS 底部字幕 / 第二行”；PGS 帧显示红色斜体“This text should be red, not blue”。资格 JSONL 分别记录 loadID 2、3、4 和 1.458、1.917、4.880 秒附近的位置。",
+      "recovery": "精确候选正常退出；测试后容器与原始帧保留在本机私有证据目录；测试前用户容器已恢复，恢复后全部普通文件通过原 SHA-256 清单校验。",
+      "candidateBuild": "b8b90476426dc8e2c2937527fa27bb23d7cf7193",
+      "macOS": "26.6.2 (25G83)",
+      "device": "MacBook Pro Mac17,2；Apple M5；24 GB",
+      "language": "English",
+      "appearance": "深色",
+      "accessibilitySettings": "VoiceOver 关闭；减弱动态效果关闭",
+      "evidence": {
+        "ssaInputSHA256": "ebe879631a8aa5f5ef29a5722d76c3eff615201732bfec561e983a053b00a9d6",
+        "ssaFrameSHA256": "c6f9937bd76df855153ee269d15a4185c760a9440503c0321dbb5555af69bd47",
+        "ssaPositionSeconds": 1.458,
+        "assInputSHA256": "1672ea5ccb8d885d0ad0b94c4b9700da3e5ef0f8e94b94a02532e4ffb08f8b79",
+        "assFrameSHA256": "a6556909fbc358d7b5d7fb08de1a929d69d0a5986f73e74b67ffc7bde37ec1c2",
+        "assPositionSeconds": 1.917,
+        "pgsInputSHA256": "e6c8f93f57d0371603704d7e7b16933e6c4c5df669da42b42a2a84de881e0f27",
+        "pgsFrameSHA256": "adcfe571ee91d43531f1faa4eb04100cdd8d4c211edf74831a2dabb1fdfbd9a5",
+        "pgsPositionSeconds": 4.88,
+        "qualificationLogSHA256": "4606f90da12adcf804320cb24a49eec3a25f2128ad48e7b12f6643c52c08b488",
+        "rawEvidenceCommitted": false
+      },
+      "result": "PASS"
+    }
+  },
+  "regression": {
+    "rootCause": "真实适配器的 load 只排队提交 libmpv 命令，协调层紧随其后的 seek 可能早于 MPV_EVENT_FILE_LOADED 执行并被丢失；此外 SwiftUI 控件没有继承注入的应用语言，签名隔离容器会跟随宿主语言。",
+    "publicSeams": [
+      "PlaybackEngine 真实 LibMPVPlaybackEngine 契约",
+      "PlaybackViewController 的真实 AppKit 窗口可见性与本地化契约"
+    ],
+    "red": "真实适配器在 load 后立即 seek(30) 时不能到达 30 秒；新签名隔离容器中的英文 Playlist 窗口测试找不到英文 Playback Order 控件。",
+    "green": "适配器把最新待定定位延迟到相同 loadID 的 MPV_EVENT_FILE_LOADED 后兑现；SwiftUI hosting root 显式注入 AppLocalization.presentationLocale。全量 Swift 95/95 与 Xcode/真实 libmpv 54/54 通过。"
+  },
+  "blockingChecks": {
+    "Q34-P01": "PARTIAL：本候选只在定向流程中打开 24 小时 ALAC 与三类字幕输入，未重跑完整核心格式矩阵。",
+    "Q34-P02": "PARTIAL：本候选的 13 小时位置重启续播闭环 PASS；未在本轮重新核对完整首端、中点、末端与结尾持久化矩阵。",
+    "Q34-P03": "NOT_RUN：未在本候选上执行完整失败与恢复语料。",
+    "Q34-P04": "NOT_RUN：未在本候选上执行完整键盘、全屏与真实硬件媒体键流程。",
+    "Q34-P05": "NOT_RUN：未执行 VoiceOver 实际朗读与焦点流程。",
+    "Q34-P06": "PARTIAL：观察到简体中文与英文界面；未完成浅色、增强对比度与减弱动态效果代表流程。",
+    "Q34-P07": "NOT_RUN：未执行 30 分钟 4K 热稳态、内存与 QuickTime 能耗对照。",
+    "Q34-B01": "NOT_RUN：缺少真实硬件媒体键证据。",
+    "Q34-B02": "PARTIAL：同一候选观察到简体中文与英文界面，签名隔离英文布局自动门禁通过；未完成规定的英文打开、播放、错误恢复与设置恢复现场流程。",
+    "Q34-B03": "NOT_RUN：缺少规定重复次数、P95、稳态质量、RSS、温度与能耗证据。",
+    "Q34-B04": "PASS：SSA、ASS、PGS 固定帧均在各自有效区间显示预期字形、样式、位置与层级，并绑定输入哈希、候选、loadID 和精确时刻。",
+    "Q34-B05": "NOT_RUN：未重跑完整失败语料。",
+    "Q34-B06": "FAIL：Q34-P01 至 P07、B02 与 B08 的本候选场景元数据不完整。",
+    "Q34-B07": "PARTIAL：candidate-record、资格 JSONL、定向辅助功能树与截图、三张字幕帧在本机存在并绑定 SHA-256；完整 xcresult、能耗 JSONL 与全部场景原始证据未复核。",
+    "Q34-B08": "NOT_RUN：未在本候选上重跑完整安全作用域、书签恢复、权限撤销与重新授权闭环。"
+  },
+  "rawEvidenceBoundary": {
+    "committed": false,
+    "reason": "原始截图、媒体、辅助功能树、资格 JSONL、用户数据库、容器和绝对路径仅保存在本机；仓库只记录脱敏观察与 SHA-256 索引。"
+  },
+  "restoration": {
+    "candidateProcess": "STOPPED",
+    "userContainer": "RESTORED",
+    "fileContentComparison": "PASS：测试前备份与恢复后容器的全部普通文件通过原 SHA-256 清单校验",
+    "postTestContainerRetainedLocally": true,
+    "systemAppearance": "未修改",
+    "voiceOver": "未修改",
+    "reduceMotion": "未修改"
+  },
+  "qualification": "FAIL",
+  "nextRequiredAction": "在同一精确候选或由后续代码提交构建的新候选上，完成真实硬件媒体键、VoiceOver、完整核心与失败语料、双语代表流程、外观与减弱动态效果、规定重复次数的性能资源门槛及 30 分钟 QuickTime 能耗对照；任一阻断项失败或缺失时 Issue #34 保持 FAIL 和开放。"
+}
