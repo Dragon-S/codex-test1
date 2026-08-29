@@ -5,11 +5,32 @@
 - Issue #34 结果：`FAIL`
 - 最新定向复验候选：`11843c2b936389e1e4c58738c9fc83c8b2f4d272`
 - Q34-B08 在该精确候选上为 `PASS`：重启书签恢复、两轮权限丢失分类与系统文件面板重新授权闭环均通过；Playlist 零可见高度故障未再复现。
+- Q34-B04 在该精确候选上的定向跟进为 `FAIL`：锁定 SSA 与 ASCII SSA/ASS 诊断输入在候选中均未显示字形；独立 mpv 在相同锁定 SSA 输入的有效区间显示两行字幕。现有候选记录又缺少加载代次与精确播放时刻，不能作为完整固定帧证据。
 - #34 的其余阻断项没有在该精确候选上完整重跑。历史候选上的 Q34-B02 英文代表场景、软件键盘路径、ASS 两行字幕可见及多项性能子门槛不能转移为该候选的完整资格。
 - 历史完整复验仍记录 SSA 在字幕有效时段没有可见渲染；PGS 空白帧的捕获时刻不能证明位于字幕有效区间，不作为故障结论。仍缺真实硬件媒体键、简体中文代表性场景、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读等完整现场证据。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新定向复验摘要见 [`candidate-11843c2-b08-qualification.json`](../evidence/issue-34/candidate-11843c2-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新字幕跟进摘要见 [`candidate-11843c2-b04-follow-up.json`](../evidence/issue-34/candidate-11843c2-b04-follow-up.json)，同一候选的 B08 摘要见 [`candidate-11843c2-b08-qualification.json`](../evidence/issue-34/candidate-11843c2-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+
+## 2026-08-28 Q34-B04 定向物理跟进
+
+| 项目 | 值 |
+| --- | --- |
+| Release 提交 | `11843c2b936389e1e4c58738c9fc83c8b2f4d272` |
+| 可执行文件 SHA-256 | `78c5be75be436c70d07b7ef3b425a643720a04457403a5dc9704618334141f83` |
+| 设备与系统 | MacBook Pro `Mac17,2`；Apple M5；24 GB；macOS 26.6.2（25G83） |
+| 场景结果 | Q34-B04 `FAIL`；Issue #34 `FAIL` |
+
+- 初始状态：从精确安装路径运行签名 Release 候选；锁定 SSA 输入可读；深色、English，VoiceOver 与减弱动态效果关闭。
+- 操作：打开锁定 SSA 输入，定位到 42.8 秒并选择 Subtitle 1，保存候选 UI、全屏和资格截图；另用纯 ASCII SSA/ASS 诊断输入复核。随后用独立 mpv 在同一锁定 SSA 输入的字幕有效区间保存对照帧。
+- 预期：字幕有效区间内出现可辨识字形；保存帧与候选、输入哈希、加载代次和精确播放时刻绑定。
+- 观察：候选字幕菜单值为 Subtitle 1，但锁定 SSA、ASCII SSA 与 ASCII ASS 均没有可见字形；独立 mpv 在相同锁定 SSA 输入的 43 秒位置显示两行字幕。候选现有 `subtitle_frame_captured` 记录只有文件名和 `succeeded`，缺少 `loadID` 与 `positionSeconds`，不能独立证明固定帧时刻。
+- 恢复：精确候选已正常退出；测试后容器移入本地可恢复证据目录，测试前容器已恢复，恢复前后全部普通文件 SHA-256 清单一致；本轮未修改外观、VoiceOver 或减弱动态效果。
+- 自动回归：在真实 `LibMPVPlaybackEngine`/AppKit 画布 seam 上，内嵌 SSA 软解和硬解均可渲染；新测试先记录未选字幕的亮色像素基线，选轨后要求亮色像素增加。该结果没有复现签名沙盒候选故障，因此不改变物理 `FAIL`。
+- 修复：字幕资格截图记录现在从 mpv 截图命令所在串行队列读取当前 `time-pos`，并写入 `loadID` 和 `positionSeconds`；若无法读取精确时刻，记录明确为失败且位置为 `null`，不以缓存位置冒充截图时刻。新提交必须重新构建、签名并在完整 ASS/SSA/PGS 矩阵上复验；旧候选证据不能转移。
+- 证据：仓库摘要记录锁定输入、候选帧、独立 mpv 对照帧和修复前资格日志的 SHA-256；原始媒体、截图、辅助功能树、用户数据库和绝对路径只保存在本机。
+
+Issue #34 总结果仍为 `FAIL`：Q34-B04 已在精确候选上失败，其余未完成物理门槛也仍是阻断项。
 
 ## 2026-08-27 Q34-B08 定向物理复验
 

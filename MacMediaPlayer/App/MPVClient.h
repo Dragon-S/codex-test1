@@ -51,6 +51,19 @@ typedef NS_ENUM(NSInteger, MPVClientQualificationEventKind) {
 
 @end
 
+/// 把资格截图结果与截图发生时的加载代次、播放位置绑定在一起。
+@interface MPVClientScreenshotCapture : NSObject
+
+@property (nonatomic, readonly) BOOL succeeded;
+@property (nonatomic, readonly) uint64_t loadID;
+@property (nonatomic, readonly, nullable) NSNumber *position;
+
+- (instancetype)initWithSucceeded:(BOOL)succeeded
+                            loadID:(uint64_t)loadID
+                          position:(nullable NSNumber *)position;
+
+@end
+
 @interface MPVClientTrack : NSObject
 
 @property (nonatomic, readonly) NSUUID *identifier;
@@ -112,7 +125,8 @@ typedef NS_ENUM(NSInteger, MPVClientQualificationEventKind) {
 - (void)setMuted:(BOOL)muted;
 - (void)selectAudioTrack:(NSUUID *)identifier completion:(void (^)(BOOL success))completion;
 - (void)selectSubtitleTrack:(nullable NSUUID *)identifier completion:(void (^)(BOOL success))completion;
-- (void)captureScreenshotToURL:(NSURL *)url completion:(void (^)(BOOL success))completion;
+- (void)captureScreenshotToURL:(NSURL *)url
+                    completion:(void (^)(MPVClientScreenshotCapture *capture))completion;
 - (void)loadExternalSubtitleURL:(NSURL *)url completion:(void (^)(MPVClientExternalSubtitleResult result, NSUUID * _Nullable identifier))completion;
 - (void)shutdown;
 

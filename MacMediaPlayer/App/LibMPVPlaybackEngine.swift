@@ -71,13 +71,15 @@ private struct InternalQualificationRecord: Encodable, Sendable {
     static func subtitleFrameCaptured(
         fileName: String,
         succeeded: Bool,
+        loadID: UInt64,
+        positionSeconds: Double?,
         monotonicMilliseconds: Double
     ) -> Self {
         Self(
             kind: .subtitleFrameCaptured,
             monotonicMilliseconds: monotonicMilliseconds,
-            loadID: nil,
-            positionSeconds: nil,
+            loadID: loadID,
+            positionSeconds: positionSeconds,
             decoderDroppedFrames: nil,
             outputDroppedFrames: nil,
             mistimedFrames: nil,
@@ -98,6 +100,8 @@ private struct InternalQualificationRecord: Encodable, Sendable {
         case .subtitleFrameCaptured:
             try container.encode(fileName, forKey: .fileName)
             try container.encode(succeeded, forKey: .succeeded)
+            try container.encode(loadID, forKey: .loadID)
+            try container.encode(positionSeconds, forKey: .positionSeconds)
         case .loadRequested, .fileLoaded, .playbackRestart, .firstFrameRendered,
              .seekRequested, .steadyStateSample, .unknown:
             try container.encode(loadID, forKey: .loadID)
@@ -255,10 +259,15 @@ final class InternalQualificationRecorder: @unchecked Sendable {
         return directory.appending(path: name)
     }
 
-    func recordSubtitleFrame(fileName: String, succeeded: Bool) {
+    func recordSubtitleFrame(
+        fileName: String,
+        capture: MPVClientScreenshotCapture
+    ) {
         writer.enqueue(.subtitleFrameCaptured(
             fileName: fileName,
-            succeeded: succeeded,
+            succeeded: capture.succeeded,
+            loadID: capture.loadID,
+            positionSeconds: capture.position?.doubleValue,
             monotonicMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
         ))
     }
@@ -437,12 +446,11 @@ final class LibMPVPlaybackEngine: PlaybackEngine, @unchecked Sendable {
         if success,
            case .embedded = selection,
            let screenshotURL = qualificationRecorder?.nextSubtitleFrameURL() {
-            client.captureScreenshot(to: screenshotURL) { [qualificationRecorder] succeeded in
-                qualificationRecorder?.recordSubtitleFrame(
-                    fileName: screenshotURL.lastPathComponent,
-                    succeeded: succeeded
-                )
-            }
+            let capture = await client.captureScreenshot(to: screenshotURL)
+            qualificationRecorder?.recordSubtitleFrame(
+                fileName: screenshotURL.lastPathComponent,
+                capture: capture
+            )
         }
         return success
     }
