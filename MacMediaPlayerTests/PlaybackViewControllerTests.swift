@@ -703,12 +703,13 @@ struct PlaybackViewControllerTests {
                 .compactMap { $0 as? NSPopUpButton }
                 .first { $0.titleOfSelectedItem == title }
         }
-        for _ in 0..<100 {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while ContinuousClock.now < deadline {
             window.contentView?.layoutSubtreeIfNeeded()
             if let button = matchingButton() {
                 return button
             }
-            try await Task.sleep(for: .milliseconds(1))
+            try await Task.sleep(for: .milliseconds(10))
         }
         return try #require(matchingButton())
     }
