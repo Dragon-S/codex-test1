@@ -300,13 +300,16 @@ struct PlaybackViewControllerTests {
         let sidebar = try #require(controller.view.subviews.first {
             $0.accessibilityLabel() == "Playlist sidebar"
         })
-        let popUpButtons = viewDescendants(of: sidebar).compactMap { $0 as? NSPopUpButton }
-        let playbackOrder = try #require(popUpButtons.first {
-            $0.titleOfSelectedItem == "Sequential"
-        })
-        let repeatMode = try #require(popUpButtons.first {
-            $0.titleOfSelectedItem == "No Repeat"
-        })
+        let playbackOrder = try await waitForPopUpButton(
+            titled: "Sequential",
+            in: sidebar,
+            window: window
+        )
+        let repeatMode = try await waitForPopUpButton(
+            titled: "No Repeat",
+            in: sidebar,
+            window: window
+        )
         let playbackOrderFrame = sidebar.convert(playbackOrder.bounds, from: playbackOrder)
         let repeatModeFrame = sidebar.convert(repeatMode.bounds, from: repeatMode)
 
@@ -688,6 +691,26 @@ struct PlaybackViewControllerTests {
 
     private func viewDescendants(of root: NSView) -> [NSView] {
         root.subviews.flatMap { [$0] + viewDescendants(of: $0) }
+    }
+
+    private func waitForPopUpButton(
+        titled title: String,
+        in root: NSView,
+        window: NSWindow
+    ) async throws -> NSPopUpButton {
+        func matchingButton() -> NSPopUpButton? {
+            viewDescendants(of: root)
+                .compactMap { $0 as? NSPopUpButton }
+                .first { $0.titleOfSelectedItem == title }
+        }
+        for _ in 0..<100 {
+            window.contentView?.layoutSubtreeIfNeeded()
+            if let button = matchingButton() {
+                return button
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        return try #require(matchingButton())
     }
 
 }
