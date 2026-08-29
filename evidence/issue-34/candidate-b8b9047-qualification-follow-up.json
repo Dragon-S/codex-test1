@@ -17,8 +17,7 @@
     "minimumMacOS": "14.0",
     "mpvVersion": "v0.41.0",
     "ffmpegVersion": "n8.1.2",
-    "bundleIdentifier": "com.dragon-s.MacMediaPlayer",
-    "signingTeamIdentifier": "JVJM87NK2A"
+    "bundleIdentifier": "com.dragon-s.MacMediaPlayer"
   },
   "environment": {
     "deviceModel": "Mac17,2",
