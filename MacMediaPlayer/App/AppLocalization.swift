@@ -71,6 +71,10 @@ struct AppLocalization: Sendable {
         return formatter.string(from: values) ?? values.joined(separator: ", ")
     }
 
+    var presentationLocale: Locale {
+        formattingLocale
+    }
+
     private var localizedBundle: Bundle {
         let bundle = Bundle(path: bundlePath) ?? .main
         guard let path = bundle.path(forResource: languageIdentifier, ofType: "lproj"),

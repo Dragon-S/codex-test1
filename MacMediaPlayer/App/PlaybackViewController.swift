@@ -93,9 +93,9 @@ final class PlaybackViewController: NSViewController {
         canvasFullWidthConstraint?.isActive == true
     }
 
-    private let controlsView: NSHostingView<DisplayAccessibleRoot<PlaybackControlsView>>
-    private let audioNowPlayingView: NSHostingView<DisplayAccessibleRoot<AudioNowPlayingView>>
-    private let nowPlayingListView: FocusableHostingView<DisplayAccessibleRoot<NowPlayingListView>>
+    private let controlsView: NSHostingView<PlaybackHostingRoot<PlaybackControlsView>>
+    private let audioNowPlayingView: NSHostingView<PlaybackHostingRoot<AudioNowPlayingView>>
+    private let nowPlayingListView: FocusableHostingView<PlaybackHostingRoot<NowPlayingListView>>
     private let coordinator: PlaybackCoordinator
     private let openMedia: () -> Void
     private let localization: AppLocalization
@@ -126,7 +126,7 @@ final class PlaybackViewController: NSViewController {
         self.localization = localization
         self.displayPreferences = displayPreferences
         controlsView = NSHostingView(
-            rootView: DisplayAccessibleRoot(
+            rootView: PlaybackHostingRoot(
                 content: PlaybackControlsView(
                     coordinator: coordinator,
                     openMedia: openMedia,
@@ -134,20 +134,22 @@ final class PlaybackViewController: NSViewController {
                     relocateExternalSubtitle: relocateExternalSubtitle,
                     localization: localization
                 ),
-                preferences: displayPreferences
+                preferences: displayPreferences,
+                localization: localization
             )
         )
         audioNowPlayingView = NSHostingView(
-            rootView: DisplayAccessibleRoot(
+            rootView: PlaybackHostingRoot(
                 content: AudioNowPlayingView(
                     coordinator: coordinator,
                     localization: localization
                 ),
-                preferences: displayPreferences
+                preferences: displayPreferences,
+                localization: localization
             )
         )
         nowPlayingListView = FocusableHostingView(
-            rootView: DisplayAccessibleRoot(
+            rootView: PlaybackHostingRoot(
                 content: NowPlayingListView(
                     coordinator: coordinator,
                     addMediaToPlaylist: addMediaToPlaylist,
@@ -157,7 +159,8 @@ final class PlaybackViewController: NSViewController {
                     cancelMediaReplacement: cancelMediaReplacement,
                     localization: localization
                 ),
-                preferences: displayPreferences
+                preferences: displayPreferences,
+                localization: localization
             )
         )
         super.init(nibName: nil, bundle: nil)

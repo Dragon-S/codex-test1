@@ -231,6 +231,22 @@ struct LibMPVPlaybackEngineContractTests {
         )
     }
 
+    @Test("真实适配器在文件就绪后兑现紧随加载的续播位置")
+    func realAdapterAppliesSeekRequestedImmediatelyAfterLoad() async throws {
+        let videoView = PlaybackCanvasView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
+        let engine = LibMPVPlaybackEngine(videoView: videoView)
+        let recorder = ContractEventRecorder(events: engine.events)
+        let mediaURL = try makeSilentWAV(durationSeconds: 60)
+        defer { try? FileManager.default.removeItem(at: mediaURL) }
+        let loadID = PlaybackLoadID(rawValue: 20)
+
+        await engine.load(LocalMedia(url: mediaURL), loadID: loadID)
+        await engine.seek(to: 30)
+
+        try await recorder.waitForState(.playing, loadID: loadID)
+        try await recorder.waitForPosition(30, loadID: loadID)
+    }
+
     @Test("真实 libmpv 适配器可显式使用软件解码加载视频")
     func realAdapterLoadsVideoUsingSoftwareDecoding() async throws {
         try await verifyVideoLoad(loadID: PlaybackLoadID(rawValue: 17)) { engine, media, loadID in
@@ -412,9 +428,9 @@ struct LibMPVPlaybackEngineContractTests {
         return (videoView, window)
     }
 
-    private func makeSilentWAV() throws -> URL {
+    private func makeSilentWAV(durationSeconds: UInt32 = 2) throws -> URL {
         let sampleRate: UInt32 = 8_000
-        let sampleCount: UInt32 = sampleRate * 2
+        let sampleCount = sampleRate * durationSeconds
         let dataSize = sampleCount * 2
         var data = Data()
         data.appendASCII("RIFF")

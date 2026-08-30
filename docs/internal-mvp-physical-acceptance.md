@@ -3,14 +3,38 @@
 ## 当前结论
 
 - Issue #34 结果：`FAIL`
-- 最新定向复验候选：`11843c2b936389e1e4c58738c9fc83c8b2f4d272`
-- Q34-B08 在该精确候选上为 `PASS`：重启书签恢复、两轮权限丢失分类与系统文件面板重新授权闭环均通过；Playlist 零可见高度故障未再复现。
-- Q34-B04 在该精确候选上的定向跟进为 `FAIL`：锁定 SSA 与 ASCII SSA/ASS 诊断输入在候选中均未显示字形；独立 mpv 在相同锁定 SSA 输入的有效区间显示两行字幕。现有候选记录又缺少加载代次与精确播放时刻，不能作为完整固定帧证据。
-- #34 的其余阻断项没有在该精确候选上完整重跑。历史候选上的 Q34-B02 英文代表场景、软件键盘路径、ASS 两行字幕可见及多项性能子门槛不能转移为该候选的完整资格。
+- 最新定向复验候选：`b8b90476426dc8e2c2937527fa27bb23d7cf7193`
+- 该候选的 24 小时 ALAC 重启续播定向闭环为 `PASS`：退出前持久化位置为 46842.168 秒，重启后从 46842.698 秒继续真实播放，没有回到 0 秒；完整首端、中点、末端与结尾持久化矩阵仍为 `PARTIAL`。
+- Q34-B04 在该精确候选上为 `PASS`：SSA、ASS、PGS 固定帧分别绑定到 1.458、1.917、4.880 秒，显示预期两行样式、上下重叠层和红色斜体位图字幕；输入、候选、加载代次、时刻与帧 SHA-256 均已索引。
+- 真实适配器加载前定位丢失已修复：待定定位只在相同加载代次收到 `MPV_EVENT_FILE_LOADED` 后兑现；真实 libmpv 契约覆盖 `load` 后立即 `seek`。签名隔离容器的英文 Playlist 门禁同时暴露 SwiftUI 未遵循注入语言的问题，hosting root 现显式注入应用 locale。
+- 自动门槛：Swift `95/95`；Xcode/真实 libmpv `54/54`；签名构建、启动与隔离数据场景 `PASS`。
+- 本候选仍缺真实硬件媒体键、VoiceOver 实际朗读、完整核心与失败语料、双语代表流程、外观/减弱动态效果、规定重复次数的性能资源门槛及 30 分钟 QuickTime 能耗对照，因此不能升级总资格。
+- 历史候选 `11843c2` 的 Q34-B08 为 `PASS`：重启书签恢复、两轮权限丢失分类与系统文件面板重新授权闭环均通过；该结果没有在最新候选上重跑，不能转移。
+- 历史候选 `11843c2` 的 Q34-B04 定向跟进为 `FAIL`；最新候选已修复并在新证据上转为 `PASS`，不改写历史记录。
+- #34 的其余阻断项没有在最新候选上完整重跑。历史候选上的 Q34-B02 英文代表场景、软件键盘路径及多项性能子门槛不能转移为该候选的完整资格。
 - 历史完整复验仍记录 SSA 在字幕有效时段没有可见渲染；PGS 空白帧的捕获时刻不能证明位于字幕有效区间，不作为故障结论。仍缺真实硬件媒体键、简体中文代表性场景、独立不支持编码样本、纯音频 RSS 与严格受控性能协议、VoiceOver 实际朗读等完整现场证据。
 - 范围：仅 Apple M5 MacBook Pro 上的离线内部 MVP；不外推至全部 macOS 14+、公开发布或 App Store 资格。
 
-Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新字幕跟进摘要见 [`candidate-11843c2-b04-follow-up.json`](../evidence/issue-34/candidate-11843c2-b04-follow-up.json)，同一候选的 B08 摘要见 [`candidate-11843c2-b08-qualification.json`](../evidence/issue-34/candidate-11843c2-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、用户数据库和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+Issue #34 规定任一内部阻断场景失败或缺失证据时结论必须为 `FAIL`。最新定向复验摘要见 [`candidate-b8b9047-qualification-follow-up.json`](../evidence/issue-34/candidate-b8b9047-qualification-follow-up.json)；历史字幕跟进见 [`candidate-11843c2-b04-follow-up.json`](../evidence/issue-34/candidate-11843c2-b04-follow-up.json)，同一历史候选的 B08 摘要见 [`candidate-11843c2-b08-qualification.json`](../evidence/issue-34/candidate-11843c2-b08-qualification.json)；历史完整脱敏摘要见 [`candidate-9580d16-qualification-completion.json`](../evidence/issue-34/candidate-9580d16-qualification-completion.json)，同一历史候选的英文代表场景见 [`candidate-9580d16-language-qualification.json`](../evidence/issue-34/candidate-9580d16-language-qualification.json)；前一候选的语言故障处置记录见 [`candidate-d6fa9c2-language-follow-up.json`](../evidence/issue-34/candidate-d6fa9c2-language-follow-up.json)，更早完整资格记录见 [`candidate-8adedcb-qualification-summary.json`](../evidence/issue-34/candidate-8adedcb-qualification-summary.json)。原始截图、媒体、辅助功能树、资格日志、用户数据库、容器和绝对路径只保存在本机；仓库仅记录脱敏观察与 SHA-256 索引。
+
+## 2026-08-29 续播与字幕定向物理复验
+
+| 项目 | 值 |
+| --- | --- |
+| Release 提交 | `b8b90476426dc8e2c2937527fa27bb23d7cf7193` |
+| 构建时间 | `20260829T142942Z` |
+| 可执行文件 SHA-256 | `02b13a8de87dc80121caa10873a8a4c1438a2ee0f2b6538030f57496b793b654` |
+| 动态闭包 SHA-256 | `410746602fc4a4fe7cf9fee7a76310cc999c84a989c3b87c8743af24bc2a1d59` |
+| candidate-record SHA-256 | `e966e5f156881e1fdda882ee8914836775a922cf1bb909d6300ff496cffa7871` |
+| 自动门槛 | Swift `95/95`；Xcode/真实 libmpv `54/54`；签名启动与隔离数据场景 `PASS` |
+| 设备与系统 | MacBook Pro `Mac17,2`；Apple M5；24 GB；macOS 26.6.2（25G83） |
+| 场景结果 | 24 小时音频重启续播定向闭环 `PASS`；Q34-B04 `PASS`；Issue #34 `FAIL` |
+
+- 24 小时音频：打开锁定 ALAC 并定位到 13:00:17，继续播放后在 13:00:42 暂停。退出前持久化位置为 46842.168 秒且未完成；完全退出并从精确候选路径重启后，界面恢复到 13:00:42，真实引擎从 46842.698 秒继续 `Playing`，没有回到 0 秒。输入和重启后辅助功能树、截图均绑定 SHA-256；本轮没有重新执行完整首端、中点、末端与结尾持久化矩阵，所以 Q34-P02 仍为 `PARTIAL`。
+- 字幕固定帧：SSA 在 1.458 秒显示“SSA 样式字幕 / 第二行”；ASS 在 1.917 秒同时显示顶部重叠层与底部两行字幕；PGS 在 4.880 秒显示红色斜体位图文字。资格 JSONL 记录了对应 `loadID`、`positionSeconds` 与成功结果；三张原始帧和三类锁定输入均以 SHA-256 索引，Q34-B04 为 `PASS`。
+- 修复与回归：真实适配器把加载前的最新待定定位保存到对应 `loadID`，只在 `MPV_EVENT_FILE_LOADED` 后兑现；真实引擎回归覆盖 `load` 后立即 `seek(30)`。签名隔离英文布局门禁发现 SwiftUI 没有遵循注入的应用语言，hosting root 现显式设置 locale。修复后的全量自动门槛通过。
+- 恢复：精确候选已正常退出；测试后容器和原始材料保留在本机私有证据目录；测试前用户容器已恢复，恢复后全部普通文件通过原 SHA-256 清单校验；本轮未修改系统外观、VoiceOver 或减弱动态效果。
+- 边界：本候选没有完成真实硬件媒体键、VoiceOver、完整核心与失败语料、规定双语代表流程、外观/减弱动态效果、性能资源重复门槛与 30 分钟 QuickTime 能耗对照。旧候选结果不能转移，因此总资格仍为 `FAIL`。
 
 ## 2026-08-28 Q34-B04 定向物理跟进
 

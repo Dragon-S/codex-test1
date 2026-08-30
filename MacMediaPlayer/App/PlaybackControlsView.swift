@@ -982,12 +982,14 @@ private struct SemanticStatusLabelStyle: LabelStyle {
     }
 }
 
-struct DisplayAccessibleRoot<Content: View>: View {
+struct PlaybackHostingRoot<Content: View>: View {
     let content: Content
     @ObservedObject var preferences: DisplayAccessibilityPreferences
+    let localization: AppLocalization
 
     var body: some View {
         content
+            .environment(\.locale, localization.presentationLocale)
             .transaction { transaction in
                 guard preferences.isReduceMotionEnabled else { return }
                 transaction.animation = nil
