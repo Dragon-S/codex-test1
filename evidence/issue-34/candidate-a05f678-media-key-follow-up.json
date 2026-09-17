@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-09-17T16:04:17.948136+00:00",
+  "result": "FAIL",
+  "scope": "#34 真实媒体键失败后的系统播放状态修复；新候选物理复验待执行，不代表完整 M5 或公开发布资格",
+  "candidate": {
+    "commit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+    "builtAtUTC": "20260917T160228Z",
+    "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+    "dynamicClosureSHA256": "ade3f2d5fe408f36498d66528d97a6cc94a841ee6dd77b1056831f2f2baddd76",
+    "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+    "engineBuiltFromSource": false,
+    "configuration": "Release"
+  },
+  "environment": {
+    "device": "MacBook Pro Mac17,2",
+    "chip": "Apple M5",
+    "memoryGiB": 24,
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 27.0 Build version 27A266a",
+    "language": "English",
+    "appearance": "深色",
+    "voiceOver": false,
+    "reduceMotion": false
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (95/95)",
+    "appAndRealEngineContracts": "PASS (56/56)",
+    "shellGates": "PASS (4/4)",
+    "signedArchiveAndLaunch": "PASS"
+  },
+  "previousCandidateHardwareKeyFailure": {
+    "commit": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "executableSHA256": "12fed940180683a3b53108ce27a402692538e21839e4702ee0e31eaffd56e2be",
+    "candidateRecordSHA256": "89105a32284321141a9c79dfeb9d8728ce680b0757cdcb86902d7cbd7b7aaba4",
+    "scenario": "Q34-B01 / Q34-P04",
+    "initialState": "第二条专用合成音频；Paused；播放器音量 100%；精确进程映像已核对。",
+    "action": "请用户按真实播放/暂停键两次；实际按键次数及键组合未进一步确认。",
+    "humanObservation": "真实的播放键被“音乐”软件拦截了",
+    "agentObservation": "后续 UI 显示同一合成音频，Paused，位置约 44.187 秒；该快照不能重建两次按键之间的全过程。",
+    "expected": "真实播放/暂停键控制本候选，声音与播放状态对应。",
+    "result": "FAIL",
+    "evidenceSHA256": "8bb3f4fad89eaf85e8c19eca5ad7aa613b77b72321f128279f3500ae277ebc36"
+  },
+  "fix": {
+    "cause": "系统适配器仅发布标题，没有更新 macOS 要求的 MPNowPlayingInfoCenter.playbackState。该集成缺陷已由真实公共 API 回归复现；是否完全解释硬件路由失败仍待物理复验。",
+    "behavior": "播放、暂停、加载中断及停止状态同步到系统；无可操作条目或控制器退出时清除会话并报告停止。",
+    "source": "https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfocenter/playbackstate",
+    "tdd": "第一轮 RED 为播放/暂停/停止三个断言失败，GREEN 5/5；第二轮 RED 为退出清理四个断言失败，GREEN 6/6。"
+  },
+  "review": {
+    "base": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "head": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+    "standards": "0 项；状态所有权、生命周期和测试 singleton 恢复符合规范。",
+    "spec": "局部代码问题 0 项；#34 物理资格尚未完成，不能由公共 API 回归替代。"
+  },
+  "physicalAcceptance": {
+    "Q34-B01": "NOT_RUN（新候选）",
+    "Q34-P04": "NOT_RUN（新候选）",
+    "Q34-P05": "NOT_RUN（新候选）",
+    "remainingScenarios": "NOT_RUN（新候选）；旧候选 PASS 不转移"
+  },
+  "recovery": "旧候选已退出；用户容器已备份，正在准备新候选人工复验，尚未执行最终数据恢复。",
+  "rawEvidenceCommitted": false,
+  "evidence": {
+    "media-key-red.log": "8a2dab26a00241db07ea5fcc6deea1a83aff126ae43b49c53dd4bdd5e8865a7c",
+    "media-key-green.log": "6b8912de323633eab0d3170ddba939cf36bbccad136c1eb58ae4d210ec5165b9",
+    "media-key-cleanup-red.log": "fdbed1d5f909cca9fea9651418031827baec0d5772de0b9f3852833db412a5a7",
+    "media-key-cleanup-green.log": "215c478e27c1ac7e3a93e15297738ea277d60115d81b8ee1c6745f69b42fc1f6",
+    "build-media-key-fix.log": "875f1419cbb70f9e28be1ca1d81d3187bdb92297916386bba1e0985ef0ebe7d3",
+    "inputs.sha256": "8c8d843f32f0bee4043853282cc8c41f27a704e716781143300df9b4b352516e"
+  },
+  "buildNote": "Xcode 27.0 下从锁定源码重建的闭包未通过既有哈希锁；随后复用历史 VerifiedEngine，经当前完整输入验证通过后构建本候选。未修改依赖锁。"
+}
