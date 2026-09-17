@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAtUTC": "2026-09-17T16:04:17.948136+00:00",
+  "recordedAtUTC": "2026-09-17T16:08:34.252386+00:00",
   "result": "FAIL",
   "scope": "#34 真实媒体键失败后的系统播放状态修复；新候选物理复验待执行，不代表完整 M5 或公开发布资格",
   "candidate": {
@@ -55,12 +55,35 @@
     "spec": "局部代码问题 0 项；#34 物理资格尚未完成，不能由公共 API 回归替代。"
   },
   "physicalAcceptance": {
-    "Q34-B01": "NOT_RUN（新候选）",
-    "Q34-P04": "NOT_RUN（新候选）",
+    "Q34-B01": "PARTIAL：真实播放/暂停 PASS；上一首、下一首未执行",
+    "Q34-P04": "PARTIAL：真实播放/暂停 PASS；其他键盘、媒体键与全屏项待执行",
     "Q34-P05": "NOT_RUN（新候选）",
-    "remainingScenarios": "NOT_RUN（新候选）；旧候选 PASS 不转移"
+    "remainingScenarios": "未执行部分仍为 NOT_RUN；旧候选 PASS 不转移",
+    "hardwarePlayPause": {
+      "recordedAtUTC": "2026-09-17T16:08:34.252386+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "initialState": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 0.2986875,
+        "playerVolume": 1
+      },
+      "humanObservation": "一次播放并有声音，再按一次暂停",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 3.354063251,
+        "playerVolume": 1
+      },
+      "result": "PASS",
+      "scope": "真实硬件播放/暂停两次操作；不包含上一首、下一首、系统音量、VoiceOver 或完整 Q34-P04。",
+      "evidenceSHA256": "ec81bda5a7a0b36faa96bac301a80d9f3616d4b936f19d7257c20e932af8f3d0"
+    }
   },
-  "recovery": "旧候选已退出；用户容器已备份，正在准备新候选人工复验，尚未执行最终数据恢复。",
+  "recovery": "旧候选已退出；用户容器已备份，新候选停在第二条合成音频的 Paused 状态，正在继续物理验收，最终数据恢复尚未执行。",
   "rawEvidenceCommitted": false,
   "evidence": {
     "media-key-red.log": "8a2dab26a00241db07ea5fcc6deea1a83aff126ae43b49c53dd4bdd5e8865a7c",
