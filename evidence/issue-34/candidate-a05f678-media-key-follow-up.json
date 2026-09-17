@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAtUTC": "2026-09-17T16:22:38.158533+00:00",
+  "recordedAtUTC": "2026-09-17T16:28:54.439427+00:00",
   "result": "FAIL",
   "scope": "#34 真实媒体键失败后的系统播放状态修复；新候选物理复验待执行，不代表完整 M5 或公开发布资格",
   "candidate": {
@@ -57,7 +57,7 @@
   "physicalAcceptance": {
     "Q34-B01": "PASS：同一精确候选真实播放/暂停、下一首和上一首均经用户操作确认，并核对前后媒体与状态",
     "Q34-P04": "PARTIAL：真实播放/暂停、上一首、下一首、系统音量键语义均 PASS；系统音量已恢复；其他键盘与全屏项待执行",
-    "Q34-P05": "NOT_RUN（新候选）",
+    "Q34-P05": "PARTIAL：用户确认播放窗口按钮可听到朗读；旁白操作、状态通知及完整代表流程待执行",
     "remainingScenarios": "未执行部分仍为 NOT_RUN；旧候选 PASS 不转移",
     "hardwarePlayPause": {
       "recordedAtUTC": "2026-09-17T16:08:34.252386+00:00",
@@ -128,9 +128,28 @@
       "result": "PASS",
       "humanFollowUp": "用户对系统音量确实增减且已恢复原值的确认：对的",
       "evidenceSHA256": "a4e727bf101a677b4171db4aaa70988388e8906d20cb02f038f58db584db7713"
+    },
+    "voiceOverButtonLabels": {
+      "recordedAtUTC": "2026-09-17T16:28:54.439427+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "voiceOverEnabled": false,
+      "humanObservation": "播放窗口上的按钮控制都能听到",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 11.637375,
+        "playerVolume": 1
+      },
+      "audibleButtonLabels": "PASS（用户确认，未逐项记录具体朗读文案）",
+      "result": "PARTIAL",
+      "remaining": "旁白激活播放控制、状态通知、定位/音量、Playlist 与条目、轨道/字幕、打开和错误恢复、焦点返回、关闭旁白恢复均待执行。",
+      "evidenceSHA256": "74bb68dfbde308ff3295335481e288c4df6041bba65f4aa6725e1c5e21c2f9d4"
     }
   },
-  "recovery": "旧候选已退出；用户容器已备份，新候选停在第二条合成音频的 Paused 状态，正在继续物理验收，最终数据恢复尚未执行。",
+  "recovery": "用户容器已备份；新候选第二条合成音频保持 Paused；系统音量已恢复；VoiceOver 已开启，代表流程进行中，最终辅助功能和数据恢复尚未执行。",
   "rawEvidenceCommitted": false,
   "evidence": {
     "media-key-red.log": "8a2dab26a00241db07ea5fcc6deea1a83aff126ae43b49c53dd4bdd5e8865a7c",
