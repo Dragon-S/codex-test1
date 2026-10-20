@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_KEYBOARD_SPACE_PAUSE",
+  "sessionState": "AWAITING_HUMAN_KEYBOARD_RIGHT_ARROW",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘空格播放获用户确认并经代理快照核对，空格暂停及其他键盘与全屏待执行，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘空格播放和暂停均获用户确认并经代理快照核对，方向键及其他键盘与全屏待执行，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，只按一次空格键，确认变为已暂停且声音停止，先不要再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向右方向键，观察播放位置是否从约2:14前进到约2:24且仍为已暂停，先不要再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -220,9 +220,35 @@
         "result": "PASS",
         "axSHA256": "519423e368fbf0c6d10d9bbc7647fc1b75c902606b35b893ae2f4bd00c14c42f",
         "screenshotSHA256": "bfd1154628be64d0007f49948d91dbe61dbaf9b0604c4d8aa56641dac66407dd"
+      },
+      "spacePause": {
+        "recordedAtUTC": "2026-10-20T16:59:03.360034+00:00",
+        "humanObservation": "点标题栏切回播放器后，再按了一次空格键，已变为“已暂停”且声音停止，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 134.2453749999922,
+          "playerVolume": 1,
+          "muted": false,
+          "focusedElement": "播放器容器"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "0c3813344cdb0c22c07684792e6b268f33e4825cd2ad4b974dd20f8e210fa93b",
+        "screenshotSHA256": "923b5ff7dd2d405471ed6804a86451fd8644692a9eac723fe7f02f021438b3b8"
       }
     },
-    "rawRecordSHA256": "0d8f24bc8d95855fe5938e1f9f8254f8345c719fde8b16d6cb6a9c64c4ced1ea"
+    "nextSubcase": {
+      "id": "rightArrowSeek",
+      "result": "NOT_RUN",
+      "beforePositionSeconds": 134.2453749999922,
+      "expectedDeltaSeconds": 10,
+      "expectedState": "已暂停",
+      "focusedElement": "播放器容器"
+    },
+    "rawRecordSHA256": "375a65f73f1aa4c3327828980f9b9e34a4eb9a56847e4e472b33790c84d5610f"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
