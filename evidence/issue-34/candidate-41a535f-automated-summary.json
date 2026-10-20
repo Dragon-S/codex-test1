@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-21",
+  "timeZone": "Asia/Shanghai",
+  "status": "AUTOMATED_PASS_PHYSICAL_PENDING",
+  "overallQualification": "FAIL",
+  "scope": "#17 集成分支的本轮自动门禁；#34 物理验收由用户明确延后，未关闭规格或子票。",
+  "candidate": {
+    "commit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+    "builtAtUTC": "20261020T161203Z",
+    "configuration": "Release",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "minimumMacOS": "14.0",
+    "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+    "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8",
+    "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+    "engineBuiltFromSource": false,
+    "mpvVersion": "v0.41.0",
+    "ffmpegVersion": "n8.1.2",
+    "xcode": "Xcode 27.1 Build version 27A9275",
+    "hostMacOS": "26.6.2 (25G83)"
+  },
+  "automatedAcceptance": {
+    "swiftContracts": {
+      "result": "PASS",
+      "passed": 95,
+      "failed": 0,
+      "suites": 9
+    },
+    "appAndRealEngineContracts": {
+      "result": "PASS",
+      "passed": 56,
+      "failed": 0,
+      "suites": 4
+    },
+    "shellGates": {
+      "result": "PASS",
+      "passed": 4,
+      "entrypoints": [
+        "verify-candidate-inputs-test.sh",
+        "verify-build-state-test.sh",
+        "snapshot-engine-input-test.sh",
+        "render-physical-acceptance-test.sh"
+      ]
+    },
+    "lockedEngineInputs": "PASS",
+    "signedUniversalArchiveAndLaunch": "PASS",
+    "executableAndAll12EmbeddedLibraryHashes": "PASS",
+    "freshAndPopulatedData": {
+      "result": "PASS",
+      "scope": "SQLite 契约与候选数据状态自动测试；不代替真实 UI 或安全作用域物理验收。"
+    }
+  },
+  "review": {
+    "baseCommit": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "headCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+    "standards": {
+      "hardViolations": 0,
+      "heuristicFindings": 0
+    },
+    "spec": {
+      "fixableCodeOrEvidenceFindings": 0,
+      "deferredPhysicalQualificationGaps": 1,
+      "unresolvedHistoricalEnvironmentFields": 1
+    }
+  },
+  "physicalAcceptance": {
+    "thisRun": "NOT_RUN",
+    "historicalResultsInherited": false,
+    "overall": "FAIL",
+    "remaining": [
+      "核心与失败语料、24 小时音频、字幕像素及同步",
+      "规定重复次数的性能资源与 30 分钟 QuickTime 能耗对照",
+      "真实媒体键、VoiceOver 实际朗读与完整焦点流程",
+      "双语、外观、非颜色状态和减弱动态效果",
+      "安全作用域与书签恢复、场景元数据及原始证据复核"
+    ]
+  },
+  "userDataRestoration": {
+    "result": "PASS",
+    "restoredOrdinaryFileCount": 32,
+    "restoredFromOriginalContainer": true,
+    "ordinaryFileHashesMatchBefore": true,
+    "testContainerPreserved": true,
+    "candidateProcessStopped": true,
+    "systemAppearanceOrAccessibilityChanged": false,
+    "originalPausedContextReopened": true
+  },
+  "evidence": {
+    "buildLogSHA256": "53777a89762712578237b65d3d5ee792d812264db9ac88a6ab3f823346c8fa92",
+    "xcresultManifestSHA256": "5e3aeee41a72ce695e8af57d506bbd9ad1e12265ae58b83801c53033dba08788",
+    "xcresultFileCount": 139,
+    "physicalChecklistSHA256": "b70f64e4774c28a80306a0656b9cbc897be4f22c62c2a104bba3489606048983",
+    "restorationRecordSHA256": "285b3356b8a59be855017a8eba867eb62631638023d15cfc0198f558fa8530a7",
+    "standardsReviewSHA256": "3c37cbef291b1f40b013703a582f5ef010c58de5e5743ea6ff2f14cb62a926f3",
+    "specReviewSHA256": "c021d336d25d1bba92cf5b59100f472a69d4445b7f5afb82edebd9e89c17ed67"
+  },
+  "rawEvidenceCommitted": false,
+  "rawEvidenceRetention": "候选归档、candidate-record、xcresult、日志、测试容器和用户数据备份均保存在本机私有目录。"
+}
