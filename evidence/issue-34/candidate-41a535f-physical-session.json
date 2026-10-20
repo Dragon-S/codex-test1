@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-21",
+  "timeZone": "Asia/Shanghai",
+  "candidate": {
+    "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+    "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+    "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+    "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
+  },
+  "overallQualification": "FAIL",
+  "sessionState": "AWAITING_HUMAN_MEDIA_PLAY_KEY",
+  "processImageVerified": true,
+  "candidateSignatureAndClosureVerified": true,
+  "userData": {
+    "currentSessionBackupVerified": true,
+    "ordinaryFileCount": 32,
+    "originalContainerIsolated": true,
+    "restoration": "PENDING_SESSION_END"
+  },
+  "environment": {
+    "device": "Mac17,2",
+    "chip": "Apple M5",
+    "memoryGiB": 24,
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "27.1 (27A9275)",
+    "language": "简体中文",
+    "appearance": "深色",
+    "voiceOver": false,
+    "reduceMotion": false,
+    "increaseContrast": false
+  },
+  "inputs": [
+    {
+      "file": "01-test-tone.wav",
+      "sha256": "5ccefa36a4d682b3654e8cdac3c9f05c0f178a9c6c1747ec6c9e91d798df30c3"
+    },
+    {
+      "file": "02-test-tone.wav",
+      "sha256": "513a7b6ec70d6bb768d03ca0de1f140467b6a0af0b429918455e7f97fa533600"
+    },
+    {
+      "file": "03-test-tone.wav",
+      "sha256": "d45aaeca1221d15800e0fadddaa148a55f2d2b8169b69d1f252c72b7fd08cf95"
+    },
+    {
+      "file": "04-captions.srt",
+      "sha256": "8ec6ac4c111f256744539811894fcf8dbd63c4a0f6e551f950fb002b6a0b2fa9"
+    },
+    {
+      "file": "04-tracks-subtitles.mkv",
+      "sha256": "760fd2783807478c8540b5049e114a9c60a3ced90bb6150b0051be52be64d761"
+    },
+    {
+      "file": "04-tracks.mkv",
+      "sha256": "8376e60a1e4810d5a92165c126fb5f12c2972b6504eff2ba76ad36910a03ecc8"
+    },
+    {
+      "file": "05-corrupt.mp4",
+      "sha256": "321e1812c764ab36748c716c8efb5cd628e6af46c7324c408453cd60781712cf"
+    }
+  ],
+  "firstScenario": {
+    "id": "Q34-B01 / Q34-P04",
+    "initialState": {
+      "media": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 3.7226875,
+      "playerVolume": 1,
+      "muted": false,
+      "playlistEntryCount": 3,
+      "language": "简体中文",
+      "appearance": "深色",
+      "voiceOver": false,
+      "reduceMotion": false,
+      "increaseContrast": false
+    },
+    "nextHumanAction": "按一次真实播放/暂停媒体键，观察播放状态、声音及是否唤起其他应用。",
+    "humanObservation": null,
+    "result": "NOT_RUN",
+    "rawRecordSHA256": "e6746d131dba2e765effe2af027d069223cd467155a70351d516b6a846b37d21",
+    "axSHA256": "04a208f18fb7f94df60fc307560f41d0d6fdae8d8d39da6aac37041ad03bb4d9",
+    "screenshotSHA256": "dbb2e0d75caa97fdcd44fd56d44c845acc335d2ca64167a775467ce2e3656478"
+  },
+  "evidenceBoundary": "准备和自动核对不构成人工通过。等待真实按键观察；所有历史PASS不转移。原始记录与用户备份只保存在本机。"
+}
