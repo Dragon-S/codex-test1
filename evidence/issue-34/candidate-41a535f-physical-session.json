@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_SYSTEM_VOLUME_RESTORE",
+  "sessionState": "AWAITING_HUMAN_KEYBOARD_SPACE_PLAY",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,8 +183,28 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01为PASS。系统音量下降由用户观察确认，播放器100%由用户与代理快照一致确认；增大及恢复待执行，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01为PASS。系统音量增减及恢复获用户确认，播放器音量保持100%经代理快照核对，系统音量键子场景PASS。其他键盘与全屏待执行，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
+    "scenario": "Q34-P04 普通键盘与全屏",
+    "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+    "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+    "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+    "recordedAtUTC": "2026-10-20T16:55:20.123341+00:00",
+    "result": "NOT_RUN",
+    "preparation": {
+      "source": "代理通过播放位置滑块的Decrement操作将音频定位到54秒，按Tab把焦点移至播放器容器；此准备不计为人工验收。",
+      "media": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 54,
+      "playerVolume": 1,
+      "focusedElement": "播放器容器",
+      "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
+      "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
+    },
+    "nextHumanAction": "切回播放器窗口，仅按一次空格键，观察是否开始播放并有声音，然后保持状态。",
+    "rawRecordSHA256": "0ab5b589fd0abc6bf1c4fc59b708f1a4b313f46952d935587de086fa2a8bea40"
+  },
+  "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
     "recordedAtUTC": "2026-10-20T16:50:00.476935+00:00",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -208,11 +228,28 @@
       "screenshotSHA256": "f73047fa9394797fc69b24c057616e909aec67509bbdc983f7e3d24385e7936b"
     },
     "recovery": {
-      "state": "PENDING",
-      "nextHumanAction": "按一次真实系统音量增大键，确认恢复测试前音量，并确认播放器音量仍为100%。"
+      "state": "PASS",
+      "humanObservation": "按了一次音量增大键，系统音量已恢复到测试前的水平，播放器内的音量仍为 100%。",
+      "source": "用户确认已恢复测试前水平；播放器音量100%经代理快照核对。"
     },
-    "result": "PARTIAL",
-    "scope": "仅系统音量减小方向已确认；增大和恢复待执行，不代表完整Q34-P04。",
-    "rawRecordSHA256": "48cf4d6456c82ca313326d6be02d65ad0f5bf58427a2bc556ca6ea1edfa8c792"
+    "result": "PASS",
+    "scope": "系统音量减小、增大及恢复子场景通过；其他键盘和全屏尚未完成，Q34-P04仍为PARTIAL。",
+    "volumeUp": {
+      "recordedAtUTC": "2026-10-20T16:55:20.123341+00:00",
+      "humanObservation": "按了一次音量增大键，系统音量已恢复到测试前的水平，播放器内的音量仍为 100%。",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "已暂停",
+        "positionSeconds": 179.9999999999873,
+        "playerVolume": 1,
+        "muted": false
+      },
+      "systemVolumeSource": "用户现场观察；代理未独立测量系统音量数值。",
+      "processVerified": true,
+      "result": "PASS",
+      "axSHA256": "4fcdbdcf60f2ad18c96633681be38031f859830d7fe4af68f2df3dd57d8ad75c",
+      "screenshotSHA256": "97c51644c3fd5338222935bb146154c666653c0ebcfaafd5599175847d6b7d9f"
+    },
+    "rawRecordSHA256": "e89c3de4c6fb9ad53a59cfadd30dc35dd82c22dc33d94987200003abb245b2da"
   }
 }
