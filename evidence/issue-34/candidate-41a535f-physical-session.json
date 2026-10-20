@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_MEDIA_PLAY_KEY",
+  "sessionState": "AWAITING_HUMAN_NEXT_TRACK_KEY",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -75,12 +75,54 @@
       "reduceMotion": false,
       "increaseContrast": false
     },
-    "nextHumanAction": "按一次真实播放/暂停媒体键，观察播放状态、声音及是否唤起其他应用。",
-    "humanObservation": null,
-    "result": "NOT_RUN",
-    "rawRecordSHA256": "e6746d131dba2e765effe2af027d069223cd467155a70351d516b6a846b37d21",
+    "nextHumanAction": "按一次真实下一首媒体键，核对是否切到03-test-tone.wav，暂不按其他键。",
+    "result": "PARTIAL",
+    "rawRecordSHA256": "01b0cb0507e24c834cbee53f61efc23a6efa5e33c85461118e15d8140ee8f775",
     "axSHA256": "04a208f18fb7f94df60fc307560f41d0d6fdae8d8d39da6aac37041ad03bb4d9",
-    "screenshotSHA256": "dbb2e0d75caa97fdcd44fd56d44c845acc335d2ca64167a775467ce2e3656478"
+    "screenshotSHA256": "dbb2e0d75caa97fdcd44fd56d44c845acc335d2ca64167a775467ce2e3656478",
+    "humanObservations": [
+      "按了一次，已变为“正在播放”并有声音，没有打开“音乐”或其他应用。",
+      "是的，听到声音后我又按了一次媒体键暂停了。"
+    ],
+    "subcases": {
+      "hardwarePlayPause": {
+        "id": "hardwarePlayPause",
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-20T16:38:49.374034+00:00",
+        "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+        "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+        "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+        "processVerified": true,
+        "initialState": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 3.7226875,
+          "playerVolume": 1,
+          "muted": false,
+          "playlistEntryCount": 3,
+          "language": "简体中文",
+          "appearance": "深色",
+          "voiceOver": false,
+          "reduceMotion": false,
+          "increaseContrast": false
+        },
+        "humanObservations": [
+          "按了一次，已变为“正在播放”并有声音，没有打开“音乐”或其他应用。",
+          "是的，听到声音后我又按了一次媒体键暂停了。"
+        ],
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 5.402915626000004,
+          "playerVolume": 1,
+          "muted": false
+        },
+        "reconciliation": "用户确认在开始播放并听到声音后，又按一次相同媒体键暂停，与代理后续暂停快照一致。",
+        "scope": "仅真实播放/暂停两次操作；下一首、上一首和其他物理门槛尚未通过。",
+        "axSHA256": "61b803294ffc0538bbe8f598d0160755a972f4e2e747f77d0b0a5d37a93a13c1",
+        "screenshotSHA256": "1ee9390ff7d8848bc5ace11f4df60c54c6357507b2141ca4a358421ceea64e46"
+      }
+    }
   },
-  "evidenceBoundary": "准备和自动核对不构成人工通过。等待真实按键观察；所有历史PASS不转移。原始记录与用户备份只保存在本机。"
+  "evidenceBoundary": "真实播放/暂停子项由用户两次操作观察及精确候选快照共同支持；下一首和上一首仍待执行，Q34-B01/Q34-P04为PARTIAL，总资格FAIL。历史PASS不转移。"
 }
