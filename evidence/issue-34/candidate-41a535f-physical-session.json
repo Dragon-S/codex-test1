@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_PREVIOUS_TRACK_KEY",
+  "sessionState": "AWAITING_HUMAN_SYSTEM_VOLUME_DOWN",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -61,7 +61,7 @@
     }
   ],
   "firstScenario": {
-    "id": "Q34-B01 / Q34-P04",
+    "id": "Q34-B01",
     "initialState": {
       "media": "02-test-tone.wav",
       "state": "已暂停",
@@ -75,15 +75,15 @@
       "reduceMotion": false,
       "increaseContrast": false
     },
-    "nextHumanAction": "按一次真实上一首媒体键，核对是否切回02-test-tone.wav及播放状态，暂不按其他键。",
-    "result": "PARTIAL",
-    "rawRecordSHA256": "5ceb379bbe1482b0cac2d388c5058298e69220d84df8c178cc225da262e781e9",
+    "result": "PASS",
+    "rawRecordSHA256": "0b8bae50d9685be44a9bdf11fc9e79620f38ce58700e312f55b4ebe5bf48b8bc",
     "axSHA256": "04a208f18fb7f94df60fc307560f41d0d6fdae8d8d39da6aac37041ad03bb4d9",
     "screenshotSHA256": "dbb2e0d75caa97fdcd44fd56d44c845acc335d2ca64167a775467ce2e3656478",
     "humanObservations": [
       "按了一次，已变为“正在播放”并有声音，没有打开“音乐”或其他应用。",
       "是的，听到声音后我又按了一次媒体键暂停了。",
-      "按了一次下一首媒体键，已切到 03-test-tone.wav，当前显示“正在播放”，没有再按其他键。"
+      "按了一次下一首媒体键，已切到 03-test-tone.wav，当前显示“正在播放”，没有再按其他键。",
+      "按了一次上一首媒体键，已切回 02-test-tone.wav，当前显示“正在播放”，没有再按其他键。"
     ],
     "subcases": {
       "hardwarePlayPause": {
@@ -149,8 +149,47 @@
         "scope": "仅真实下一首按键；上一首与其他物理门槛仍待执行。",
         "axSHA256": "9c661a9890f19d5494fd9308e47635dbd5e934129391739d9638831195855c6c",
         "screenshotSHA256": "18b327c29746b2fa50782af0188a008f8a4e75b316d6b660906449cb3cd9c2d3"
+      },
+      "hardwarePreviousTrack": {
+        "id": "hardwarePreviousTrack",
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-20T16:46:35.354307+00:00",
+        "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+        "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+        "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+        "processVerified": true,
+        "initialState": {
+          "media": "03-test-tone.wav",
+          "state": "正在播放",
+          "positionSeconds": 45.54145941800003,
+          "playerVolume": 1,
+          "muted": false
+        },
+        "humanObservation": "按了一次上一首媒体键，已切回 02-test-tone.wav，当前显示“正在播放”，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "正在播放",
+          "positionSeconds": 23.01027670900002,
+          "playerVolume": 1,
+          "muted": false
+        },
+        "scope": "仅真实上一首按键；与已通过的播放/暂停、下一首共同完成Q34-B01，不涵盖系统音量、其他键盘或全屏。",
+        "axSHA256": "5b96498d308d4d51f162f989057a8b86c99b63b4d17d7a4546186e885d0e6894",
+        "screenshotSHA256": "20c1decddea0e4242dd6f4465e83bdefd198c9c278316a5957927c2349326f5b"
       }
+    },
+    "relatedScene": {
+      "id": "Q34-P04",
+      "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实播放/暂停与下一首子项由用户观察及精确候选快照共同支持；上一首仍待执行，Q34-B01/Q34-P04为PARTIAL，总资格FAIL。历史PASS不转移。"
+  "evidenceBoundary": "同一精确候选的真实播放/暂停、下一首、上一首均获用户确认并核对前后状态，Q34-B01为PASS。系统音量、其他键盘和全屏未完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "nextScenario": {
+    "id": "Q34-P04 系统音量键",
+    "result": "NOT_RUN",
+    "initialPlayerVolume": 1,
+    "initialSystemVolume": "待用户现场观察；尚未调整",
+    "action": "按一次真实系统音量减小键，观察系统音量是否下降且播放器音量仍为100%。",
+    "recovery": "后续使用系统音量增大键恢复，并请用户确认。"
+  }
 }
