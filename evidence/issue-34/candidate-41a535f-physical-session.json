@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_SYSTEM_VOLUME_DOWN",
+  "sessionState": "AWAITING_HUMAN_SYSTEM_VOLUME_RESTORE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,13 +183,36 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "同一精确候选的真实播放/暂停、下一首、上一首均获用户确认并核对前后状态，Q34-B01为PASS。系统音量、其他键盘和全屏未完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01为PASS。系统音量下降由用户观察确认，播放器100%由用户与代理快照一致确认；增大及恢复待执行，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
-    "id": "Q34-P04 系统音量键",
-    "result": "NOT_RUN",
+    "scenario": "Q34-P04 系统音量键",
+    "recordedAtUTC": "2026-10-20T16:50:00.476935+00:00",
+    "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
+    "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
+    "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
+    "processVerified": true,
     "initialPlayerVolume": 1,
-    "initialSystemVolume": "待用户现场观察；尚未调整",
-    "action": "按一次真实系统音量减小键，观察系统音量是否下降且播放器音量仍为100%。",
-    "recovery": "后续使用系统音量增大键恢复，并请用户确认。"
+    "initialSystemVolume": "未采集数值；用户从测试前音量按一次减小键。",
+    "volumeDown": {
+      "humanObservation": "按了一次音量减小键，系统音量下降了，播放器内的音量仍为 100%，还没有调回来。",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "已暂停",
+        "positionSeconds": 179.9999999999873,
+        "playerVolume": 1,
+        "muted": false
+      },
+      "systemVolumeSource": "用户现场观察；代理未独立测量系统音量数值。",
+      "result": "PASS",
+      "axSHA256": "4fcdbdcf60f2ad18c96633681be38031f859830d7fe4af68f2df3dd57d8ad75c",
+      "screenshotSHA256": "f73047fa9394797fc69b24c057616e909aec67509bbdc983f7e3d24385e7936b"
+    },
+    "recovery": {
+      "state": "PENDING",
+      "nextHumanAction": "按一次真实系统音量增大键，确认恢复测试前音量，并确认播放器音量仍为100%。"
+    },
+    "result": "PARTIAL",
+    "scope": "仅系统音量减小方向已确认；增大和恢复待执行，不代表完整Q34-P04。",
+    "rawRecordSHA256": "48cf4d6456c82ca313326d6be02d65ad0f5bf58427a2bc556ca6ea1edfa8c792"
   }
 }
