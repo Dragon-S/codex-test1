@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_ESCAPE_EXIT_FULLSCREEN",
+  "sessionState": "AWAITING_HUMAN_TEXT_INPUT_SPACE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。已确认普通空格、方向键、P键、全屏快捷键，以及Escape分别关闭Playlist与播放控制层并保留全屏。退出全屏恢复及局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通空格、方向键、P键、全屏快捷键和分层Escape均已确认，已回到普通窗口，暂停状态、位置和音量保持。局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "用Command-Tab切回全屏播放器，保持鼠标不动，只按一次Escape，确认退出全屏回到普通窗口且仍为已暂停，先不要再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次空格键，确认右下方名称输入框从AB变为A B，播放仍暂停且没有声音；不要点击创建或再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -429,18 +429,40 @@
         "result": "PASS",
         "axSHA256": "af53c9c7b6ea6fb4e59989b6baf6ced0dbbad35e39311247227946c317cc5bcf",
         "screenshotSHA256": "506097ccbb0e64dacf905e618b2415fcea11ea1a186ce325073509d6fa517135"
+      },
+      "escapeExitFullScreen": {
+        "recordedAtUTC": "2026-10-21T14:33:28.657651+00:00",
+        "humanObservation": "用 Command + Tab 切回播放器后，保持鼠标不动，再按了一次 Esc，已退出全屏回到普通窗口，仍为“已暂停”，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "fullScreen": false,
+          "fullScreenEvidence": "用户确认恢复普通窗口；截图与AX均重新显示普通窗口标题栏及窗口按钮。",
+          "playlistVisible": false,
+          "controlsVisible": true,
+          "focusedElement": "播放器容器",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "d1ecda6b1af90e701647a2085b1cdc76eb62773a62d3222e07c56288b1b7ad8c",
+        "screenshotSHA256": "41733508c4e225aa9ee241e0ebf0c16559572d7fc7d644706f8b013b1a888972"
       }
     },
     "nextSubcase": {
-      "id": "escapeExitFullScreen",
+      "id": "textInputSpace",
       "result": "NOT_RUN",
-      "beforeFullScreen": true,
-      "beforePlaylistVisible": false,
-      "beforeControlsVisible": false,
-      "focusedElement": "播放器容器",
-      "expectedFullScreen": false,
+      "beforeTextValue": "AB",
+      "expectedTextValue": "A B",
       "expectedState": "已暂停",
-      "humanPreparation": "用Command-Tab切回，保持鼠标不动，避免重新显示播放控制层。"
+      "beforePositionSeconds": 134.245375,
+      "playerVolume": 1,
+      "expectedPlaylistVisible": true,
+      "focusedElement": "新建或存储区域的Playlist名称文本框"
     },
     "playerVolumeRecovery": {
       "state": "PASS",
@@ -449,12 +471,31 @@
       "source": "用户确认向上方向键恢复至100%；代理快照核对一致。"
     },
     "fullScreenRecovery": {
-      "state": "PENDING",
+      "state": "PASS",
       "initialFullScreen": false,
-      "currentFullScreen": true,
-      "scope": "完成分层Escape后恢复普通窗口。"
+      "currentFullScreen": false,
+      "playbackState": "已暂停",
+      "positionSeconds": 134.245375,
+      "playerVolume": 1,
+      "source": "用户确认退出全屏且暂停；代理核对普通窗口、播放位置及音量。"
     },
-    "rawRecordSHA256": "e5a8c448f120f4064165623ffaf4e908e96a7544f56b34f9a2471a2d91121e9c"
+    "localFocusPreparation": {
+      "source": "代理准备，不计为用户人工验收。",
+      "actions": "通过显示Playlist按钮重新展开侧栏，在新建或存储区域的未提交名称框粘贴AB，并将插入光标放在A与B之间。",
+      "media": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 134.245375,
+      "playerVolume": 1,
+      "fullScreen": false,
+      "playlistVisible": true,
+      "focusedElement": "新建或存储区域的Playlist名称文本框",
+      "textValue": "AB",
+      "caret": "A与B之间",
+      "submitted": false,
+      "axSHA256": "767ba8ce15355fb972856d4c4b657a95bbefa7c99fc266151119a67f6c1889fe",
+      "screenshotSHA256": "90eb5d32e8154b7a7caa43586376c342b1e8a7224c2632cca229c31d3b9d2da6"
+    },
+    "rawRecordSHA256": "643b8f44db29520d6794925a93117313ff4e1d8910b3ee5184ea1306cea2b23e"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
