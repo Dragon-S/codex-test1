@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_KEYBOARD_ENTER_FULLSCREEN",
+  "sessionState": "AWAITING_HUMAN_ESCAPE_DISMISS_PLAYLIST",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘空格播放与暂停、左右定位各10秒、上下音量调节及恢复、P键收起与展开Playlist均获用户确认并经代理快照核对；全屏、分层Escape及局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘空格播放与暂停、左右定位、上下音量调节及恢复、P键收起与展开Playlist和Control-Command-F进入全屏均获用户确认并经现场核对；分层Escape、退出全屏恢复及局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，按一次Control-Command-F，确认进入全屏且音频仍暂停，先不要按Escape或其他键。",
+    "nextHumanAction": "用Command-Tab切回全屏播放器，只按一次Escape，确认Playlist侧栏收起但播放器仍保持全屏，先不要再按Escape或其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -361,17 +361,39 @@
         "result": "PASS",
         "axSHA256": "cbb29ad89f0f669b5c0515af1eb593bd838560f3f74a068bdae2783a252fb38b",
         "screenshotSHA256": "923b5ff7dd2d405471ed6804a86451fd8644692a9eac723fe7f02f021438b3b8"
+      },
+      "enterFullScreen": {
+        "recordedAtUTC": "2026-10-21T14:24:37.223687+00:00",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Command + F，已进入全屏，音频仍保持暂停，没有按 Esc 或其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "fullScreen": true,
+          "fullScreenEvidence": "用户确认进入全屏；现场截图显示全屏布局且无普通窗口标题栏及窗口按钮。",
+          "playlistVisible": true,
+          "controlsVisible": false,
+          "focusedElement": "Playlist 侧栏",
+          "positionSeconds": null,
+          "playerVolume": null,
+          "measurementNote": "播放控制层已隐藏，本快照未重新读取位置和音量数值；不将进入全屏前数值视为本次测量。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "3fea136ec0980176f33c00985949b66e4d17233da7ad7b9a31a67747fc94fa02",
+        "screenshotSHA256": "2a72a7ea9c6d3b4f8b2173c4e3c5fbe93ed20d2f6e95396a3bc2cd2fa62d48fb"
       }
     },
     "nextSubcase": {
-      "id": "enterFullScreen",
+      "id": "escapeDismissPlaylist",
       "result": "NOT_RUN",
-      "shortcut": "Control-Command-F",
+      "beforeFullScreen": true,
+      "beforePlaylistVisible": true,
+      "beforeControlsVisible": false,
       "expectedFullScreen": true,
+      "expectedPlaylistVisible": false,
       "expectedState": "已暂停",
-      "beforePositionSeconds": 134.245375,
-      "playerVolume": 1,
-      "playlistVisible": true,
       "focusedElement": "Playlist 侧栏"
     },
     "playerVolumeRecovery": {
@@ -380,7 +402,13 @@
       "currentPlayerVolume": 1,
       "source": "用户确认向上方向键恢复至100%；代理快照核对一致。"
     },
-    "rawRecordSHA256": "e7fea8fe611d54d0a844e98c2c1eb6ad59913c3867f6c6b3c09ffe009c4b6f3d"
+    "fullScreenRecovery": {
+      "state": "PENDING",
+      "initialFullScreen": false,
+      "currentFullScreen": true,
+      "scope": "完成分层Escape后恢复普通窗口。"
+    },
+    "rawRecordSHA256": "48efafd2f40898ab3aad1b3e597dfa8897047af3c643251c0abe9a07473ad63f"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
