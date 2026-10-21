@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_TEXT_INPUT_P",
+  "sessionState": "AWAITING_HUMAN_TEXT_INPUT_LEFT_ARROW",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通空格、方向键、P键、全屏快捷键和分层Escape均已确认；输入框获焦时空格正常输入且播放保持暂停也已通过。其余局部焦点语义及临时文本清理待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通空格、方向键、P键、全屏快捷键和分层Escape均已确认；输入框获焦时空格与P正常输入且不触发全局播放或侧栏切换也已通过。其余局部焦点语义及临时文本清理待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，只按一次字母P键，确认字母进入名称输入框、Playlist侧栏保持展开且播放仍暂停；不要点击创建或再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向左方向键，确认输入光标在文字内向左移动，播放进度仍约2:14且保持暂停；不要点击创建或再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -474,18 +474,43 @@
         "result": "PASS",
         "axSHA256": "a95ebb69703bab58345a29d9d124b01a4e261fc4dca28b29c75a546f28862020",
         "screenshotSHA256": "0ddcaaf3388f3ea1576541b0e4f168e16d74f667ab7182eb6a36e6022bc1aa3f"
+      },
+      "textInputP": {
+        "recordedAtUTC": "2026-10-21T14:38:20.136910+00:00",
+        "humanObservation": "点标题栏切回播放器后，按了一次字母 P 键，字母已进入名称输入框，Playlist 侧栏仍展开，仍为“已暂停”，没有点击“创建”或再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "focusedElement": "新建或存储区域的Playlist名称文本框",
+          "beforeTextValue": "A B",
+          "textValue": "A PB",
+          "playlistName": "验收-41a535f"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "b4a2ed74efcd77ef9a10716f3d253a6292e67b4494ca1a5a81879a00a25ef573",
+        "screenshotSHA256": "e1ab28663518c8098a205b0e77ea20437edb046f855d4ba5a8e393df2b3a3887"
       }
     },
     "nextSubcase": {
-      "id": "textInputP",
+      "id": "textInputLeftArrow",
       "result": "NOT_RUN",
-      "beforeTextValue": "A B",
-      "expectedBehavior": "P键进入文本输入流程，不触发Playlist收起。",
+      "beforeTextValue": "A PB",
+      "expectedTextValue": "A PB",
+      "expectedBehavior": "向左方向键移动文本插入光标，不触发播放器后退10秒。",
       "expectedState": "已暂停",
       "beforePositionSeconds": 134.245375,
       "playerVolume": 1,
       "expectedPlaylistVisible": true,
-      "focusedElement": "新建或存储区域的Playlist名称文本框"
+      "focusedElement": "新建或存储区域的Playlist名称文本框",
+      "caretEvidenceBoundary": "AX快照未提供插入点偏移；实际光标移动需用户现场确认。"
     },
     "playerVolumeRecovery": {
       "state": "PASS",
@@ -518,7 +543,7 @@
       "axSHA256": "767ba8ce15355fb972856d4c4b657a95bbefa7c99fc266151119a67f6c1889fe",
       "screenshotSHA256": "90eb5d32e8154b7a7caa43586376c342b1e8a7224c2632cca229c31d3b9d2da6"
     },
-    "rawRecordSHA256": "992e996d2f18d4b6775e72e5a6cfebd252c78ca8a5499155e30f636cbf7e6f7c"
+    "rawRecordSHA256": "c89e18de9f13a7557070b62327674f629e06d6a096c8a220e11908b6dab7be93"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
