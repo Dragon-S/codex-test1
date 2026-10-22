@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_BUTTON_SPACE",
+  "sessionState": "AWAITING_HUMAN_LIST_DOWN_ARROW",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘与全屏分层Escape已确认；输入框的空格、P、向左及向下方向键均保持局部输入语义，临时文字已清理且未创建Playlist。其余控件的局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘与全屏分层Escape、输入框代表性按键及按钮空格局部激活均已确认，临时文字已清理。列表与滑块局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，只按一次空格键，确认显示Playlist按钮被激活、右侧侧栏展开，且仍暂停、没有声音；先不要再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向下方向键，确认列表选中项从01-test-tone.wav移动到02-test-tone.wav，播放器音量仍100%且保持暂停；先不要再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -545,18 +545,44 @@
         "result": "PASS",
         "axSHA256": "b4a2ed74efcd77ef9a10716f3d253a6292e67b4494ca1a5a81879a00a25ef573",
         "screenshotSHA256": "7e17dffbb3bf97789709556917817498b3940eef2153c7fed614b2878426bbe9"
+      },
+      "buttonSpace": {
+        "recordedAtUTC": "2026-10-22T14:48:00.674275+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次空格键，右侧 Playlist 已展开，仍为“已暂停”且没有声音，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "beforePlaylistVisible": false,
+          "playlistVisible": true,
+          "beforeFocusedElement": "显示 Playlist 按钮",
+          "focusedElement": "Playlist 侧栏",
+          "playlistName": "验收-41a535f",
+          "temporaryNameFieldEmpty": true
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "cbb29ad89f0f669b5c0515af1eb593bd838560f3f74a068bdae2783a252fb38b",
+        "screenshotSHA256": "53e65a23715b43c911fc0f9444d129e8e4fa3ff8a20f40557f1704574ef899df"
       }
     },
     "nextSubcase": {
-      "id": "buttonSpace",
+      "id": "listDownArrow",
       "result": "NOT_RUN",
-      "beforePlaylistVisible": false,
-      "expectedPlaylistVisible": true,
-      "expectedBehavior": "空格激活当前按钮，不切换全局播放状态。",
+      "beforeSelectedEntry": "01-test-tone.wav",
+      "expectedSelectedEntry": "02-test-tone.wav",
+      "expectedBehavior": "方向键移动列表选择，不降低播放器音量或启动播放。",
+      "currentMedia": "02-test-tone.wav",
       "expectedState": "已暂停",
       "beforePositionSeconds": 134.245375,
       "playerVolume": 1,
-      "focusedElement": "显示 Playlist 按钮"
+      "expectedPlaylistVisible": true
     },
     "playerVolumeRecovery": {
       "state": "PASS",
@@ -609,7 +635,20 @@
       "axSHA256": "6c5b8308c9e3d261ad1cc43bdd88dadd0eec2d9489562afec54fb20fe5c3bb57",
       "screenshotSHA256": "bdd2b3fce496e350a74abc093a5c80df2280bf911c46f9c52cec5dbac5337d4a"
     },
-    "rawRecordSHA256": "765b47d80aada55cd4d6a635ecf29289ff6b85a4ddbcbf3e0508f176f9e96e2a"
+    "listFocusPreparation": {
+      "source": "代理准备，不计为用户人工验收。",
+      "actions": "点击Playlist第一条01-test-tone.wav行，保持当前媒体02-test-tone.wav暂停。",
+      "selectedEntry": "01-test-tone.wav",
+      "currentMedia": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 134.245375,
+      "playerVolume": 1,
+      "playlistVisible": true,
+      "focusEvidenceBoundary": "AX报告第一行已选中，未单独报告焦点元素；后续按键的列表导航结果需用户现场确认。",
+      "axSHA256": "49bb78b1dd19f76dc312643707ec0824cc3434089bd687a3a8eb98ec473c0a4a",
+      "screenshotSHA256": "8be80d3fb8b6d829b73611aa5aeece328f56d4571d249a8c3c9e71a4da900054"
+    },
+    "rawRecordSHA256": "550d9a10ce3a890838bfaba9e98eb9be97ea83a968956868dd582e0fc809224a"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
