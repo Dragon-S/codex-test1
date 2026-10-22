@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAY",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_PAUSE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、部分控件朗读、字幕菜单打开、侧栏与Playlist选择区导航，以及媒体条目从第一条移至第二条并读出选中状态获用户确认。代理现准备播放按钮焦点和约0:26起点，仍暂停。实际播放/暂停与通知、不同Playlist切换、其余旁白流程及最终恢复仍待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：媒体条目选择、旁白开始播放、有声音和自动“正在播放”通知获用户确认；代理核对同一候选正在播放并准备暂停按钮。暂停及其余完整旁白流程、最终环境恢复仍待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "播放按钮焦点已准备，第二条音频暂停在约0:26。点播放器标题栏切回窗口，按住Control和Option，只按一次空格键；听几秒后报告是否开始播放并有声音，以及旁白是否自动读出播放状态和实际措辞。先不要按其他键，保持旁白开启。",
+    "nextHumanAction": "第39步：暂停按钮焦点已准备。点播放器标题栏切回窗口，只按一次Control+Option+空格；报告声音是否停止、是否已暂停及旁白实际自动播报内容，先不按其他键并保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -587,18 +587,42 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "135320c61dd7d8b40df8a12e74c692a6cfed08bff4b9c2ff4acb351c663376b3",
         "scope": "旁白开启时从第一条选择第二条并读出名称及选中状态；不代表激活条目播放或不同Playlist切换。"
+      },
+      "voiceOverActivatePlay": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T16:22:31.822019+00:00",
+        "observedDate": "2026-10-23",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 空格键，已开始播放并有声音，旁白自动读出了“正在播放”，没有再按其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "正在播放",
+          "beforePositionSeconds": 26.245375,
+          "positionSeconds": 81.67963991699804,
+          "playerVolume": 1,
+          "muted": false,
+          "keyboardFocusedElement": "播放按钮",
+          "voiceOverEnabled": true,
+          "voiceOverPreferenceValue": "1",
+          "appleKeyboardUIMode": 2,
+          "evidenceBoundary": "真实旁白激活、音频有声音及自动状态播报“正在播放”依据用户确认；AX独立核对状态和前进的位置，不代替听感。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "0d5b4251eb52fd735cdb352268bb03183cc31bf6e738178d8caa1d836ebe8fd2",
+        "screenshotSHA256": "c92841ec1458d294025ebc409ee5960c0f20fb2de3c599dc7ed91bafd84db0d0",
+        "verificationSHA256": "bc93e26f37f00c40cd6516070011ce6ff92852b2b6ba863169c4c59d0b4c345d",
+        "scope": "仅旁白开始播放及自动播放状态通知；暂停及暂停通知待执行。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "voiceOverActivatePlay",
+      "id": "voiceOverActivatePause",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白激活播放按钮，当前第二条音频开始播放并发出状态通知。",
-      "beforePlaybackState": "已暂停",
-      "beforePositionSeconds": 26.245375,
-      "expectedPlayerVolume": 1,
-      "beforeKeyboardFocusedElement": "播放按钮",
-      "evidenceBoundary": "按钮激活、声音与自动状态朗读分别记录；没有听到通知时如实记录，不能由AX状态替代。"
+      "expectedBehavior": "旁白激活暂停按钮，声音停止、状态已暂停，并播报暂停状态。",
+      "beforePlaybackState": "正在播放",
+      "beforeKeyboardFocusedElement": "暂停按钮",
+      "evidenceBoundary": "实际声音停止和自动通知由用户确认；不能把到达媒体结尾当作按钮暂停成功。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -650,7 +674,18 @@
       "screenshotSHA256": "eb8800f205e3fcdf67cf48bb00ed9638f484ff9961bc64c34d37d900567d61b0",
       "focusTrailSHA256": "9e9fda87cac80f489c92e145a9ca03e0c329247a839b8750015743b7322c8909"
     },
-    "rawRecordSHA256": "28d2bd2f201dcefb974e01e382ff79a8f4b947cedd6caf7c2ef7682b1d457a54"
+    "pauseControlPreparation": {
+      "source": "代理准备，不计为用户验收操作。",
+      "action": "从播放按钮按一次Tab，将键盘焦点移到暂停按钮；未触发暂停。",
+      "media": "02-test-tone.wav",
+      "playbackState": "正在播放",
+      "positionSeconds": 90.78415937499705,
+      "playerVolume": 1,
+      "keyboardFocusedElement": "暂停按钮",
+      "axSHA256": "6a6d62fb5e4f5822bae35469446279813143a4f32546727d1898d65e6acd52df",
+      "screenshotSHA256": "91079e6c0791c99c6a91e811ce305a908f2c3380eb9c373bad3a318a22474d69"
+    },
+    "rawRecordSHA256": "5360356a246a65908a8d82c48bebcd80f681381e1900b8c867c4e60a619fd794"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
