@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_SEEK_INTERACTION",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_SEEK_INCREASE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放/暂停动作、声音变化及播放/暂停自动通知已获用户确认：暂停时最初报告播放已停止，后补充也听到已暂停，两次原话均保留。代理准备播放位置滑块约1:25且暂停；定位/音量、不同Playlist切换、其余完整旁白流程及最终恢复待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放/暂停及其自动通知已获用户确认，暂停原话和补充均保留；播放位置滑块名称与约1:25的当前时间朗读已通过。实际定位调整、音量、不同Playlist切换、其余完整旁白流程及最终恢复待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "播放位置滑块焦点已准备，当前位置约1:25且暂停。点播放器标题栏切回窗口，按住Control、Option和Shift，只按一次向下方向键后松开；报告实际听到的控件名称、时间值或交互提示，先不按其他键，保持旁白开启。",
+    "nextHumanAction": "第41步：点标题栏切回播放器，按住Control和Option，只按一次向右方向键后松开。报告进度是否前进、旁白实际读出的新时间，以及是否仍暂停；先不要按其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -649,18 +649,44 @@
           "recordedAtUTC": "2026-10-22T16:33:43.151283+00:00"
         },
         "announcementResolutionSHA256": "e5b8f57ea06eab29f0fee8a24025f0c0b879abcc2f5b9f8e6cdc57c7c8ee7bd2"
+      },
+      "interactWithPlaybackPosition": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T16:45:13.758162+00:00",
+        "observedDate": "2026-10-23",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + Shift + 向下方向键，听到“播放位置”和当前位置约 1 分钟 25 秒的朗读，仍为“已暂停”，没有再按其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 85.342362,
+          "durationSeconds": 180,
+          "playerVolume": 1,
+          "muted": false,
+          "keyboardFocusedElement": "播放位置滑块",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "evidenceBoundary": "滑块交互后名称与时间朗读依据用户确认；AX独立核对控件名称、位置与暂停状态，不替代实际朗读或推定旁白内部光标层级。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "ec4795cdcc36781bacd7d35da4e861da57ed74c57a6ee1c4c3ca54b2cbc99ab1",
+        "screenshotSHA256": "1402d87b5ea00a6d49633f829bf53a25f05e890dad1cb14b7c489efcc2c7dc47",
+        "verificationSHA256": "0256f3ca26df84ab35d669d8b2f1e10a488cefd70400e5ec7671e1c9c1a8efea",
+        "scope": "仅进入播放位置滑块并听到名称与当前时间；实际定位调整和更新值朗读待执行。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "interactWithPlaybackPosition",
+      "id": "voiceOverIncreasePlaybackPosition",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白开始与播放位置滑块交互并朗读其信息，播放仍暂停。",
-      "expectedPositionSeconds": 85.342362,
+      "expectedBehavior": "在已进入交互的播放位置滑块上，使用Control-Option-右箭头一次，检查位置是否增加并听取更新时间；保持暂停，播放器音量不变。",
+      "beforePositionSeconds": 85.342362,
       "expectedDurationSeconds": 180,
       "expectedPlayerVolume": 1,
       "expectedPlaybackState": "已暂停",
-      "commandReference": "https://support.apple.com/zh-hans/guide/voiceover/cpvokys07/mac"
+      "commandReference": "https://www.apple.com/uk/voiceover/info/guide/_1122.html"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -745,7 +771,7 @@
       "axSHA256": "ec4795cdcc36781bacd7d35da4e861da57ed74c57a6ee1c4c3ca54b2cbc99ab1",
       "screenshotSHA256": "6f0292eb5dc5f02ee05a1ce140bac2969239010eda5211f8fbe6577de0b0e2a3"
     },
-    "rawRecordSHA256": "cde802bdbb03fd447f959991211d674e2c2ae9199ef780f455ac01062384efae"
+    "rawRecordSHA256": "04d7f4d7b7893136603c31c3fdc5f1e0d037afd220ffc7434e1b4b9501b92e52"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
