@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_PAUSE",
+  "sessionState": "AWAITING_HUMAN_PAUSE_ANNOUNCEMENT_CLARIFICATION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：媒体条目选择、旁白开始播放、有声音和自动“正在播放”通知获用户确认；代理核对同一候选正在播放并准备暂停按钮。暂停及其余完整旁白流程、最终环境恢复仍待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放与正在播放通知通过，暂停动作和声音停止通过；用户暂停时听到播放已停止，与候选预期已暂停存在措辞差异，通知待澄清或复测，不计完整PASS。候选和暂停位置已核对；其余旁白流程与最终恢复仍待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "第39步：暂停按钮焦点已准备。点播放器标题栏切回窗口，只按一次Control+Option+空格；报告声音是否停止、是否已暂停及旁白实际自动播报内容，先不按其他键并保持旁白开启。",
+    "nextHumanAction": "先不要再操作；确认刚才暂停后只听到播放已停止、也听到已暂停，还是记不清需复测。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -613,16 +613,43 @@
         "screenshotSHA256": "c92841ec1458d294025ebc409ee5960c0f20fb2de3c599dc7ed91bafd84db0d0",
         "verificationSHA256": "bc93e26f37f00c40cd6516070011ce6ff92852b2b6ba863169c4c59d0b4c345d",
         "scope": "仅旁白开始播放及自动播放状态通知；暂停及暂停通知待执行。"
+      },
+      "voiceOverActivatePause": {
+        "result": "PARTIAL",
+        "pauseActionResult": "PASS",
+        "automaticAnnouncementResult": "PARTIAL",
+        "recordedAtUTC": "2026-10-22T16:27:28.432381+00:00",
+        "observedDate": "2026-10-23",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 空格键，声音已停止、界面已变为“已暂停”，旁白自动读出了“播放已停止”，没有再按其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 157.3423624999897,
+          "durationSeconds": 180,
+          "pausedBeforeEnd": true,
+          "playerVolume": 1,
+          "muted": false,
+          "keyboardFocusedElement": "暂停按钮",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "evidenceBoundary": "用户确认声音停止，AX确认暂停位置早于媒体结尾。自动播报原话为播放已停止，候选暂停通知预期已暂停；是否还有另一句通知待用户澄清，不把AX值替代实际听感。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "5ef507940172682ba4aae1084ce60ed2403a07158b395b190208941573a99cda",
+        "screenshotSHA256": "99372b9bdbdec47e9b922ad39b74c887c1c8cfd71250e1e9b9a520d8e4b0fdf4",
+        "verificationSHA256": "f884bae5ab60f12fc6a955c573fd4e2829c8247a79b00a71d4a17e43697fff5f",
+        "announcementInspectionSHA256": "63bee12a46ce4fe6d0d94a21adebfe881031f677ef2569475fec33c97cf36d67",
+        "scope": "暂停动作通过；暂停通知措辞差异尚待澄清或复测，组合子项暂为PARTIAL。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "voiceOverActivatePause",
+      "id": "clarifyPauseAnnouncement",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白激活暂停按钮，声音停止、状态已暂停，并播报暂停状态。",
-      "beforePlaybackState": "正在播放",
-      "beforeKeyboardFocusedElement": "暂停按钮",
-      "evidenceBoundary": "实际声音停止和自动通知由用户确认；不能把到达媒体结尾当作按钮暂停成功。"
+      "expectedBehavior": "补充实际听到的暂停通知，或者明确需要复测；不引导改写已提供的原话。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -685,7 +712,13 @@
       "axSHA256": "6a6d62fb5e4f5822bae35469446279813143a4f32546727d1898d65e6acd52df",
       "screenshotSHA256": "91079e6c0791c99c6a91e811ce305a908f2c3380eb9c373bad3a318a22474d69"
     },
-    "rawRecordSHA256": "5360356a246a65908a8d82c48bebcd80f681381e1900b8c867c4e60a619fd794"
+    "pauseAnnouncementClarification": {
+      "state": "AWAITING_HUMAN",
+      "expectedFromCandidate": "已暂停",
+      "reportedByHuman": "播放已停止",
+      "question": "刚才按下暂停后，除了“播放已停止”，你是否还听到了“已暂停”？"
+    },
+    "rawRecordSHA256": "2ac8965a4a83f70f52491520cfaf05ba0b68d0b260ca4b014815575970521241"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
