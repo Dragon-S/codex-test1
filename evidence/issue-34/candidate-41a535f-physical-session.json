@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_PAUSE_ANNOUNCEMENT_CLARIFICATION",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_SEEK_INTERACTION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放与正在播放通知通过，暂停动作和声音停止通过；用户暂停时听到播放已停止，与候选预期已暂停存在措辞差异，通知待澄清或复测，不计完整PASS。候选和暂停位置已核对；其余旁白流程与最终恢复仍待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放/暂停动作、声音变化及播放/暂停自动通知已获用户确认：暂停时最初报告播放已停止，后补充也听到已暂停，两次原话均保留。代理准备播放位置滑块约1:25且暂停；定位/音量、不同Playlist切换、其余完整旁白流程及最终恢复待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "先不要再操作；确认刚才暂停后只听到播放已停止、也听到已暂停，还是记不清需复测。",
+    "nextHumanAction": "播放位置滑块焦点已准备，当前位置约1:25且暂停。点播放器标题栏切回窗口，按住Control、Option和Shift，只按一次向下方向键后松开；报告实际听到的控件名称、时间值或交互提示，先不按其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -615,9 +615,9 @@
         "scope": "仅旁白开始播放及自动播放状态通知；暂停及暂停通知待执行。"
       },
       "voiceOverActivatePause": {
-        "result": "PARTIAL",
+        "result": "PASS",
         "pauseActionResult": "PASS",
-        "automaticAnnouncementResult": "PARTIAL",
+        "automaticAnnouncementResult": "PASS",
         "recordedAtUTC": "2026-10-22T16:27:28.432381+00:00",
         "observedDate": "2026-10-23",
         "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 空格键，声音已停止、界面已变为“已暂停”，旁白自动读出了“播放已停止”，没有再按其他键，目前保持旁白开启。",
@@ -633,7 +633,7 @@
           "voiceOverPreferenceValue": "1",
           "voiceOverEnabled": true,
           "appleKeyboardUIMode": 2,
-          "evidenceBoundary": "用户确认声音停止，AX确认暂停位置早于媒体结尾。自动播报原话为播放已停止，候选暂停通知预期已暂停；是否还有另一句通知待用户澄清，不把AX值替代实际听感。"
+          "evidenceBoundary": "用户确认声音停止，AX确认暂停早于媒体结尾；首次报告播放已停止，随后补充也听到已暂停。两次用户反馈并存，实际听感不由AX或源码替代。"
         },
         "processVerified": true,
         "candidateRecordVerified": true,
@@ -642,14 +642,25 @@
         "screenshotSHA256": "99372b9bdbdec47e9b922ad39b74c887c1c8cfd71250e1e9b9a520d8e4b0fdf4",
         "verificationSHA256": "f884bae5ab60f12fc6a955c573fd4e2829c8247a79b00a71d4a17e43697fff5f",
         "announcementInspectionSHA256": "63bee12a46ce4fe6d0d94a21adebfe881031f677ef2569475fec33c97cf36d67",
-        "scope": "暂停动作通过；暂停通知措辞差异尚待澄清或复测，组合子项暂为PARTIAL。"
+        "scope": "旁白暂停动作、声音停止及含已暂停的自动状态通知通过；原报告的播放已停止也保留，未确定该额外播报来源。",
+        "humanClarification": {
+          "question": "刚才按下暂停后，除了“播放已停止”，你是否还听到了“已暂停”？",
+          "answer": "也听到了“已暂停”",
+          "recordedAtUTC": "2026-10-22T16:33:43.151283+00:00"
+        },
+        "announcementResolutionSHA256": "e5b8f57ea06eab29f0fee8a24025f0c0b879abcc2f5b9f8e6cdc57c7c8ee7bd2"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "clarifyPauseAnnouncement",
+      "id": "interactWithPlaybackPosition",
       "result": "NOT_RUN",
-      "expectedBehavior": "补充实际听到的暂停通知，或者明确需要复测；不引导改写已提供的原话。"
+      "expectedBehavior": "旁白开始与播放位置滑块交互并朗读其信息，播放仍暂停。",
+      "expectedPositionSeconds": 85.342362,
+      "expectedDurationSeconds": 180,
+      "expectedPlayerVolume": 1,
+      "expectedPlaybackState": "已暂停",
+      "commandReference": "https://support.apple.com/zh-hans/guide/voiceover/cpvokys07/mac"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -713,12 +724,28 @@
       "screenshotSHA256": "91079e6c0791c99c6a91e811ce305a908f2c3380eb9c373bad3a318a22474d69"
     },
     "pauseAnnouncementClarification": {
-      "state": "AWAITING_HUMAN",
+      "state": "RESOLVED",
       "expectedFromCandidate": "已暂停",
       "reportedByHuman": "播放已停止",
-      "question": "刚才按下暂停后，除了“播放已停止”，你是否还听到了“已暂停”？"
+      "question": "刚才按下暂停后，除了“播放已停止”，你是否还听到了“已暂停”？",
+      "result": "PASS",
+      "humanAnswer": "也听到了“已暂停”",
+      "resolutionSHA256": "e5b8f57ea06eab29f0fee8a24025f0c0b879abcc2f5b9f8e6cdc57c7c8ee7bd2"
     },
-    "rawRecordSHA256": "2ac8965a4a83f70f52491520cfaf05ba0b68d0b260ca4b014815575970521241"
+    "seekControlPreparation": {
+      "source": "代理准备，不计为用户人工验收。",
+      "actions": "通过Shift-Tab逐项回移，四次后核对播放位置滑块获焦；执行滑块Decrement四次，从157.3423624999897秒调至85.34236199999999秒，避开媒体末端。",
+      "media": "02-test-tone.wav",
+      "playbackState": "已暂停",
+      "positionSeconds": 85.342362,
+      "durationSeconds": 180,
+      "playerVolume": 1,
+      "keyboardFocusedElement": "播放位置滑块",
+      "voiceOverEnabled": true,
+      "axSHA256": "ec4795cdcc36781bacd7d35da4e861da57ed74c57a6ee1c4c3ca54b2cbc99ab1",
+      "screenshotSHA256": "6f0292eb5dc5f02ee05a1ce140bac2969239010eda5211f8fbe6577de0b0e2a3"
+    },
+    "rawRecordSHA256": "cde802bdbb03fd447f959991211d674e2c2ae9199ef780f455ac01062384efae"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
