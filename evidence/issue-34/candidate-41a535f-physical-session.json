@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_LIST_DOWN_ARROW",
+  "sessionState": "AWAITING_HUMAN_VOLUME_SLIDER_LEFT_ARROW",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘与全屏分层Escape、输入框代表性按键及按钮空格局部激活均已确认，临时文字已清理。列表与滑块局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘、全屏分层Escape、输入框与按钮局部语义、列表向下导航均已确认。为滑块场景临时开启系统键盘导航，播放器音量准备为50%；滑块局部语义与设置恢复待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向下方向键，确认列表选中项从01-test-tone.wav移动到02-test-tone.wav，播放器音量仍100%且保持暂停；先不要再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向左方向键，确认音量滑块数值从50%降低，报告降低后的百分比；确认进度仍约2:14且暂停，先不要再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -570,19 +570,41 @@
         "result": "PASS",
         "axSHA256": "cbb29ad89f0f669b5c0515af1eb593bd838560f3f74a068bdae2783a252fb38b",
         "screenshotSHA256": "53e65a23715b43c911fc0f9444d129e8e4fa3ff8a20f40557f1704574ef899df"
+      },
+      "listDownArrow": {
+        "recordedAtUTC": "2026-10-22T14:56:04.308223+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次向下方向键，选中项已从 01-test-tone.wav 移到 02-test-tone.wav，播放器音量仍为 100%，仍为“已暂停”，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "beforeSelectedEntry": "01-test-tone.wav",
+          "selectedEntry": "02-test-tone.wav",
+          "playlistName": "验收-41a535f"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "37b41131d41e682dd1e9f4aa398dcf020667635e098b6e83a0a66b487bb5238f",
+        "screenshotSHA256": "e5cf53259b8ab47cf3af4b11eb9b37fb896adb85b58c0b4f3f21f9c53a4cd6c9"
       }
     },
     "nextSubcase": {
-      "id": "listDownArrow",
+      "id": "volumeSliderLeftArrow",
       "result": "NOT_RUN",
-      "beforeSelectedEntry": "01-test-tone.wav",
-      "expectedSelectedEntry": "02-test-tone.wav",
-      "expectedBehavior": "方向键移动列表选择，不降低播放器音量或启动播放。",
-      "currentMedia": "02-test-tone.wav",
+      "beforePlayerVolume": 0.5,
+      "expectedVolumeChange": "降低；本场景不预设原生滑块的百分比步长。",
+      "expectedBehavior": "向左调节已获焦音量滑块，不触发播放器后退10秒。",
       "expectedState": "已暂停",
       "beforePositionSeconds": 134.245375,
-      "playerVolume": 1,
-      "expectedPlaylistVisible": true
+      "focusedElement": "播放器音量滑块",
+      "keyboardNavigationEnabled": true
     },
     "playerVolumeRecovery": {
       "state": "PASS",
@@ -648,7 +670,40 @@
       "axSHA256": "49bb78b1dd19f76dc312643707ec0824cc3434089bd687a3a8eb98ec473c0a4a",
       "screenshotSHA256": "8be80d3fb8b6d829b73611aa5aeece328f56d4571d249a8c3c9e71a4da900054"
     },
-    "rawRecordSHA256": "550d9a10ce3a890838bfaba9e98eb9be97ea83a968956868dd582e0fc809224a"
+    "keyboardNavigationChange": {
+      "source": "代理为滑块键盘焦点准备临时环境，不计为用户验收操作。",
+      "beforeEnabled": false,
+      "initialAppleKeyboardUIMode": 0,
+      "currentEnabled": true,
+      "currentAppleKeyboardUIMode": 2,
+      "action": "在系统设置的键盘页面开启键盘导航。此前Control-F7尝试未改变设置，已通过UI开关完成并核对。",
+      "restoration": "PENDING_AFTER_SLIDER_CHECK",
+      "beforeAXSHA256": "26a15ca5a64706feb403a30459365a54bc5c32d12e74a4d903e5d106aafc58c0",
+      "enabledAXSHA256": "983c7465bc778202a9514f67127f44d933f984d8e3f29ac27f850068020a0c30"
+    },
+    "sliderFocusPreparation": {
+      "source": "代理准备，不计为用户人工验收。",
+      "actions": "点击音量滑块将音量设到50%；开启系统键盘导航后，从空名称输入框按Tab八次，确认焦点到达播放器音量滑块。",
+      "currentMedia": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 134.245375,
+      "playerVolume": 0.5,
+      "focusedElement": "播放器音量滑块",
+      "keyboardNavigationEnabled": true,
+      "playlistVisible": true,
+      "selectedEntry": "02-test-tone.wav",
+      "axSHA256": "3f9fdde92fbc027eb765dc33aa1d69fca09fce10b0aa38ac478f30a6f76d73a8",
+      "screenshotSHA256": "243e5a3c8b50505c1c5dbede6ec907e5e8734137ff211dbe77a27cfd8e70390a",
+      "focusTrailSHA256": "08c3db86ce443b26ef31a26398386e31c4e96eb1eda01b4c6762e0bd4100e21a"
+    },
+    "sliderRecovery": {
+      "state": "PENDING",
+      "initialPlayerVolume": 1,
+      "currentPlayerVolume": 0.5,
+      "initialKeyboardNavigationEnabled": false,
+      "currentKeyboardNavigationEnabled": true
+    },
+    "rawRecordSHA256": "0df188a59c3c2e5aebf822946d5a6bf0156403377678069d494389d2125145fb"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
