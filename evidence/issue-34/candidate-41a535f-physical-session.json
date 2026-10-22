@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_SUBTITLE_MENU",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_NAVIGATION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨和字幕菜单按钮的名称/当前值/角色朗读已获用户确认，代理核对同一候选、对应焦点及未变的暂停上下文。旁白当前开启，键盘导航模式2，最终恢复待完成。尚未通过菜单操作、媒体打开、Playlist、播放控制、定位、音量及错误恢复等完整旁白流程；整体资格FAIL，历史PASS不转移。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件名称值角色朗读及字幕菜单打开获用户确认；菜单具体朗读文本未提供，代理在回复后观察到菜单已收起，不冒充独立看见展开。候选身份及暂停上下文已核对。旁白1、键盘导航模式2，最终恢复待完成；完整旁白流程与其余物理门槛仍缺，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次空格键后松开；报告字幕菜单是否展开、听到的菜单项，以及播放是否仍暂停。先不要选择菜单项或按其他键，保持旁白开启。",
+    "nextHumanAction": "当前菜单已收起、键盘焦点仍在字幕按钮。点播放器标题栏切回窗口，按住Control和Option，只按一次向右方向键后松开；报告实际听到的名称、角色和操作提示，先不按空格或其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -350,18 +350,48 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "f1e8da85d63b0d5a6084a64a528a29dcdb39df326e1fe89bc11b9bc3062bb6bc",
         "scope": "仅从音轨控件导航至字幕控件及名称、当前值、角色朗读；尚未打开菜单、选择或加载字幕。"
+      },
+      "openSubtitleMenu": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T15:49:08.659640+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 空格键，字幕菜单已展开，听到了菜单项的朗读，仍为“已暂停”，没有选择菜单项或按其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "选择字幕菜单按钮",
+          "subtitleValue": "已关闭",
+          "subtitleMenuVisibleAtInspection": false,
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "timingBoundary": "用户确认操作时菜单展开且有菜单项朗读；回复后的代理快照已无展开菜单，不能据此声称代理独立看到了菜单展开。",
+          "speechEvidenceSource": "用户现场确认有菜单项朗读，但未提供具体文本；未验证每项名称、顺序或勾选状态。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "45262a763104c7ec22113e150f61bef0e2d58e153f17d34f8bd00df6300e1c83",
+        "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
+        "verificationSHA256": "9e81b980a9985a6431df79b3dc1b8849ae2b97fa8024018e5dacef24e898fa40",
+        "scope": "仅旁白激活字幕菜单按钮并打开菜单，播放保持暂停。具体菜单项朗读正确性、字幕选择/加载及主动关闭后的焦点返回尚未验证。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "openSubtitleMenu",
+      "id": "playlistSidebarNavigation",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白激活当前字幕菜单按钮，展开字幕菜单并朗读菜单内容；不触发播放器播放。",
+      "expectedBehavior": "从字幕菜单按钮向后导航至Playlist侧栏并朗读侧栏信息；不激活播放。",
       "expectedPlaybackState": "已暂停",
       "expectedPositionSeconds": 134.245375,
       "expectedPlayerVolume": 1,
-      "beforeControlName": "选择字幕",
-      "beforeControlValue": "已关闭"
+      "beforeKeyboardFocusedElement": "选择字幕菜单按钮",
+      "focusBoundary": "预期侧栏导航，具体旁白光标落点、朗读与操作提示由用户下一步现场反馈确认。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -373,7 +403,7 @@
       "currentAppleKeyboardUIMode": 2,
       "keyboardNavigationRestorationPending": true
     },
-    "rawRecordSHA256": "002408fa46f4c32bee68dd60c4f78320780a9552621e7c3e432f287d84ba25b4"
+    "rawRecordSHA256": "9695299dd25514e055aa9b119ae75d07ca66d534c8542e4d428126bd176f6225"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
