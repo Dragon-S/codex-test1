@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_ENABLE",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_NAVIGATION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,14 +183,14 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "精确候选41a535f的Q34-B01及Q34-P04为PASS：真实媒体键、系统音量键、普通键盘、全屏分层Escape及代表性局部焦点语义已完成；音量100%、普通窗口和暂停状态已恢复，临时键盘导航关闭。用户现场观察与代理AX/进程/哈希复核分开记录。Q34-P05旁白尚未开启、NOT_RUN；其余物理门槛仍缺，总资格FAIL，历史PASS不转移。",
+  "evidenceBoundary": "精确候选41a535f的Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：用户按一次Command+F5并确认听到旁白已打开、无欢迎窗口，代理核对系统旁白偏好为1且播放上下文保持；尚未确认播放器各控件实际朗读、焦点顺序或恢复。用户听感与代理AX、进程、哈希证据分开记录。其余物理门槛仍缺，总资格FAIL，历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
     "candidateRecordSHA256": "098d50e98ceeeb4bddb67ad0a9bb8d34db52583ee6bf3924538a31caf1699f5a",
     "executableSHA256": "cdc771e0c04e7da6c0e7622906a792986c998371906f4bd05d51d3a3a5df76ff",
     "recordedAtUTC": "2026-10-22T15:28:05.426145+00:00",
-    "result": "NOT_RUN",
+    "result": "PARTIAL",
     "initialState": {
       "media": "02-test-tone.wav",
       "playbackState": "已暂停",
@@ -225,10 +225,55 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按一次Command+F5开启旁白；如F5默认是硬件功能键则使用Fn+Command+F5。只报告听到的第一句和是否出现欢迎窗口，先不按其他键。",
-    "subcases": {},
+    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次向右方向键后松开；报告实际听到的控件名称、角色或数值，先不要按空格或其他键。",
+    "subcases": {
+      "enableVoiceOver": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T15:33:35.296636+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Command + F5，已听到旁白，第一句大致是“旁白已打开”，没有出现“欢迎使用旁白”窗口，没有再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "播放器音量滑块",
+          "voiceOverCursorPosition": "尚未独立确认",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "keyboardNavigationEnabled": false,
+          "speechEvidenceSource": "用户现场听感，未由代理听取",
+          "welcomeWindowEvidenceSource": "用户确认未出现欢迎窗口"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "9c36ac8ad185553622a52b0d2834479e45544b84c51486326f729eced5fa0623",
+        "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
+        "verificationSHA256": "275886e6435a5a57175cdfdf3c2671926324da814772ddae970fe9177df467a0",
+        "scope": "仅确认旁白开启；尚不能证明播放器各控件、状态通知、焦点顺序或恢复流程通过。"
+      }
+    },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
-    "rawRecordSHA256": "0073bba32950a67cc7cb8c2400267cc3df866eb3af8d90d2c28a41fec9b6eb01"
+    "nextSubcase": {
+      "id": "navigateRightAndReadControl",
+      "result": "NOT_RUN",
+      "expectedBehavior": "旁白光标移至下一项并朗读该项；不激活播放或改变播放位置与音量。",
+      "expectedPlaybackState": "已暂停",
+      "expectedPositionSeconds": 134.245375,
+      "expectedPlayerVolume": 1,
+      "focusBoundary": "AX键盘焦点不等同于旁白光标；具体读出控件以用户下一步现场反馈确认。",
+      "commandReference": "https://support.apple.com/zh-hans/guide/voiceover/vo4be8816d70/mac"
+    },
+    "recovery": {
+      "state": "PENDING_SESSION_END",
+      "initialVoiceOverEnabled": false,
+      "currentVoiceOverEnabled": true
+    },
+    "rawRecordSHA256": "d5ba2f8221486fe26c4522cd88d15024722c86781d073378b99d14332294b9c4"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
