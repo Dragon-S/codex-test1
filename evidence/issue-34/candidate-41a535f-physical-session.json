@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_SCROLL_INTERACTION",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_SELECTED_PLAYLIST_ACTIVATION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、侧栏群组导航与进入、内部滚动区域导航获用户确认。用户旁白落点与AX键盘焦点分开记录，候选和暂停上下文已核对。Playlist/媒体条目选择、其他完整旁白流程及最终恢复仍待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、侧栏与滚动区域导航及进入、当前Playlist按钮名称角色选中状态朗读获用户确认。候选和暂停上下文已核对。实际Playlist切换、媒体条目选择、其他旁白流程及最终环境恢复仍待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按住Control、Option和Shift，只按一次向下方向键后松开，进入当前滚动区域；报告实际听到的名称、角色和状态，先不按空格或其他键，保持旁白开启。",
+    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次空格键后松开，激活当前已选中的Playlist按钮；报告是否仍选中验收-41a535f、仍暂停且无声音，先不按其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -470,18 +470,48 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "ae69c2f97790af560969ee5ed73b40f5fb83354fa42a9ec7539c65dae1fd1701",
         "scope": "仅在侧栏群组内导航到滚动区域并读出区域角色与提示；尚未用旁白进入该区域或激活Playlist选择。"
+      },
+      "interactWithPlaylistChooserScrollArea": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T16:02:07.193322+00:00",
+        "observedDate": "2026-10-23",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + Shift + 向下方向键，已进入滚动区域，听到“Playlist：验收-41a535f”、按钮角色及已选中状态的朗读，仍为“已暂停”，没有按空格或其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "Playlist：验收-41a535f 按钮",
+          "controlRole": "按钮",
+          "controlSelected": true,
+          "controlValue": "正在浏览和正在播放",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "speechEvidenceSource": "进入区域及Playlist按钮名称、角色、选中状态依据用户听感；代理AX独立核对相应控件与暂停上下文。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "d172419b5cdbb4b4110bdada5a7a041c133e042cefbf91819fcd39f1a73a1c89",
+        "screenshotSHA256": "e5cf53259b8ab47cf3af4b11eb9b37fb896adb85b58c0b4f3f21f9c53a4cd6c9",
+        "verificationSHA256": "1756a8761ec3479e0617b7406c065ca5033cc20cd8ab9f812f26e8ccb9f8fd29",
+        "scope": "仅进入Playlist选择滚动区域及当前已选按钮的朗读；尚未激活该按钮、切换到其他Playlist或选择媒体条目。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "interactWithPlaylistChooserScrollArea",
+      "id": "activateSelectedPlaylist",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白进入Playlist选择滚动区域并朗读其中项目，不激活播放或更改Playlist。",
+      "expectedBehavior": "旁白激活当前已选的Playlist按钮，保持该Playlist与当前媒体暂停上下文，不触发播放。",
+      "expectedPlaylist": "验收-41a535f",
       "expectedPlaybackState": "已暂停",
       "expectedPositionSeconds": 134.245375,
       "expectedPlayerVolume": 1,
-      "beforeHumanReportedItem": "滚动区域",
-      "focusBoundary": "内部项目的实际朗读和旁白光标位置由用户下一步确认。"
+      "scopeBoundary": "该操作只覆盖已选Playlist按钮的激活及上下文保持，不代替不同Playlist之间的切换或媒体条目选择。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -493,7 +523,7 @@
       "currentAppleKeyboardUIMode": 2,
       "keyboardNavigationRestorationPending": true
     },
-    "rawRecordSHA256": "af14876936b929ee229cc9bb0a44fe7b0d03d80e9d7019e34d75d575e124cc41"
+    "rawRecordSHA256": "d8c76db4a71f850220678cf7a3bafcf882110c35c04bd66eca715d3de0f173a3"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
@@ -543,7 +573,7 @@
     },
     "rawRecordSHA256": "e89c3de4c6fb9ad53a59cfadd30dc35dd82c22dc33d94987200003abb245b2da"
   },
-  "lastUpdatedDate": "2026-10-22",
+  "lastUpdatedDate": "2026-10-23",
   "keyboardAndFullScreen": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
