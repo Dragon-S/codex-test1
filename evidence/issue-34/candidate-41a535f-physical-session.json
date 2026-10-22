@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_NEXT_ITEM",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_SCROLL_INTERACTION",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、侧栏群组导航与进入获用户确认；进入后听到Playlist。AX只核对侧栏键盘焦点及未变的暂停上下文，不替代实际旁白光标或听感。Playlist/媒体条目选择、其他完整旁白流程及最终环境恢复仍待完成；总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、侧栏群组导航与进入、内部滚动区域导航获用户确认。用户旁白落点与AX键盘焦点分开记录，候选和暂停上下文已核对。Playlist/媒体条目选择、其他完整旁白流程及最终恢复仍待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次向右方向键后松开，导航到侧栏群组内的下一项；报告实际听到的名称、角色及交互提示，先不按空格或其他键，保持旁白开启。",
+    "nextHumanAction": "点播放器标题栏切回窗口，按住Control、Option和Shift，只按一次向下方向键后松开，进入当前滚动区域；报告实际听到的名称、角色和状态，先不按空格或其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -439,18 +439,49 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "dc764060acf35ae4ff9df268035b68b45f14579e15e55a5098bd9882c79eceb4",
         "scope": "仅进入Playlist侧栏群组并读出首项Playlist；尚未选择Playlist或媒体条目。"
+      },
+      "navigateWithinPlaylistSidebar": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T15:55:45.743122+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 向右方向键，听到“滚动区域”以及与该区域交互的提示，仍为“已暂停”，没有按空格或其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "Playlist：验收-41a535f 按钮",
+          "keyboardFocusedElementSelected": true,
+          "keyboardFocusedElementValue": "正在浏览和正在播放",
+          "parentAXRole": "滚动区",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "focusEvidenceBoundary": "用户报告旁白读出滚动区域及交互提示；AX键盘焦点在其内部已选Playlist按钮。分别保留，不将键盘焦点等同于旁白光标。",
+          "speechEvidenceSource": "实际滚动区域朗读和交互提示依据用户听感；未提供提示的精确全文。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "d172419b5cdbb4b4110bdada5a7a041c133e042cefbf91819fcd39f1a73a1c89",
+        "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
+        "verificationSHA256": "ae69c2f97790af560969ee5ed73b40f5fb83354fa42a9ec7539c65dae1fd1701",
+        "scope": "仅在侧栏群组内导航到滚动区域并读出区域角色与提示；尚未用旁白进入该区域或激活Playlist选择。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "navigateWithinPlaylistSidebar",
+      "id": "interactWithPlaylistChooserScrollArea",
       "result": "NOT_RUN",
-      "expectedBehavior": "在侧栏群组内向后导航一项并朗读该项，不激活播放或修改Playlist。",
+      "expectedBehavior": "旁白进入Playlist选择滚动区域并朗读其中项目，不激活播放或更改Playlist。",
       "expectedPlaybackState": "已暂停",
       "expectedPositionSeconds": 134.245375,
       "expectedPlayerVolume": 1,
-      "beforeHumanReportedItem": "Playlist",
-      "focusBoundary": "可能进入嵌套区域；具体项目与提示由用户下一步现场反馈确认。"
+      "beforeHumanReportedItem": "滚动区域",
+      "focusBoundary": "内部项目的实际朗读和旁白光标位置由用户下一步确认。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -462,7 +493,7 @@
       "currentAppleKeyboardUIMode": 2,
       "keyboardNavigationRestorationPending": true
     },
-    "rawRecordSHA256": "53e302b8bd9c0810f963b669e96d38f8323cfa1eb3b1a917054a4adff890c08b"
+    "rawRecordSHA256": "af14876936b929ee229cc9bb0a44fe7b0d03d80e9d7019e34d75d575e124cc41"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
