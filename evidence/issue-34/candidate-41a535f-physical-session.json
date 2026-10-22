@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_TEXT_INPUT_DOWN_ARROW",
+  "sessionState": "AWAITING_HUMAN_BUTTON_SPACE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PARTIAL"
     }
   },
-  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通空格、方向键、P键、全屏快捷键和分层Escape均已确认；输入框获焦时空格与P正常输入、向左仅移动文本光标，未触发全局播放、侧栏切换或定位。其余局部焦点语义及临时文本清理待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
+  "evidenceBoundary": "真实媒体键Q34-B01及系统音量键子场景PASS。普通键盘与全屏分层Escape已确认；输入框的空格、P、向左及向下方向键均保持局部输入语义，临时文字已清理且未创建Playlist。其余控件的局部焦点语义待完成，Q34-P04仍PARTIAL，总资格FAIL。历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P04 普通键盘与全屏",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -201,7 +201,7 @@
       "axSHA256": "3032806fd7d611f19a205512e9795b9e0bb8434d0f9d4efccb78ad051192d725",
       "screenshotSHA256": "7005c1299843a23cb1c97172d1a372d8703a2ce5f0580002eb155cd776c025e5"
     },
-    "nextHumanAction": "点播放器标题栏切回窗口，只按一次向下方向键，确认焦点仍在名称输入框、播放器音量仍为100%且播放保持暂停；不要点击创建或再按其他键。",
+    "nextHumanAction": "点播放器标题栏切回窗口，只按一次空格键，确认显示Playlist按钮被激活、右侧侧栏展开，且仍暂停、没有声音；先不要再按其他键。",
     "subcases": {
       "spacePlay": {
         "recordedAtUTC": "2026-10-20T16:57:52.503400+00:00",
@@ -521,20 +521,42 @@
         "result": "PASS",
         "axSHA256": "b4a2ed74efcd77ef9a10716f3d253a6292e67b4494ca1a5a81879a00a25ef573",
         "screenshotSHA256": "e1ab28663518c8098a205b0e77ea20437edb046f855d4ba5a8e393df2b3a3887"
+      },
+      "textInputDownArrow": {
+        "recordedAtUTC": "2026-10-22T14:43:38.725061+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次向下方向键，焦点仍在名称输入框、播放器音量仍为 **100%**，且保持暂停，没有点击“创建”或再按其他键。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "state": "已暂停",
+          "positionSeconds": 134.245375,
+          "beforePlayerVolume": 1,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "focusedElement": "新建或存储区域的Playlist名称文本框",
+          "textValue": "A PB",
+          "playlistName": "验收-41a535f"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "result": "PASS",
+        "axSHA256": "b4a2ed74efcd77ef9a10716f3d253a6292e67b4494ca1a5a81879a00a25ef573",
+        "screenshotSHA256": "7e17dffbb3bf97789709556917817498b3940eef2153c7fed614b2878426bbe9"
       }
     },
     "nextSubcase": {
-      "id": "textInputDownArrow",
+      "id": "buttonSpace",
       "result": "NOT_RUN",
-      "beforeTextValue": "A PB",
-      "expectedTextValue": "A PB",
-      "expectedBehavior": "向下方向键留给文本输入控件，不触发播放器音量降低。",
+      "beforePlaylistVisible": false,
+      "expectedPlaylistVisible": true,
+      "expectedBehavior": "空格激活当前按钮，不切换全局播放状态。",
       "expectedState": "已暂停",
       "beforePositionSeconds": 134.245375,
-      "beforePlayerVolume": 1,
-      "expectedPlayerVolume": 1,
-      "expectedPlaylistVisible": true,
-      "focusedElement": "新建或存储区域的Playlist名称文本框"
+      "playerVolume": 1,
+      "focusedElement": "显示 Playlist 按钮"
     },
     "playerVolumeRecovery": {
       "state": "PASS",
@@ -567,7 +589,27 @@
       "axSHA256": "767ba8ce15355fb972856d4c4b657a95bbefa7c99fc266151119a67f6c1889fe",
       "screenshotSHA256": "90eb5d32e8154b7a7caa43586376c342b1e8a7224c2632cca229c31d3b9d2da6"
     },
-    "rawRecordSHA256": "49298746c83570a44ba33e5124536242ee6d06723a6599e41f0432ec4052b8c6"
+    "temporaryTextCleanup": {
+      "result": "PASS",
+      "source": "代理通过已获焦文本框全选并删除临时A PB，再按Tab移出文本框；未点击创建。",
+      "textValue": "",
+      "createButtonEnabled": false,
+      "playlistName": "验收-41a535f",
+      "axSHA256": "8f5b723349b90bf34d42368eaf873f487eb04ffbdc7039c26423619b045ed029"
+    },
+    "buttonFocusPreparation": {
+      "source": "代理准备，不计为用户人工验收。",
+      "actions": "清理临时文字后按Tab返回播放器容器，再按P收起Playlist，使焦点进入显示Playlist按钮。",
+      "media": "02-test-tone.wav",
+      "state": "已暂停",
+      "positionSeconds": 134.245375,
+      "playerVolume": 1,
+      "playlistVisible": false,
+      "focusedElement": "显示 Playlist 按钮",
+      "axSHA256": "6c5b8308c9e3d261ad1cc43bdd88dadd0eec2d9489562afec54fb20fe5c3bb57",
+      "screenshotSHA256": "bdd2b3fce496e350a74abc093a5c80df2280bf911c46f9c52cec5dbac5337d4a"
+    },
+    "rawRecordSHA256": "765b47d80aada55cd4d6a635ecf29289ff6b85a4ddbcbf3e0508f176f9e96e2a"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
@@ -616,5 +658,6 @@
       "screenshotSHA256": "97c51644c3fd5338222935bb146154c666653c0ebcfaafd5599175847d6b7d9f"
     },
     "rawRecordSHA256": "e89c3de4c6fb9ad53a59cfadd30dc35dd82c22dc33d94987200003abb245b2da"
-  }
+  },
+  "lastUpdatedDate": "2026-10-22"
 }
