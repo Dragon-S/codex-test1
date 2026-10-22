@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_SUBTITLE_LABEL",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_SUBTITLE_MENU",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启及音轨控件名称/当前值/角色朗读获用户确认；用户听完后曾关闭旁白，现已再次开启并保持，代理核对偏好1、同一候选与暂停上下文。当前键盘导航模式读取为2，组末须核对恢复至初始0。字幕及其余旁白操作、最终恢复和其他物理门槛仍缺，总资格FAIL，历史PASS不转移。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨和字幕菜单按钮的名称/当前值/角色朗读已获用户确认，代理核对同一候选、对应焦点及未变的暂停上下文。旁白当前开启，键盘导航模式2，最终恢复待完成。尚未通过菜单操作、媒体打开、Playlist、播放控制、定位、音量及错误恢复等完整旁白流程；整体资格FAIL，历史PASS不转移。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次向右方向键后松开；报告实际听到的控件名称、当前值和角色，先不要按空格或其他键，保持旁白开启。",
+    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次空格键后松开；报告字幕菜单是否展开、听到的菜单项，以及播放是否仍暂停。先不要选择菜单项或按其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -320,20 +320,48 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "7fa0b3678591ca32829c49ab01f4f17570f936c789254f75c0393619c36f0f1b",
         "scope": "恢复旁白开启的验收前置状态；不新增控件朗读或交互覆盖。"
+      },
+      "subtitleControlLabel": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T15:46:10.290828+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + 向右方向键，听到“选择字幕，已关闭，菜单按钮”，仍为“已暂停”，没有按空格或其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "选择字幕菜单按钮",
+          "controlName": "选择字幕",
+          "controlValue": "已关闭",
+          "controlRole": "菜单按钮",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "speechEvidenceSource": "用户现场朗读确认；代理AX只独立核对控件名称、值、角色及焦点。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "45262a763104c7ec22113e150f61bef0e2d58e153f17d34f8bd00df6300e1c83",
+        "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
+        "verificationSHA256": "f1e8da85d63b0d5a6084a64a528a29dcdb39df326e1fe89bc11b9bc3062bb6bc",
+        "scope": "仅从音轨控件导航至字幕控件及名称、当前值、角色朗读；尚未打开菜单、选择或加载字幕。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "subtitleControlLabel",
+      "id": "openSubtitleMenu",
       "result": "NOT_RUN",
-      "expectedBehavior": "从音轨菜单按钮向后导航至字幕菜单按钮并朗读名称、当前值和角色，不打开菜单。",
-      "expectedControlName": "选择字幕",
-      "expectedControlValue": "已关闭",
-      "expectedControlRole": "菜单按钮",
+      "expectedBehavior": "旁白激活当前字幕菜单按钮，展开字幕菜单并朗读菜单内容；不触发播放器播放。",
       "expectedPlaybackState": "已暂停",
       "expectedPositionSeconds": 134.245375,
       "expectedPlayerVolume": 1,
-      "focusBoundary": "具体旁白光标与朗读以用户下一步现场反馈确认，AX键盘焦点不代替听感。"
+      "beforeControlName": "选择字幕",
+      "beforeControlValue": "已关闭"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -345,7 +373,7 @@
       "currentAppleKeyboardUIMode": 2,
       "keyboardNavigationRestorationPending": true
     },
-    "rawRecordSHA256": "1ae7c59ef7de06f81c4d5f9516d89243f13f39f3f1fc15323a04aa7f3b66373f"
+    "rawRecordSHA256": "002408fa46f4c32bee68dd60c4f78320780a9552621e7c3e432f287d84ba25b4"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
