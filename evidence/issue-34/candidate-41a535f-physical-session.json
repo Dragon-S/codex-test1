@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_INTERACTION",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_PLAYLIST_NEXT_ITEM",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、导航至Playlist侧栏及群组交互提示获用户确认。代理核对同一候选和未变的暂停上下文；菜单具体朗读文本及进入侧栏后的操作尚未验证。旁白1、键盘导航模式2，最终恢复待完成；完整旁白流程及其余物理门槛仍缺，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS。Q34-P05为PARTIAL：旁白开启、音轨/字幕控件朗读、字幕菜单打开、侧栏群组导航与进入获用户确认；进入后听到Playlist。AX只核对侧栏键盘焦点及未变的暂停上下文，不替代实际旁白光标或听感。Playlist/媒体条目选择、其他完整旁白流程及最终环境恢复仍待完成；总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "点播放器标题栏切回窗口，按住Control、Option和Shift，只按一次向下方向键后松开，进入Playlist侧栏群组；报告实际听到的内容，先不要按空格或其他键，保持旁白开启。",
+    "nextHumanAction": "点播放器标题栏切回窗口，按住Control和Option，只按一次向右方向键后松开，导航到侧栏群组内的下一项；报告实际听到的名称、角色及交互提示，先不按空格或其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -410,18 +410,47 @@
         "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
         "verificationSHA256": "ef04a86755f7c845a1cde5ef7dd6fc664f14bd7f720fcea3d6af760fe885b912",
         "scope": "仅从字幕菜单按钮向后导航至Playlist侧栏及群组朗读；尚未进入群组、选择Playlist或媒体条目。"
+      },
+      "interactWithPlaylistSidebar": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-22T15:53:42.896652+00:00",
+        "observedDate": "2026-10-22",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + Shift + 向下方向键，已进入 Playlist 侧栏群组，听到“Playlist”的朗读，仍为“已暂停”，没有按空格或其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 134.245375,
+          "playerVolume": 1,
+          "muted": false,
+          "fullScreen": false,
+          "playlistVisible": true,
+          "keyboardFocusedElement": "Playlist 侧栏",
+          "groupContainsText": "Playlist",
+          "voiceOverPreferenceValue": "1",
+          "voiceOverEnabled": true,
+          "appleKeyboardUIMode": 2,
+          "focusEvidenceBoundary": "用户确认进入群组并听到Playlist；AX仍报告侧栏容器为键盘焦点，不将其等同于内部旁白光标位置。",
+          "speechEvidenceSource": "用户实际听感；代理独立核对包含Playlist文本的侧栏及未改变的播放状态。"
+        },
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "e09ce32a4699484bb023718f33f74b52dcec3f659e8b9debc6aefe7751f74943",
+        "screenshotSHA256": "786c69315057ec061eb1038f9a463416f591c074d09d66f5d61a0ee4c99c48b7",
+        "verificationSHA256": "dc764060acf35ae4ff9df268035b68b45f14579e15e55a5098bd9882c79eceb4",
+        "scope": "仅进入Playlist侧栏群组并读出首项Playlist；尚未选择Playlist或媒体条目。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "interactWithPlaylistSidebar",
+      "id": "navigateWithinPlaylistSidebar",
       "result": "NOT_RUN",
-      "expectedBehavior": "旁白开始与Playlist侧栏群组交互，并朗读其中项目，不激活播放。",
+      "expectedBehavior": "在侧栏群组内向后导航一项并朗读该项，不激活播放或修改Playlist。",
       "expectedPlaybackState": "已暂停",
       "expectedPositionSeconds": 134.245375,
       "expectedPlayerVolume": 1,
-      "beforeKeyboardFocusedElement": "Playlist 侧栏",
-      "focusBoundary": "进入后的具体项目与朗读以用户下一步反馈确认。"
+      "beforeHumanReportedItem": "Playlist",
+      "focusBoundary": "可能进入嵌套区域；具体项目与提示由用户下一步现场反馈确认。"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -433,7 +462,7 @@
       "currentAppleKeyboardUIMode": 2,
       "keyboardNavigationRestorationPending": true
     },
-    "rawRecordSHA256": "14215c884b05c45c652f72792f275b765057e49330fa3f86899bc2042b72f64d"
+    "rawRecordSHA256": "53e302b8bd9c0810f963b669e96d38f8323cfa1eb3b1a917054a4adff890c08b"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
