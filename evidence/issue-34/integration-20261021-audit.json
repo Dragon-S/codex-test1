@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-21",
+  "timeZone": "Asia/Shanghai",
+  "result": "FAIL",
+  "scope": "#17 集成 #34 历史修复与定向自动复验；不是新候选物理资格记录。用户要求人工验收稍后进行。",
+  "integration": {
+    "baseCommit": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "testedCodeCommit": "ab09e20f2b24c780c5c6e48e0145c7ccc4591fe0",
+    "historicalCommitsPreserved": [
+      "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "d67ca38f61c52ef55a665a83f926ad5186d2052a",
+      "7e2bc29373cb4403844ba8dcda1e92064c9ae929",
+      "2bd366a8c347cf2e1a1e76b93e599128d30f9907",
+      "789d53c3430dab4eb9845b61a2332d1c281fd8f8",
+      "a841dec56ccf38b802f8f6f2585a50d1f0670d87",
+      "d49e4af53f5eb04ba8800e895f1bc5d5e99e57df",
+      "ddbf4db92261b770fb8234015d2a76021dd27480",
+      "ab09e20f2b24c780c5c6e48e0145c7ccc4591fe0"
+    ],
+    "method": "从集成分支起点快进合入旧分支，保留原始提交身份；没有重新创建或关闭已完成票。"
+  },
+  "historicalEvidence": {
+    "path": "evidence/issue-34/candidate-a05f678-media-key-follow-up.json",
+    "sha256": "db0ed883edd4082eb4316299da2888273219c715f96013fa36c38b6a34b81f07",
+    "unchanged": true,
+    "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+    "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+    "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+    "audit": [
+      {
+        "field": "scope",
+        "status": "STALE",
+        "observation": "顶层仍写新候选物理复验待执行；后续 physicalAcceptance.Q34-B01 及 hardwarePlayPause、hardwareNextPrevious 已记录同一精确旧候选的 PASS。",
+        "handling": "保留历史原文，以逐场景记录解释有限历史结果；不把旧候选结果转移到集成后新构建。"
+      },
+      {
+        "field": "physicalAcceptance.voiceOverButtonLabels.voiceOverEnabled",
+        "status": "UNRESOLVED",
+        "recordedValue": false,
+        "humanObservation": "播放窗口上的按钮控制都能听到",
+        "observation": "布尔字段与该场景用户朗读观察、后续旁白操作及 recovery 中开启旁白的描述存在矛盾。初始 environment.voiceOver=false 不能解释该子场景字段。",
+        "handling": "保留原字段和用户原话，环境元数据待人工核实；不推定为 true，不把按钮朗读观察扩展为完整 Q34-P05。"
+      }
+    ]
+  },
+  "automatedAcceptance": {
+    "environment": {
+      "xcode": "Xcode 27.1 (27A9275)",
+      "macOS": "26.6.2 (25G83)",
+      "destination": "macOS arm64"
+    },
+    "inputVerification": {
+      "result": "PASS",
+      "source": "历史 a05f678 候选的 VerifiedEngine，重新通过当前全部输入锁验证",
+      "lockedDependencyChanges": false,
+      "dynamicLibraries": 12,
+      "architectures": [
+        "arm64",
+        "x86_64"
+      ],
+      "logSHA256": "785fdbdf916c0cac7f0b57a784092620d3f0debd7da5fc004f2cae62848b6383"
+    },
+    "tddReplay": {
+      "seam": "既有 SystemMediaKeyControllerTests：通过播放协调层命令及公开 MPNowPlayingInfoCenter 观察系统播放状态和会话清理；不等同真实硬件按键。",
+      "suite": "SystemMediaKeyControllerTests",
+      "testCount": 6,
+      "testsAddedThisRun": 0,
+      "red": {
+        "result": "EXPECTED_FAIL",
+        "productSourceCommit": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+        "productFileTemporarilyRestored": "MacMediaPlayer/App/SystemMediaKeyController.swift",
+        "testsFailed": 2,
+        "testsPassed": 4,
+        "assertionsFailed": 8,
+        "failureSummary": "播放、暂停、停止 3 个状态断言；会话清理测试 5 个状态与清理断言。",
+        "exitCode": 65,
+        "logSHA256": "b6a1d290f2ce6bed3f78effd68973384b19feeca2e3386231569d20960c4575f"
+      },
+      "green": {
+        "result": "PASS",
+        "productSourceCommit": "ab09e20f2b24c780c5c6e48e0145c7ccc4591fe0",
+        "testsPassed": 6,
+        "testsFailed": 0,
+        "exitCode": 0,
+        "logSHA256": "d31b0adbd988b1921be290e1eb2335d5503e2b6cf2e14fc809ffdb3f46a1efcc",
+        "debugExecutableSHA256": "737c0c9da4bee24617c4d93883f25d22ac5ad771fdd1f8ee371411428d29f312"
+      },
+      "sourceRestoredAfterRed": true,
+      "sourceSHA256": "b4202d808f3e706ca752b87558780d840e43e30dacf5a25254056c824026188e",
+      "testsSHA256": "e4dac5533ef35db29b3e9459f94b124f00ddee0b05efc7e9b7febd8e734131e5"
+    }
+  },
+  "physicalAcceptance": {
+    "thisRun": "NOT_RUN",
+    "newCandidateResultsInherited": false,
+    "overallQualification": "FAIL",
+    "reason": "#34 必需的真实播放、性能资源、双语、媒体键、VoiceOver、外观、动态效果及安全作用域场景未在新候选上完整执行并绑定证据。"
+  },
+  "rawEvidenceCommitted": false,
+  "rawEvidenceRetention": "日志、xcresult 和测试产物保存在本机私有目录；原用户容器由主流程备份和隔离，定向测试使用系统新建测试容器。"
+}

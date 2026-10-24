@@ -53,16 +53,16 @@ final class SystemMediaKeyController {
     }
 
     func invalidate() {
-        guard let commandCenter else { return }
         for registration in commandRegistrations {
             registration.command.removeTarget(registration.target)
         }
         commandRegistrations.removeAll()
         cancellables.removeAll()
-        commandCenter.togglePlayPauseCommand.isEnabled = false
-        commandCenter.previousTrackCommand.isEnabled = false
-        commandCenter.nextTrackCommand.isEnabled = false
+        commandCenter?.togglePlayPauseCommand.isEnabled = false
+        commandCenter?.previousTrackCommand.isEnabled = false
+        commandCenter?.nextTrackCommand.isEnabled = false
         nowPlayingInfoCenter?.nowPlayingInfo = nil
+        nowPlayingInfoCenter?.playbackState = .stopped
     }
 
     private func registerCommands() {
@@ -114,11 +114,22 @@ final class SystemMediaKeyController {
         commandCenter?.nextTrackCommand.isEnabled = hasCurrentItem
         guard let media else {
             nowPlayingInfoCenter?.nowPlayingInfo = nil
+            nowPlayingInfoCenter?.playbackState = .stopped
             return
         }
         nowPlayingInfoCenter?.nowPlayingInfo = [
             MPMediaItemPropertyTitle: presentation?.title ?? media.url.deletingPathExtension().lastPathComponent,
         ]
+        switch state {
+        case .playing:
+            nowPlayingInfoCenter?.playbackState = .playing
+        case .paused:
+            nowPlayingInfoCenter?.playbackState = .paused
+        case .loading:
+            nowPlayingInfoCenter?.playbackState = .interrupted
+        case .idle, .stopped, .failed:
+            nowPlayingInfoCenter?.playbackState = .stopped
+        }
     }
 
     private func dispatch(_ command: SystemMediaKeyCommand) -> MPRemoteCommandHandlerStatus {

@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-09-17T16:37:30.201265+00:00",
+  "result": "FAIL",
+  "scope": "#34 真实媒体键失败后的系统播放状态修复；新候选物理复验待执行，不代表完整 M5 或公开发布资格",
+  "candidate": {
+    "commit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+    "builtAtUTC": "20260917T160228Z",
+    "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+    "dynamicClosureSHA256": "ade3f2d5fe408f36498d66528d97a6cc94a841ee6dd77b1056831f2f2baddd76",
+    "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+    "engineBuiltFromSource": false,
+    "configuration": "Release"
+  },
+  "environment": {
+    "device": "MacBook Pro Mac17,2",
+    "chip": "Apple M5",
+    "memoryGiB": 24,
+    "macOS": "26.6.2 (25G83)",
+    "xcode": "Xcode 27.0 Build version 27A266a",
+    "language": "English",
+    "appearance": "深色",
+    "voiceOver": false,
+    "reduceMotion": false
+  },
+  "automatedAcceptance": {
+    "swiftContracts": "PASS (95/95)",
+    "appAndRealEngineContracts": "PASS (56/56)",
+    "shellGates": "PASS (4/4)",
+    "signedArchiveAndLaunch": "PASS"
+  },
+  "previousCandidateHardwareKeyFailure": {
+    "commit": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "executableSHA256": "12fed940180683a3b53108ce27a402692538e21839e4702ee0e31eaffd56e2be",
+    "candidateRecordSHA256": "89105a32284321141a9c79dfeb9d8728ce680b0757cdcb86902d7cbd7b7aaba4",
+    "scenario": "Q34-B01 / Q34-P04",
+    "initialState": "第二条专用合成音频；Paused；播放器音量 100%；精确进程映像已核对。",
+    "action": "请用户按真实播放/暂停键两次；实际按键次数及键组合未进一步确认。",
+    "humanObservation": "真实的播放键被“音乐”软件拦截了",
+    "agentObservation": "后续 UI 显示同一合成音频，Paused，位置约 44.187 秒；该快照不能重建两次按键之间的全过程。",
+    "expected": "真实播放/暂停键控制本候选，声音与播放状态对应。",
+    "result": "FAIL",
+    "evidenceSHA256": "8bb3f4fad89eaf85e8c19eca5ad7aa613b77b72321f128279f3500ae277ebc36"
+  },
+  "fix": {
+    "cause": "系统适配器仅发布标题，没有更新 macOS 要求的 MPNowPlayingInfoCenter.playbackState。该集成缺陷已由真实公共 API 回归复现；是否完全解释硬件路由失败仍待物理复验。",
+    "behavior": "播放、暂停、加载中断及停止状态同步到系统；无可操作条目或控制器退出时清除会话并报告停止。",
+    "source": "https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfocenter/playbackstate",
+    "tdd": "第一轮 RED 为播放/暂停/停止三个断言失败，GREEN 5/5；第二轮 RED 为退出清理四个断言失败，GREEN 6/6。"
+  },
+  "review": {
+    "base": "5ec2bee3fd07f9ad14e160e7b7f75d89fc6ce6a9",
+    "head": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+    "standards": "0 项；状态所有权、生命周期和测试 singleton 恢复符合规范。",
+    "spec": "局部代码问题 0 项；#34 物理资格尚未完成，不能由公共 API 回归替代。"
+  },
+  "physicalAcceptance": {
+    "Q34-B01": "PASS：同一精确候选真实播放/暂停、下一首和上一首均经用户操作确认，并核对前后媒体与状态",
+    "Q34-P04": "PARTIAL：真实播放/暂停、上一首、下一首、系统音量键语义均 PASS；系统音量已恢复；其他键盘与全屏项待执行",
+    "Q34-P05": "PARTIAL：按钮朗读、播放/暂停及自动状态朗读、定位/音量操作与数值朗读 PASS；Playlist 与条目、轨道/字幕、打开与错误恢复、焦点返回及恢复初始旁白状态待完成",
+    "remainingScenarios": "未执行部分仍为 NOT_RUN；旧候选 PASS 不转移",
+    "hardwarePlayPause": {
+      "recordedAtUTC": "2026-09-17T16:08:34.252386+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "initialState": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 0.2986875,
+        "playerVolume": 1
+      },
+      "humanObservation": "一次播放并有声音，再按一次暂停",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 3.354063251,
+        "playerVolume": 1
+      },
+      "result": "PASS",
+      "scope": "真实硬件播放/暂停两次操作；不包含上一首、下一首、系统音量、VoiceOver 或完整 Q34-P04。",
+      "evidenceSHA256": "ec81bda5a7a0b36faa96bac301a80d9f3616d4b936f19d7257c20e932af8f3d0"
+    },
+    "hardwareNextPrevious": {
+      "recordedAtUTC": "2026-09-17T16:17:50.460248+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "initialState": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 3.354063251
+      },
+      "instructions": [
+        "真实下一首键切换到 03-test-tone.wav",
+        "真实上一首键返回 02-test-tone.wav，最后暂停"
+      ],
+      "humanObservation": "1、2 两步操作都符合预期",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 11.637375,
+        "playerVolume": 1
+      },
+      "result": "PASS",
+      "scope": "真实下一首与上一首；不包含系统音量或完整 Q34-P04。",
+      "evidenceSHA256": "7880b294be3655b8b6fad1c2740e116ca41b1fc3a18940a55187146e5e72e651"
+    },
+    "systemVolumeKeys": {
+      "recordedAtUTC": "2026-09-17T16:22:38.158533+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "initialPlayerVolume": 1,
+      "humanObservation": "按系统音频增减，但播放器里的Player Volume 仍为 100%",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 11.637375,
+        "playerVolume": 1
+      },
+      "playerVolumeUnchanged": "PASS",
+      "systemVolumeChanged": "PASS",
+      "originalSystemVolumeRestored": "PASS",
+      "result": "PASS",
+      "humanFollowUp": "用户对系统音量确实增减且已恢复原值的确认：对的",
+      "evidenceSHA256": "a4e727bf101a677b4171db4aaa70988388e8906d20cb02f038f58db584db7713"
+    },
+    "voiceOverButtonLabels": {
+      "recordedAtUTC": "2026-09-17T16:28:54.439427+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "voiceOverEnabled": false,
+      "humanObservation": "播放窗口上的按钮控制都能听到",
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 11.637375,
+        "playerVolume": 1
+      },
+      "audibleButtonLabels": "PASS（用户确认，未逐项记录具体朗读文案）",
+      "result": "PARTIAL",
+      "remaining": "旁白激活播放控制、状态通知、定位/音量、Playlist 与条目、轨道/字幕、打开和错误恢复、焦点返回、关闭旁白恢复均待执行。",
+      "evidenceSHA256": "74bb68dfbde308ff3295335481e288c4df6041bba65f4aa6725e1c5e21c2f9d4"
+    },
+    "voiceOverPlayPause": {
+      "recordedAtUTC": "2026-09-17T16:31:30.827667+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "humanObservation": "两步都成功，切换时也自动朗读了",
+      "actions": "用户通过旁白导航至 Play 与 Pause，分别用 Control+Option+空格激活，并实际试听状态通知。",
+      "initialState": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 11.637375
+      },
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 26.5280625,
+        "focusedElement": "Pause button",
+        "playerVolume": 1
+      },
+      "playPauseActivation": "PASS",
+      "automaticStateAnnouncements": "PASS",
+      "result": "PASS",
+      "scope": "旁白播放/暂停及自动状态朗读子场景；不代表完整 Q34-P05。",
+      "evidenceSHA256": "47e78eadd0a815791fa72d8c4e31f2d84ca52d9d9311c73a7bdca4ed6b22bdb8"
+    },
+    "voiceOverSliders": {
+      "recordedAtUTC": "2026-09-17T16:37:30.201265+00:00",
+      "candidateCommit": "a05f6782fee5e5123c376d7ef781c8f9b2c67c32",
+      "candidateRecordSHA256": "7b49f8d7dad27d953ab47475c42986d847b6a3df83c5607fd41ead13b691415c",
+      "executableSHA256": "c299652ca05ab1fd57776e2066ee3312b9b30d57ed9cf362738f403dd545debd",
+      "processVerified": true,
+      "humanObservation": "都符合预期",
+      "actions": "用户用旁白进入 Playback Position 和 Player Volume 滑块、调整数值并试听变化后的时间或音量；音量恢复 100%。",
+      "initialState": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 26.5280625,
+        "playerVolume": 1
+      },
+      "agentObservation": {
+        "media": "02-test-tone.wav",
+        "state": "Paused",
+        "positionSeconds": 90.85773,
+        "focusedElement": "Player Volume slider",
+        "playerVolume": 1
+      },
+      "seekAndValueSpeech": "PASS",
+      "volumeAndValueSpeech": "PASS",
+      "playerVolumeRestored": "PASS",
+      "result": "PASS",
+      "scope": "旁白定位与播放器音量子场景；不代表完整 Q34-P05。",
+      "evidenceSHA256": "93fc977ce6adb2235b66e3b5574f5a8f70040b097d81a1e487d53741bf44e377"
+    }
+  },
+  "recovery": "用户容器已备份；新候选第二条合成音频保持 Paused；系统音量已恢复；VoiceOver 已开启，代表流程进行中，最终辅助功能和数据恢复尚未执行。",
+  "rawEvidenceCommitted": false,
+  "evidence": {
+    "media-key-red.log": "8a2dab26a00241db07ea5fcc6deea1a83aff126ae43b49c53dd4bdd5e8865a7c",
+    "media-key-green.log": "6b8912de323633eab0d3170ddba939cf36bbccad136c1eb58ae4d210ec5165b9",
+    "media-key-cleanup-red.log": "fdbed1d5f909cca9fea9651418031827baec0d5772de0b9f3852833db412a5a7",
+    "media-key-cleanup-green.log": "215c478e27c1ac7e3a93e15297738ea277d60115d81b8ee1c6745f69b42fc1f6",
+    "build-media-key-fix.log": "875f1419cbb70f9e28be1ca1d81d3187bdb92297916386bba1e0985ef0ebe7d3",
+    "inputs.sha256": "8c8d843f32f0bee4043853282cc8c41f27a704e716781143300df9b4b352516e"
+  },
+  "buildNote": "Xcode 27.0 下从锁定源码重建的闭包未通过既有哈希锁；随后复用历史 VerifiedEngine，经当前完整输入验证通过后构建本候选。未修改依赖锁。"
+}
