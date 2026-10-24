@@ -9,7 +9,7 @@
     "dynamicClosureSHA256": "a08a127327efd5403936ff86a6e402568e304d1934cdaec46d45da5bb67526c8"
   },
   "overallQualification": "FAIL",
-  "sessionState": "AWAITING_HUMAN_VOICEOVER_VOLUME_INTERACTION",
+  "sessionState": "AWAITING_HUMAN_VOICEOVER_VOLUME_DECREASE",
   "processImageVerified": true,
   "candidateSignatureAndClosureVerified": true,
   "userData": {
@@ -183,7 +183,7 @@
       "result": "PASS"
     }
   },
-  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放/暂停及自动通知、播放位置名称与时间朗读、前后定位及退出滑块交互已通过。向后时间朗读1分钟25秒与AX一致，向前步骤具体朗读值仍未采集。音量滑块焦点由代理准备，音量100%且暂停；音量交互、不同Playlist切换、其余旁白流程及最终恢复待完成，总资格FAIL。",
+  "evidenceBoundary": "Q34-B01及Q34-P04为PASS；Q34-P05为PARTIAL。旁白播放/暂停及通知、播放位置名称与时间朗读、前后定位及退出交互通过；播放器音量名称与100%朗读已获用户确认且AX一致。实际音量调节、不同Playlist切换、其余完整旁白流程及最终恢复待完成，总资格FAIL。",
   "nextScenario": {
     "scenario": "Q34-P05 VoiceOver",
     "candidateCommit": "41a535fd15a7c9d19c1fc2d984b0a5fd8bc14930",
@@ -225,7 +225,7 @@
       "错误恢复与焦点返回",
       "关闭旁白并核对焦点与播放上下文"
     ],
-    "nextHumanAction": "第44步：点标题栏切回播放器，按住Control、Option和Shift，只按一次向下方向键后松开。报告旁白实际读出的控件名称、百分比或交互提示，以及是否仍暂停；先不要按其他键，保持旁白开启。",
+    "nextHumanAction": "第45步：点标题栏切回播放器，按住Control和Option，只按一次向左方向键后松开。报告播放器音量是否降低、旁白实际读出的具体百分比，以及是否仍暂停；先不要调回或按其他键，保持旁白开启。",
     "subcases": {
       "enableVoiceOver": {
         "result": "PASS",
@@ -761,17 +761,46 @@
         "screenshotSHA256": "39bff18ed4a8e25cce6da6896e19b380538a21a55aa23cb2dad18ca7a2a49fd2",
         "verificationSHA256": "f9a0c003a4e7fb33912f9dce89c032f8d8dae670be9cf6c4ffcf4bfc44c7e438",
         "scope": "退出播放位置滑块交互且保持暂停通过。"
+      },
+      "interactWithPlayerVolume": {
+        "result": "PASS",
+        "recordedAtUTC": "2026-10-24T01:20:41.849461+00:00",
+        "observedDate": "2026-10-24",
+        "humanObservation": "点标题栏切回播放器后，按了一次 Control + Option + Shift + 向下方向键，听到“播放器音量”和“100%”的朗读，仍为“已暂停”，没有再按其他键，目前保持旁白开启。",
+        "agentObservation": {
+          "media": "02-test-tone.wav",
+          "playbackState": "已暂停",
+          "positionSeconds": 85.342362,
+          "playerVolume": 1,
+          "volumeDisplay": "100%",
+          "muted": false,
+          "keyboardFocusedElement": "播放器音量滑块",
+          "voiceOverEnabled": true,
+          "voiceOverPreferenceValue": "1",
+          "appleKeyboardUIMode": 2,
+          "evidenceBoundary": "实际进入交互后听到的名称与100%来自用户反馈；AX独立核对名称、百分比、位置和暂停状态，不替代实际朗读。"
+        },
+        "spokenControlName": "播放器音量",
+        "spokenPercentage": "100%",
+        "spokenValueVerification": "PASS",
+        "processVerified": true,
+        "candidateRecordVerified": true,
+        "executableVerified": true,
+        "axSHA256": "3d696503f1363b8dc2e2d1b26b1638df8f06d644fe1f65240abe301f95dc68f5",
+        "screenshotSHA256": "39bff18ed4a8e25cce6da6896e19b380538a21a55aa23cb2dad18ca7a2a49fd2",
+        "verificationSHA256": "75b6d0b6079a3db5d9aabb786848f0bff0cc93308b0c0a8eb8aee345b87bb01d",
+        "scope": "音量滑块交互、名称与当前百分比朗读通过；实际音量调节及更新值朗读待执行。"
       }
     },
     "evidenceBoundary": "实际听感和VoiceOver操作须由用户逐步确认；AX及偏好读取只作为独立辅助证据。",
     "nextSubcase": {
-      "id": "interactWithPlayerVolume",
+      "id": "voiceOverDecreasePlayerVolume",
       "result": "NOT_RUN",
-      "expectedBehavior": "在播放器音量滑块上只按一次Control-Option-Shift-下箭头，听取控件名称、百分比或交互提示；此步骤不调整音量。",
+      "expectedBehavior": "在已进入交互的播放器音量滑块中，只按一次Control-Option-左箭头，检查播放器音量减小并听取新的百分比；播放保持暂停、位置不变。",
       "expectedPositionSeconds": 85.342362,
-      "expectedPlayerVolume": 1,
+      "beforePlayerVolume": 1,
       "expectedPlaybackState": "已暂停",
-      "commandReference": "https://support.apple.com/zh-hans/guide/voiceover/cpvokys07/mac"
+      "commandReference": "https://www.apple.com/uk/voiceover/info/guide/_1122.html"
     },
     "recovery": {
       "state": "PENDING_SCENARIO_COMPLETION",
@@ -881,7 +910,7 @@
       "screenshotSHA256": "78a9925db871775d55ac0d8740f044641dc565b9e6cd67a47e10a9229317e55e",
       "focusTrailSHA256": "799fdc32686e63b0d34bb1aeb545b4779f19c43d16db302d324ff56f02610544"
     },
-    "rawRecordSHA256": "2d897f7982427a1edfb68a9b154f2793ba737e7821f0418984cea4f3ef6a8b63"
+    "rawRecordSHA256": "829635a739c755a97b70d29a9c812a439f6be17704ee016a21337ccac734758e"
   },
   "systemVolumeKeys": {
     "scenario": "Q34-P04 系统音量键",
